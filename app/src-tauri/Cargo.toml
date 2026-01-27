@@ -1,0 +1,38 @@
+[package]
+name = "personal-assistant-dashboard"
+version = "0.1.0"
+description = "Personal Assistant Dashboard"
+authors = ["Justin Deisler"]
+edition = "2021"
+
+[lib]
+name = "personal_assistant_dashboard_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+tauri-plugin-sql = { version = "2", features = ["sqlite"] }
+tauri-plugin-fs = "2"
+tauri-plugin-dialog = "2.5.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Claude CLI integration (non-interactive mode)
+tokio = { version = "1", features = ["full", "sync", "process"] }
+parking_lot = "0.12"
+uuid = { version = "1", features = ["v4"] }
+dirs = "5"
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "1"
+tauri-plugin-opener = "2.5.3"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
