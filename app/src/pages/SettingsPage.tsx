@@ -164,9 +164,6 @@ export function SettingsPage() {
     <div className="space-y-6 max-w-2xl">
       <div>
         <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground text-sm sm:text-base">
-          Configure your personal assistant.
-        </p>
       </div>
 
       {/* Profile */}

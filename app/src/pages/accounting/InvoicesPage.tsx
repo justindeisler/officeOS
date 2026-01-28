@@ -246,9 +246,6 @@ export function InvoicesPage() {
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
             Invoices
           </h1>
-          <p className="text-muted-foreground text-sm sm:text-base">
-            Create and track invoices for your clients.
-          </p>
         </div>
         <Card>
           <CardContent className="p-12 text-center">
@@ -280,9 +277,6 @@ export function InvoicesPage() {
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
             Invoices
           </h1>
-          <p className="text-muted-foreground text-sm sm:text-base">
-            Create and track invoices for your clients.
-          </p>
         </div>
         <Button onClick={() => setDialogOpen(true)} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />

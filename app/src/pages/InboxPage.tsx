@@ -35,9 +35,6 @@ export function InboxPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Inbox</h1>
-          <p className="text-muted-foreground text-sm sm:text-base">
-            Process your captured thoughts and ideas.
-          </p>
         </div>
         <Button onClick={() => setCaptureDialogOpen(true)} className="w-full sm:w-auto">
           <Zap className="h-4 w-4 mr-2" />

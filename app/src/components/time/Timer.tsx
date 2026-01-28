@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Play, Pause, Square, Clock } from "lucide-react";
+import { Play, Pause, Square, Clock, FolderKanban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -16,6 +16,7 @@ import {
   useActiveEntry,
   useTodayTotalMinutes,
 } from "@/stores/timerStore";
+import { useProjectStore, useActiveProjects } from "@/stores/projectStore";
 import type { TimeCategory } from "@/types";
 
 function formatTime(totalSeconds: number): string {
@@ -58,10 +59,23 @@ export function Timer() {
   const { startTimer, stopTimer, pauseTimer, resumeTimer } = useTimerStore();
   const activeEntry = useActiveEntry();
   const todayTotal = useTodayTotalMinutes();
+  const { initialize: initializeProjects } = useProjectStore();
+  const activeProjects = useActiveProjects();
 
   const [category, setCategory] = useState<TimeCategory>("coding");
   const [description, setDescription] = useState("");
+  const [projectId, setProjectId] = useState<string | undefined>(undefined);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  // Initialize projects store
+  useEffect(() => {
+    initializeProjects();
+  }, [initializeProjects]);
+
+  // Get project name for display
+  const activeProject = activeEntry?.projectId 
+    ? activeProjects.find(p => p.id === activeEntry.projectId)
+    : null;
 
   const isRunning = activeEntry?.isRunning ?? false;
   const isPaused = activeEntry && !activeEntry.isRunning;
@@ -99,12 +113,14 @@ export function Timer() {
     startTimer({
       category,
       description: description.trim() || undefined,
+      projectId: projectId || undefined,
     });
   };
 
   const handleStop = () => {
     stopTimer();
     setDescription("");
+    setProjectId(undefined);
   };
 
   const handlePause = () => {
@@ -135,14 +151,22 @@ export function Timer() {
             {formatTime(elapsedSeconds)}
           </div>
           {activeEntry && (
-            <div className="mt-2 flex items-center justify-center gap-2">
-              <span
-                className={`w-2 h-2 rounded-full ${categoryColors[activeEntry.category]} ${isRunning ? "animate-pulse" : ""}`}
-              />
-              <span className="text-sm text-muted-foreground">
-                {categoryLabels[activeEntry.category]}
-                {activeEntry.description && ` • ${activeEntry.description}`}
-              </span>
+            <div className="mt-2 flex flex-col items-center gap-1">
+              <div className="flex items-center gap-2">
+                <span
+                  className={`w-2 h-2 rounded-full ${categoryColors[activeEntry.category]} ${isRunning ? "animate-pulse" : ""}`}
+                />
+                <span className="text-sm text-muted-foreground">
+                  {categoryLabels[activeEntry.category]}
+                  {activeEntry.description && ` • ${activeEntry.description}`}
+                </span>
+              </div>
+              {activeProject && (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <FolderKanban className="h-3 w-3" />
+                  <span>{activeProject.name}</span>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -203,6 +227,37 @@ export function Timer() {
                 placeholder="What are you working on?"
               />
             </div>
+
+            {/* Project Selector */}
+            {activeProjects.length > 0 && (
+              <div className="grid gap-2">
+                <Label htmlFor="project">Project (optional)</Label>
+                <Select
+                  value={projectId || "none"}
+                  onValueChange={(v) => setProjectId(v === "none" ? undefined : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <FolderKanban className="h-4 w-4" />
+                        No project
+                      </div>
+                    </SelectItem>
+                    {activeProjects.map((project) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        <div className="flex items-center gap-2">
+                          <FolderKanban className="h-4 w-4 text-primary" />
+                          {project.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         )}
 

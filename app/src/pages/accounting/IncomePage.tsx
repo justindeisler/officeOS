@@ -30,12 +30,6 @@ export function IncomePage() {
   return (
     <>
       <div className="space-y-6 animate-in fade-in">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Income</h1>
-            <p className="text-muted-foreground">Track and manage your business income</p>
-          </div>
-        </div>
         <IncomeList
           onAddIncome={handleAddIncome}
           onEditIncome={handleEditIncome}

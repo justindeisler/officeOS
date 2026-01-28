@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
-import { Plus } from "lucide-react";
+import { Plus, FolderKanban } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useTimerStore } from "@/stores/timerStore";
+import { useProjectStore, useActiveProjects } from "@/stores/projectStore";
 import type { TimeCategory } from "@/types";
 
 interface TimeEntryFormProps {
@@ -29,15 +30,23 @@ interface TimeEntryFormProps {
 
 export function TimeEntryForm({ open, onOpenChange }: TimeEntryFormProps) {
   const { addManualEntry } = useTimerStore();
+  const { initialize: initializeProjects } = useProjectStore();
+  const activeProjects = useActiveProjects();
 
   const [category, setCategory] = useState<TimeCategory>("coding");
   const [description, setDescription] = useState("");
+  const [projectId, setProjectId] = useState<string | undefined>(undefined);
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("10:00");
   const [hours, setHours] = useState("1");
   const [minutes, setMinutes] = useState("0");
   const [entryMode, setEntryMode] = useState<"range" | "duration">("duration");
+
+  // Initialize projects store
+  useEffect(() => {
+    initializeProjects();
+  }, [initializeProjects]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,6 +74,7 @@ export function TimeEntryForm({ open, onOpenChange }: TimeEntryFormProps) {
     addManualEntry({
       category,
       description: description.trim() || undefined,
+      projectId: projectId || undefined,
       startTime: startTimeISO,
       endTime: endTimeISO,
       durationMinutes,
@@ -72,6 +82,7 @@ export function TimeEntryForm({ open, onOpenChange }: TimeEntryFormProps) {
 
     // Reset form
     setDescription("");
+    setProjectId(undefined);
     setHours("1");
     setMinutes("0");
     onOpenChange(false);
@@ -144,6 +155,37 @@ export function TimeEntryForm({ open, onOpenChange }: TimeEntryFormProps) {
                 placeholder="What did you work on?"
               />
             </div>
+
+            {/* Project */}
+            {activeProjects.length > 0 && (
+              <div className="grid gap-2">
+                <Label htmlFor="project">Project</Label>
+                <Select
+                  value={projectId || "none"}
+                  onValueChange={(v) => setProjectId(v === "none" ? undefined : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <FolderKanban className="h-4 w-4" />
+                        No project
+                      </div>
+                    </SelectItem>
+                    {activeProjects.map((project) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        <div className="flex items-center gap-2">
+                          <FolderKanban className="h-4 w-4 text-primary" />
+                          {project.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {/* Date */}
             <div className="grid gap-2">

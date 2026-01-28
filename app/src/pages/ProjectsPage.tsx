@@ -76,9 +76,6 @@ export function ProjectsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Projects</h1>
-          <p className="text-muted-foreground text-sm sm:text-base">
-            Track project status and progress.
-          </p>
         </div>
         <Button onClick={handleAddProject} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { format } from "date-fns";
-import { Trash2, Clock, MoreHorizontal } from "lucide-react";
+import { Trash2, Clock, MoreHorizontal, FolderKanban } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { useTimerStore } from "@/stores/timerStore";
+import { useProjectById } from "@/stores/projectStore";
 import type { TimeEntry, TimeCategory } from "@/types";
 
 interface TimeEntryCardProps {
@@ -45,6 +46,7 @@ function formatDuration(minutes: number): string {
 
 export function TimeEntryCard({ entry }: TimeEntryCardProps) {
   const { deleteEntry } = useTimerStore();
+  const project = useProjectById(entry.projectId || "");
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const handleConfirmDelete = () => {
@@ -85,6 +87,14 @@ export function TimeEntryCard({ entry }: TimeEntryCardProps) {
               <p className="text-sm font-medium truncate">{entry.description}</p>
             ) : (
               <p className="text-sm text-muted-foreground italic">No description</p>
+            )}
+
+            {/* Project */}
+            {project && (
+              <div className="flex items-center gap-1.5 mt-1">
+                <FolderKanban className="h-3 w-3 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">{project.name}</span>
+              </div>
             )}
           </div>
 

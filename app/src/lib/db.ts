@@ -8,7 +8,8 @@ let db: Database | null = null;
 // Note: Tauri v2 uses __TAURI__, not __TAURI_INTERNALS__ (which was v1)
 function isTauri(): boolean {
   return typeof window !== 'undefined' &&
-         '__TAURI__' in window;
+         '__TAURI__' in window &&
+         !!(window as unknown as { __TAURI__?: unknown }).__TAURI__;
 }
 
 // Wait for Tauri IPC bridge to be ready
@@ -31,7 +32,12 @@ export async function getDb(): Promise<Database> {
     // Wait for Tauri IPC to be ready
     const ready = await waitForTauri();
     if (!ready) {
-      throw new Error("Tauri runtime not available. This app must run inside Tauri.");
+      // Web mode - return a stub that won't be used (data comes from API)
+      console.log("[DB] Web mode detected - using REST API for data");
+      return {
+        select: async () => [],
+        execute: async () => {},
+      } as unknown as Database;
     }
 
     try {

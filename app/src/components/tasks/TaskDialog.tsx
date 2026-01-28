@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { format } from "date-fns";
-import { Trash2, Download } from "lucide-react";
+import { Trash2, Download, Bot } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { useTaskStore } from "@/stores/taskStore";
 import { useProjectStore } from "@/stores/projectStore";
@@ -30,7 +31,7 @@ import {
   generateFilename,
 } from "@/lib/markdown";
 import { toast } from "sonner";
-import type { Task, TaskStatus, TaskPriority, Area } from "@/types";
+import type { Task, TaskStatus, TaskPriority, Area, Assignee } from "@/types";
 
 interface TaskDialogProps {
   open: boolean;
@@ -58,6 +59,7 @@ export function TaskDialog({
   const [area, setArea] = useState<Area>("freelance");
   const [dueDate, setDueDate] = useState("");
   const [projectId, setProjectId] = useState<string | undefined>(undefined);
+  const [assignee, setAssignee] = useState<Assignee>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const isEditing = !!task;
@@ -71,6 +73,7 @@ export function TaskDialog({
       setArea(task.area);
       setDueDate(task.dueDate ? format(new Date(task.dueDate), "yyyy-MM-dd") : "");
       setProjectId(task.projectId);
+      setAssignee(task.assignee || null);
     } else {
       setTitle("");
       setDescription("");
@@ -79,6 +82,7 @@ export function TaskDialog({
       setArea("freelance");
       setDueDate("");
       setProjectId(undefined);
+      setAssignee(null);
     }
   }, [task, defaultStatus, open]);
 
@@ -95,6 +99,7 @@ export function TaskDialog({
       area,
       dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
       projectId,
+      assignee,
     };
 
     if (isEditing && task) {
@@ -255,6 +260,26 @@ export function TaskDialog({
                   onChange={(e) => setDueDate(e.target.value)}
                 />
               </div>
+            </div>
+
+            {/* Assign to James */}
+            <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
+              <div className="flex items-center gap-3">
+                <Bot className="h-5 w-5 text-primary" />
+                <div className="space-y-0.5">
+                  <Label htmlFor="assignJames" className="text-sm font-medium">
+                    Assign to James
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    James will pick up this task automatically
+                  </p>
+                </div>
+              </div>
+              <Switch
+                id="assignJames"
+                checked={assignee === "james"}
+                onCheckedChange={(checked) => setAssignee(checked ? "james" : null)}
+              />
             </div>
           </div>
 

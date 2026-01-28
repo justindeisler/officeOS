@@ -30,12 +30,6 @@ export function AssetsPage() {
   return (
     <>
       <div className="space-y-6 animate-in fade-in">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Assets</h1>
-            <p className="text-muted-foreground">Manage fixed assets and depreciation (AfA)</p>
-          </div>
-        </div>
         <AssetList
           onAddAsset={handleAddAsset}
           onEditAsset={handleEditAsset}

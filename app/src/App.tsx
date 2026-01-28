@@ -6,6 +6,8 @@ import { QuickCaptureDialog } from "./components/capture/QuickCaptureDialog";
 import { CommandPalette } from "./components/CommandPalette";
 import { Confetti } from "./components/ui/Confetti";
 import { useAppInitialization } from "./hooks/useAppInitialization";
+import { useAuthStore } from "./stores/authStore";
+import { LoginPage } from "./pages/LoginPage";
 
 // Direct imports (removed lazy loading to fix navigation issues in Tauri)
 import { DashboardPage } from "./pages/DashboardPage";
@@ -27,7 +29,16 @@ function App() {
   const [captureDialogOpen, setCaptureDialogOpen] = useState(false);
   const navigate = useNavigate();
   const { isLoading, error } = useAppInitialization();
-  console.log("[App] State:", { isLoading, error });
+  
+  // Auth state
+  const { isAuthenticated, isLoading: authLoading, verifyToken } = useAuthStore();
+  
+  // Verify token on mount
+  useEffect(() => {
+    verifyToken();
+  }, [verifyToken]);
+  
+  console.log("[App] State:", { isLoading, error, isAuthenticated, authLoading });
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -91,8 +102,8 @@ function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [navigate]);
 
-  // Show loading state during initialization
-  if (isLoading) {
+  // Show loading state during auth check or app initialization
+  if (authLoading || isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
@@ -101,6 +112,11 @@ function App() {
         </div>
       </div>
     );
+  }
+
+  // Show login page if not authenticated
+  if (!isAuthenticated) {
+    return <LoginPage />;
   }
 
   // Show error state if initialization failed

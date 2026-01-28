@@ -58,6 +58,8 @@ export interface Project {
   updatedAt: string;
 }
 
+export type Assignee = "justin" | "james" | null;
+
 export interface Task {
   id: string;
   projectId?: string;
@@ -69,6 +71,7 @@ export interface Task {
   completedAt?: string;
   estimatedMinutes?: number;
   area: Area;
+  assignee?: Assignee;
   markdownPath?: string;
   sortOrder: number;
   tags?: Tag[];

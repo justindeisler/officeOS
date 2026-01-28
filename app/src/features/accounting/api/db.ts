@@ -3,6 +3,7 @@
  *
  * Provides database connection for the accounting feature.
  * Uses @tauri-apps/plugin-sql for SQLite operations in Tauri.
+ * Falls back to REST API in web mode.
  *
  * NOTE: Dynamic import to avoid blocking React mount.
  */
@@ -14,8 +15,18 @@ let db: Database | null = null;
 let initPromise: Promise<Database> | null = null;
 
 /**
+ * Check if running in Tauri environment
+ */
+function isTauri(): boolean {
+  return typeof window !== 'undefined' &&
+         '__TAURI__' in window &&
+         !!(window as unknown as { __TAURI__?: unknown }).__TAURI__;
+}
+
+/**
  * Get the database instance (lazy initialization)
  * Ensures tables are created on first access
+ * Returns a stub in web mode (data comes from REST API)
  */
 export async function getDb(): Promise<Database> {
   if (db) return db;
@@ -23,6 +34,16 @@ export async function getDb(): Promise<Database> {
   if (initPromise) return initPromise;
 
   initPromise = (async () => {
+    // Web mode - return a stub (data comes from REST API)
+    if (!isTauri()) {
+      console.log("[Accounting DB] Web mode detected - using REST API for data");
+      return {
+        select: async () => [],
+        execute: async () => ({ rowsAffected: 0 }),
+        close: async () => {},
+      } as unknown as Database;
+    }
+
     const { default: Database } = await import('@tauri-apps/plugin-sql');
     db = await Database.load('sqlite:personal-assistant.db');
     await initializeTables(db);

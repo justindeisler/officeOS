@@ -20,9 +20,6 @@ export function DashboardPage() {
       {/* Header */}
       <div>
         <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">{getGreeting()}</h1>
-        <p className="text-muted-foreground text-sm sm:text-base">
-          {format(today, "EEEE, MMMM d, yyyy")}
-        </p>
       </div>
 
       {/* Main Grid - uses container queries for responsive layout */}
