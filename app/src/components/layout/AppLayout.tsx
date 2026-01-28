@@ -17,15 +17,14 @@ import {
   TrendingDown,
   Package,
   FileText,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useUnprocessedCount } from "@/stores/captureStore";
 import { useUserName } from "@/stores/settingsStore";
-import { ClaudePanel } from "@/components/claude/ClaudePanel";
-import { ClaudeFAB } from "@/components/claude/ClaudeFAB";
-import { useClaudePanelOpen, useClaudePanelWidth } from "@/stores/claudeStore";
+import { useAuthStore } from "@/stores/authStore";
 import { NavItemWithChildren, NavChild } from "./NavItemWithChildren";
 import type { LucideIcon } from "lucide-react";
 
@@ -67,8 +66,7 @@ export function AppLayout({ onQuickCapture }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const unprocessedCount = useUnprocessedCount();
   const userName = useUserName();
-  const claudePanelOpen = useClaudePanelOpen();
-  const claudePanelWidth = useClaudePanelWidth();
+  const logout = useAuthStore((state) => state.logout);
 
   // Close sidebar on navigation (mobile only)
   const handleNavClick = () => {
@@ -150,7 +148,7 @@ export function AppLayout({ onQuickCapture }: AppLayoutProps) {
       </nav>
 
       {/* Footer */}
-      <div className="border-t p-4">
+      <div className="border-t p-4 space-y-1">
         <NavLink
           to="/settings"
           onClick={handleNavClick}
@@ -166,6 +164,16 @@ export function AppLayout({ onQuickCapture }: AppLayoutProps) {
           <Settings className="h-4 w-4" />
           Settings
         </NavLink>
+        <button
+          onClick={() => {
+            handleNavClick();
+            logout();
+          }}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors text-sidebar-foreground/70 hover:bg-red-500/10 hover:text-red-500"
+        >
+          <LogOut className="h-4 w-4" />
+          Logout
+        </button>
       </div>
     </div>
   );
@@ -222,22 +230,12 @@ export function AppLayout({ onQuickCapture }: AppLayoutProps) {
       </aside>
 
       {/* Main content */}
-      <main
-        className="flex-1 pt-14 md:pt-0 md:pl-64 transition-all duration-300 @container"
-        style={{
-          marginRight: claudePanelOpen ? claudePanelWidth : 0,
-        }}
-      >
+      <main className="flex-1 pt-14 md:pt-0 md:pl-64 transition-all duration-300 @container">
         <div className="h-full p-4 sm:p-6 md:p-8">
           <Outlet />
         </div>
       </main>
 
-      {/* Claude Assistant Panel */}
-      <ClaudePanel />
-
-      {/* Claude FAB (Floating Action Button) */}
-      <ClaudeFAB />
     </div>
   );
 }
