@@ -202,9 +202,9 @@ export function AssetList({
   return (
     <div className={cn('space-y-4', className)}>
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-semibold tracking-tight">Assets</h2>
-        <Button onClick={onAddAsset}>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight">Assets</h2>
+        <Button onClick={onAddAsset} className="w-full sm:w-auto">
           <Plus className="mr-2 h-4 w-4" />
           Add Asset
         </Button>
@@ -233,8 +233,8 @@ export function AssetList({
       ) : (
         <>
           {/* Table */}
-          <div className="rounded-md border">
-            <Table>
+          <div className="rounded-md border overflow-x-auto">
+            <Table className="min-w-[900px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
@@ -322,21 +322,21 @@ export function AssetList({
           </div>
 
           {/* Summary */}
-          <div className="flex justify-end gap-4">
-            <div className="rounded-lg bg-muted p-4">
+          <div className="flex justify-start sm:justify-end">
+            <div className="rounded-lg bg-muted p-3 sm:p-4 w-full sm:w-auto">
               <div className="text-sm font-medium text-muted-foreground">Summary</div>
-              <div className="mt-1 grid grid-cols-3 gap-6 text-right">
+              <div className="mt-1 grid grid-cols-3 gap-2 sm:gap-6 text-right">
                 <div>
                   <div className="text-xs text-muted-foreground">Total Purchase</div>
-                  <div className="font-medium">{formatCurrency(totals.purchaseValue)}</div>
+                  <div className="font-medium text-sm sm:text-base">{formatCurrency(totals.purchaseValue)}</div>
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Total Book Value</div>
-                  <div className="font-semibold">{formatCurrency(totals.bookValue)}</div>
+                  <div className="font-semibold text-sm sm:text-base">{formatCurrency(totals.bookValue)}</div>
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Active Assets</div>
-                  <div className="font-medium">{totals.activeCount} active</div>
+                  <div className="font-medium text-sm sm:text-base">{totals.activeCount} active</div>
                 </div>
               </div>
             </div>

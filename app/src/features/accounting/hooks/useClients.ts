@@ -3,11 +3,14 @@
  *
  * React hook for managing client state and operations.
  * Provides CRUD operations with loading and error states.
+ * 
+ * Uses the centralized service layer which switches between
+ * Tauri SQLite and REST API based on the environment.
  */
 
 import { useState, useCallback, useEffect } from 'react'
 import type { Client, NewClient } from '../types'
-import * as clientsApi from '../api/clients'
+import { clientService } from '@/services'
 
 export interface UseClientsOptions {
   /** Auto-fetch clients on mount */
@@ -45,14 +48,28 @@ export function useClients(options: UseClientsOptions = {}): UseClientsReturn {
 
   /**
    * Fetch all clients
+   * Maps from global Client type to accounting Client type
    */
   const fetchClients = useCallback(async () => {
     setIsLoading(true)
     setError(null)
 
     try {
-      const data = await clientsApi.getAllClients()
-      setClients(data)
+      const data = await clientService.getAll()
+      // Map from global Client type to accounting Client type
+      // Global: company, contactInfo, notes, status, updatedAt
+      // Accounting: address, vatId
+      const mappedClients: Client[] = data.map((c) => ({
+        id: c.id,
+        name: c.name,
+        // Use company as address fallback, or contactInfo
+        address: (c as unknown as { address?: string }).address || c.company || undefined,
+        // vatId may be stored in notes or contactInfo in global type
+        vatId: (c as unknown as { vatId?: string }).vatId || undefined,
+        email: c.email || undefined,
+        createdAt: c.createdAt ? new Date(c.createdAt) : new Date(),
+      }))
+      setClients(mappedClients)
     } catch (err) {
       console.error('Failed to fetch clients:', err)
       const message =
@@ -69,6 +86,7 @@ export function useClients(options: UseClientsOptions = {}): UseClientsReturn {
 
   /**
    * Create a new client
+   * Maps accounting NewClient to global Client type for service
    */
   const createClient = useCallback(
     async (data: NewClient): Promise<Client | null> => {
@@ -76,7 +94,21 @@ export function useClients(options: UseClientsOptions = {}): UseClientsReturn {
       setError(null)
 
       try {
-        const newClient = await clientsApi.createClient(data)
+        const created = await clientService.create({
+          name: data.name,
+          company: data.address, // Map address to company field
+          email: data.email,
+          notes: data.vatId ? `VAT ID: ${data.vatId}` : undefined, // Store vatId in notes
+          status: 'active',
+        })
+        const newClient: Client = {
+          id: created.id,
+          name: created.name,
+          address: created.company || undefined,
+          vatId: data.vatId, // Keep original vatId
+          email: created.email || undefined,
+          createdAt: created.createdAt ? new Date(created.createdAt) : new Date(),
+        }
         setClients((prev) => [...prev, newClient].sort((a, b) => a.name.localeCompare(b.name)))
         return newClient
       } catch (err) {
@@ -91,6 +123,7 @@ export function useClients(options: UseClientsOptions = {}): UseClientsReturn {
 
   /**
    * Update an existing client
+   * Maps accounting fields to global Client type for service
    */
   const updateClient = useCallback(
     async (id: string, data: Partial<NewClient>): Promise<Client | null> => {
@@ -98,15 +131,31 @@ export function useClients(options: UseClientsOptions = {}): UseClientsReturn {
       setError(null)
 
       try {
-        const updated = await clientsApi.updateClient(id, data)
+        await clientService.update(id, {
+          name: data.name,
+          company: data.address, // Map address to company
+          email: data.email,
+          notes: data.vatId ? `VAT ID: ${data.vatId}` : undefined,
+        })
+        // Fetch the updated client
+        const updated = await clientService.getById(id)
         if (updated) {
+          const mappedClient: Client = {
+            id: updated.id,
+            name: updated.name,
+            address: updated.company || undefined,
+            vatId: data.vatId, // Keep the vatId we passed in
+            email: updated.email || undefined,
+            createdAt: updated.createdAt ? new Date(updated.createdAt) : new Date(),
+          }
           setClients((prev) =>
             prev
-              .map((client) => (client.id === id ? updated : client))
+              .map((client) => (client.id === id ? mappedClient : client))
               .sort((a, b) => a.name.localeCompare(b.name))
           )
+          return mappedClient
         }
-        return updated
+        return null
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to update client')
         return null
@@ -125,11 +174,9 @@ export function useClients(options: UseClientsOptions = {}): UseClientsReturn {
     setError(null)
 
     try {
-      const success = await clientsApi.deleteClient(id)
-      if (success) {
-        setClients((prev) => prev.filter((client) => client.id !== id))
-      }
-      return success
+      await clientService.delete(id)
+      setClients((prev) => prev.filter((client) => client.id !== id))
+      return true
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete client')
       return false

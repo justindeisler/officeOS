@@ -189,13 +189,14 @@ export function Anlageverzeichnis({
   return (
     <div className={cn('space-y-6', className)}>
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-xl font-semibold">Anlageverzeichnis {year}</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             size="sm"
             onClick={() => onExportCSV?.(filteredAssets, year)}
+            className="flex-1 sm:flex-none"
           >
             <FileSpreadsheet className="mr-2 h-4 w-4" />
             CSV Export
@@ -204,6 +205,7 @@ export function Anlageverzeichnis({
             variant="outline"
             size="sm"
             onClick={() => onExportPDF?.(filteredAssets, year)}
+            className="flex-1 sm:flex-none"
           >
             <FileText className="mr-2 h-4 w-4" />
             PDF Export
@@ -212,7 +214,7 @@ export function Anlageverzeichnis({
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4" data-testid="summary-section">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4" data-testid="summary-section">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -266,8 +268,8 @@ export function Anlageverzeichnis({
 
       {/* Asset Table */}
       <Card>
-        <CardContent className="p-0">
-          <Table>
+        <CardContent className="p-0 overflow-x-auto">
+          <Table className="min-w-[900px]">
             <TableHeader>
               <TableRow>
                 <TableHead scope="col">Bezeichnung</TableHead>

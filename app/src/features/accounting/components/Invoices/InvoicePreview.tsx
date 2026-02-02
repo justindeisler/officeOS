@@ -5,8 +5,10 @@
  * Shows invoice header, line items, totals, and payment information.
  */
 
+import { useState } from 'react'
 import type { Invoice, InvoiceStatus } from '../../types'
 import { cn } from '@/lib/utils'
+import { api, isWebBuild } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -17,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Printer, Download, X } from 'lucide-react'
+import { Printer, Download, X, Loader2 } from 'lucide-react'
 
 export interface InvoicePreviewProps {
   /** Invoice to preview */
@@ -81,18 +83,76 @@ export function InvoicePreview({
   className,
 }: InvoicePreviewProps) {
   const statusBadge = getStatusBadge(invoice.status)
+  const [isDownloading, setIsDownloading] = useState(false)
+
+  /**
+   * Handle PDF download
+   */
+  const handleDownload = async () => {
+    // If a custom onDownload handler is provided, use it
+    if (onDownload) {
+      onDownload()
+      return
+    }
+
+    // Only available in web build
+    if (!isWebBuild()) {
+      // For Tauri builds, we could use print-to-PDF
+      window.print()
+      return
+    }
+
+    setIsDownloading(true)
+    try {
+      const blob = await api.downloadInvoicePdf(invoice.id)
+
+      // Create download link
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${invoice.invoiceNumber}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Failed to download PDF:', err)
+    } finally {
+      setIsDownloading(false)
+    }
+  }
+
+  /**
+   * Handle print
+   */
+  const handlePrint = () => {
+    if (onPrint) {
+      onPrint()
+    } else {
+      window.print()
+    }
+  }
 
   return (
     <div className={cn('space-y-6 p-6', className)}>
       {/* Action Bar */}
       <div className="flex items-center justify-between print:hidden">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={onPrint}>
+          <Button variant="outline" size="sm" onClick={handlePrint}>
             <Printer className="mr-2 h-4 w-4" />
             Print
           </Button>
-          <Button variant="outline" size="sm" onClick={onDownload}>
-            <Download className="mr-2 h-4 w-4" />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDownload}
+            disabled={isDownloading}
+          >
+            {isDownloading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="mr-2 h-4 w-4" />
+            )}
             Download PDF
           </Button>
         </div>

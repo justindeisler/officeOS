@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import type { Invoice, Client, Project, Task } from "@/types";
+import type { PRD } from "@/types/prd";
 
 interface InvoiceExportContext {
   client?: Client;
@@ -14,6 +15,10 @@ interface TaskExportContext {
 interface ProjectExportContext {
   client?: Client;
   tasks?: Task[];
+}
+
+interface PRDExportContext {
+  project?: Project;
 }
 
 // ============================================
@@ -290,6 +295,251 @@ ${taskSection}
 }
 
 // ============================================
+// PRD Export
+// ============================================
+
+const prdStatusLabels: Record<string, string> = {
+  draft: "Draft",
+  review: "In Review",
+  approved: "Approved",
+  in_progress: "In Progress",
+  completed: "Completed",
+};
+
+const prdPriorityLabels: Record<string, string> = {
+  critical: "🔴 Critical",
+  high: "🟠 High",
+  medium: "🟡 Medium",
+  low: "🟢 Low",
+};
+
+/**
+ * Export a PRD to markdown format
+ */
+export function exportPRDToMarkdown(
+  prd: PRD,
+  context: PRDExportContext = {}
+): string {
+  const { project } = context;
+
+  const createdDate = format(new Date(prd.createdAt), "MMMM d, yyyy");
+  const updatedDate = format(new Date(prd.updatedAt), "MMMM d, yyyy");
+
+  const tags = ["prd", prd.area, prd.status];
+  if (prd.assignee) tags.push(`assigned-${prd.assignee}`);
+
+  // Build user stories section
+  let userStoriesSection = "";
+  if (prd.userStories && prd.userStories.length > 0) {
+    const stories = prd.userStories.map((story, i) => {
+      const criteria = story.acceptanceCriteria.map(c => `- [ ] ${c}`).join("\n");
+      return `### Story ${i + 1}
+**As a** ${story.persona}
+**I want to** ${story.action}
+**So that** ${story.benefit}
+
+**Acceptance Criteria:**
+${criteria}`;
+    }).join("\n\n");
+    
+    userStoriesSection = `## User Stories
+
+${stories}`;
+  }
+
+  // Build requirements section
+  let requirementsSection = "";
+  if (prd.requirements && prd.requirements.length > 0) {
+    const functionalReqs = prd.requirements.filter(r => r.type === "functional");
+    const nonFunctionalReqs = prd.requirements.filter(r => r.type === "non-functional");
+    
+    let frSection = "";
+    if (functionalReqs.length > 0) {
+      const frRows = functionalReqs.map((r, i) => 
+        `| FR${i + 1} | ${r.description} | ${prdPriorityLabels[r.priority] || r.priority} |`
+      ).join("\n");
+      frSection = `### Functional Requirements
+
+| # | Requirement | Priority |
+|---|-------------|----------|
+${frRows}`;
+    }
+    
+    let nfrSection = "";
+    if (nonFunctionalReqs.length > 0) {
+      const nfrRows = nonFunctionalReqs.map((r, i) => 
+        `| NFR${i + 1} | ${r.description} | ${prdPriorityLabels[r.priority] || r.priority} |`
+      ).join("\n");
+      nfrSection = `### Non-Functional Requirements
+
+| # | Requirement | Priority |
+|---|-------------|----------|
+${nfrRows}`;
+    }
+    
+    requirementsSection = `## Requirements
+
+${frSection}
+
+${nfrSection}`;
+  }
+
+  // Build technical section
+  const technicalParts: string[] = [];
+  
+  if (prd.technicalApproach) {
+    technicalParts.push(`### Technical Approach
+${prd.technicalApproach}`);
+  }
+  
+  if (prd.dependencies && prd.dependencies.length > 0) {
+    technicalParts.push(`### Dependencies
+${prd.dependencies.map(d => `- ${d}`).join("\n")}`);
+  }
+  
+  if (prd.risks && prd.risks.length > 0) {
+    technicalParts.push(`### Risks
+${prd.risks.map(r => `- ⚠️ ${r}`).join("\n")}`);
+  }
+  
+  if (prd.assumptions && prd.assumptions.length > 0) {
+    technicalParts.push(`### Assumptions
+${prd.assumptions.map(a => `- ${a}`).join("\n")}`);
+  }
+  
+  if (prd.constraints && prd.constraints.length > 0) {
+    technicalParts.push(`### Constraints
+${prd.constraints.map(c => `- ${c}`).join("\n")}`);
+  }
+  
+  const technicalSection = technicalParts.length > 0 
+    ? `## Technical Considerations
+
+${technicalParts.join("\n\n")}` 
+    : "";
+
+  // Build metrics section
+  const metricsParts: string[] = [];
+  
+  if (prd.successMetrics && prd.successMetrics.length > 0) {
+    metricsParts.push(`### Success Metrics
+${prd.successMetrics.map(m => `- 📊 ${m}`).join("\n")}`);
+  }
+  
+  if (prd.estimatedEffort) {
+    metricsParts.push(`### Estimated Effort
+${prd.estimatedEffort}`);
+  }
+  
+  if (prd.milestones && prd.milestones.length > 0) {
+    const milestoneRows = prd.milestones.map(m => {
+      const targetDate = m.targetDate 
+        ? format(new Date(m.targetDate), "MMM d, yyyy") 
+        : "TBD";
+      return `| ${m.title} | ${m.description || "-"} | ${targetDate} |`;
+    }).join("\n");
+    
+    metricsParts.push(`### Milestones
+
+| Milestone | Description | Target Date |
+|-----------|-------------|-------------|
+${milestoneRows}`);
+  }
+  
+  const metricsSection = metricsParts.length > 0 
+    ? `## Success Metrics & Timeline
+
+${metricsParts.join("\n\n")}` 
+    : "";
+
+  // Build non-goals section
+  const nonGoalsSection = prd.nonGoals && prd.nonGoals.length > 0
+    ? `### Non-Goals
+
+${prd.nonGoals.map(ng => `- ${ng}`).join("\n")}`
+    : "";
+
+  // Build goals list
+  const goalsList = prd.goals.map((g, i) => `${i + 1}. ${g}`).join("\n");
+
+  // Build assignee info
+  const assigneeInfo = prd.assignee 
+    ? ` | **Assignee:** ${prd.assignee.charAt(0).toUpperCase() + prd.assignee.slice(1)}`
+    : "";
+
+  // Build overview table rows
+  const overviewRows = [
+    `| **Feature Name** | ${prd.featureName} |`,
+    `| **Version** | ${prd.version} |`,
+    `| **Area** | ${prd.area.charAt(0).toUpperCase() + prd.area.slice(1)} |`,
+  ];
+  
+  if (project) {
+    overviewRows.push(`| **Project** | ${project.name} |`);
+  }
+  
+  overviewRows.push(`| **Status** | ${prdStatusLabels[prd.status] || prd.status} |`);
+  overviewRows.push(`| **Author** | ${prd.author} |`);
+  
+  if (prd.assignee) {
+    overviewRows.push(`| **Assignee** | ${prd.assignee.charAt(0).toUpperCase() + prd.assignee.slice(1)} |`);
+  }
+  
+  overviewRows.push(`| **Created** | ${createdDate} |`);
+  overviewRows.push(`| **Last Updated** | ${updatedDate} |`);
+
+  return `---
+tags: [${tags.join(", ")}]
+feature_name: "${prd.featureName}"
+version: "${prd.version}"
+status: ${prd.status}
+area: ${prd.area}
+author: "${prd.author}"
+${prd.assignee ? `assignee: "${prd.assignee}"` : ""}
+${project ? `project: "${project.name}"` : ""}
+created: ${prd.createdAt}
+updated: ${prd.updatedAt}
+---
+
+# PRD: ${prd.featureName}
+
+> **Version:** ${prd.version} | **Status:** ${prdStatusLabels[prd.status] || prd.status} | **Author:** ${prd.author}${assigneeInfo}
+
+## Overview
+
+| Field | Value |
+|-------|-------|
+${overviewRows.join("\n")}
+
+## Problem Statement
+
+${prd.problemStatement}
+
+## Goals
+
+${goalsList}
+
+${nonGoalsSection}
+
+## Target Users
+
+${prd.targetUsers}
+
+${userStoriesSection}
+
+${requirementsSection}
+
+${technicalSection}
+
+${metricsSection}
+
+---
+
+*PRD generated on ${format(new Date(), "MMMM d, yyyy 'at' HH:mm")}*
+`;
+}
+
+// ============================================
 // File Operations
 // ============================================
 
@@ -364,4 +614,18 @@ export function getProjectPath(project: Project, workspacePath: string): string 
 export function getInvoicePath(invoice: Invoice, workspacePath: string): string {
   const filename = `${invoice.invoiceNumber}.md`;
   return `${workspacePath}/Areas/Finances/Invoices/${filename}`;
+}
+
+/**
+ * Get the suggested path for a PRD file
+ */
+export function getPRDPath(prd: PRD, workspacePath: string): string {
+  const areaFolder =
+    prd.area === "wellfy"
+      ? "Wellfy"
+      : prd.area === "freelance"
+        ? "Freelance"
+        : "Personal";
+  const filename = `PRD-${generateFilename(prd.featureName)}`;
+  return `${workspacePath}/Areas/${areaFolder}/PRDs/${filename}`;
 }

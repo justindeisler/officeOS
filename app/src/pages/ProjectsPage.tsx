@@ -134,11 +134,11 @@ export function ProjectsPage() {
           </Button>
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="flex gap-4 overflow-x-auto pb-4 md:grid md:grid-cols-2 lg:grid-cols-4 md:overflow-visible md:pb-0">
           {pipelineColumns.map((column) => (
             <div
               key={column.id}
-              className="rounded-lg border bg-muted/30 p-4 min-h-[400px]"
+              className="min-w-[280px] flex-shrink-0 md:min-w-0 rounded-lg border bg-muted/30 p-4 min-h-[400px]"
             >
               {/* Column Header */}
               <div className="flex items-center justify-between mb-4">

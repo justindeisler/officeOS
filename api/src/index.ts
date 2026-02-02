@@ -2,6 +2,9 @@
  * Personal Assistant REST API + Static File Server
  */
 
+// Load environment variables first (before any other imports)
+import "dotenv/config";
+
 import express from "express";
 import cors from "cors";
 import { join, dirname } from "path";
@@ -15,6 +18,17 @@ import timeRouter from "./routes/time.js";
 import capturesRouter from "./routes/captures.js";
 import authRouter, { authMiddleware } from "./routes/auth.js";
 import jamesRouter from "./routes/james.js";
+import invoicesRouter from "./routes/invoices.js";
+import secondBrainRouter from "./routes/second-brain.js";
+import settingsRouter from "./routes/settings.js";
+import incomeRouter from "./routes/income.js";
+import expensesRouter from "./routes/expenses.js";
+import assetsRouter from "./routes/assets.js";
+import prdsRouter from "./routes/prds.js";
+import suggestionsRouter from "./routes/suggestions.js";
+import jamesActionsRouter from "./routes/james-actions.js";
+import jamesAutomationsRouter from "./routes/james-automations.js";
+import jamesTasksRouter from "./routes/james-tasks.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -44,6 +58,17 @@ app.use("/api/projects", authMiddleware, projectsRouter);
 app.use("/api/clients", authMiddleware, clientsRouter);
 app.use("/api/time", authMiddleware, timeRouter);
 app.use("/api/captures", authMiddleware, capturesRouter);
+app.use("/api/invoices", authMiddleware, invoicesRouter);
+app.use("/api/second-brain", authMiddleware, secondBrainRouter);
+app.use("/api/settings", authMiddleware, settingsRouter);
+app.use("/api/income", authMiddleware, incomeRouter);
+app.use("/api/expenses", authMiddleware, expensesRouter);
+app.use("/api/assets", authMiddleware, assetsRouter);
+app.use("/api/prds", authMiddleware, prdsRouter);
+app.use("/api/suggestions", authMiddleware, suggestionsRouter);
+app.use("/api/james-actions", authMiddleware, jamesActionsRouter);
+app.use("/api/james-automations", authMiddleware, jamesAutomationsRouter);
+app.use("/api/james-tasks", authMiddleware, jamesTasksRouter);
 
 // Serve static files from the web build
 if (existsSync(STATIC_PATH)) {

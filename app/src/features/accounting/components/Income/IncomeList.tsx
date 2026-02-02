@@ -156,9 +156,9 @@ export function IncomeList({
   return (
     <div className={cn('space-y-4', className)}>
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-semibold tracking-tight">Income</h2>
-        <Button onClick={onAddIncome}>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight">Income</h2>
+        <Button onClick={onAddIncome} className="w-full sm:w-auto">
           <Plus className="mr-2 h-4 w-4" />
           Add Income
         </Button>
@@ -187,8 +187,8 @@ export function IncomeList({
       ) : (
         <>
           {/* Table */}
-          <div className="rounded-md border">
-            <Table>
+          <div className="rounded-md border overflow-x-auto">
+            <Table className="min-w-[700px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
@@ -265,21 +265,21 @@ export function IncomeList({
           </div>
 
           {/* Summary */}
-          <div className="flex justify-end">
-            <div className="rounded-lg bg-muted p-4">
+          <div className="flex justify-start sm:justify-end">
+            <div className="rounded-lg bg-muted p-3 sm:p-4 w-full sm:w-auto">
               <div className="text-sm font-medium text-muted-foreground">Total</div>
-              <div className="mt-1 grid grid-cols-3 gap-4 text-right">
+              <div className="mt-1 grid grid-cols-3 gap-2 sm:gap-4 text-right">
                 <div>
                   <div className="text-xs text-muted-foreground">Net</div>
-                  <div className="font-medium">{formatCurrency(totals.net)}</div>
+                  <div className="font-medium text-sm sm:text-base">{formatCurrency(totals.net)}</div>
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">VAT</div>
-                  <div className="font-medium">{formatCurrency(totals.vat)}</div>
+                  <div className="font-medium text-sm sm:text-base">{formatCurrency(totals.vat)}</div>
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Gross</div>
-                  <div className="font-semibold">{formatCurrency(totals.gross)}</div>
+                  <div className="font-semibold text-sm sm:text-base">{formatCurrency(totals.gross)}</div>
                 </div>
               </div>
             </div>

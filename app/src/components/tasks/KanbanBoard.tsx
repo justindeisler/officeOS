@@ -17,6 +17,8 @@ import { TaskCard } from "./TaskCard";
 import { TaskDialog } from "./TaskDialog";
 import { useTaskStore, useFilteredTasks } from "@/stores/taskStore";
 import { useConfettiStore } from "@/stores/confettiStore";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
 import type { Task, TaskStatus } from "@/types";
 
 const columns: { id: TaskStatus; title: string }[] = [
@@ -177,6 +179,24 @@ export function KanbanBoard() {
     setNewTaskStatus(null);
   };
 
+  const handleAssignToJames = async (task: Task) => {
+    try {
+      // Update task to assign to James
+      const { updateTask } = useTaskStore.getState();
+      updateTask(task.id, { assignee: "james" });
+      
+      // Trigger James to start working on it
+      await api.triggerJames();
+      
+      toast.success(`Assigned "${task.title}" to James`, {
+        description: "James will start working on it shortly",
+      });
+    } catch (error) {
+      console.error("Failed to assign to James:", error);
+      toast.error("Failed to assign task to James");
+    }
+  };
+
   return (
     <>
       <DndContext
@@ -186,16 +206,18 @@ export function KanbanBoard() {
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="flex flex-col gap-4 sm:grid sm:grid-cols-2 lg:grid-cols-4">
           {columns.map((column) => (
-            <KanbanColumn
-              key={column.id}
-              id={column.id}
-              title={column.title}
-              tasks={tasksByStatus[column.id]}
-              onAddTask={handleAddTask}
-              onEditTask={handleEditTask}
-            />
+            <div key={column.id} className="w-full">
+              <KanbanColumn
+                id={column.id}
+                title={column.title}
+                tasks={tasksByStatus[column.id]}
+                onAddTask={handleAddTask}
+                onEditTask={handleEditTask}
+                onAssignToJames={handleAssignToJames}
+              />
+            </div>
           ))}
         </div>
 

@@ -10,6 +10,10 @@ export { captureService } from "./captureService";
 export { settingsService } from "./settingsService";
 export { tagService } from "./tagService";
 export { invoiceService } from "./invoiceService";
+export { prdService } from "./prdService";
+export { incomeService } from "./incomeService";
+export { expensesService } from "./expensesService";
+export { assetsService } from "./assetsService";
 
 // Base utilities
 export { toDbFormat, fromDbFormat } from "./base";

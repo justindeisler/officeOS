@@ -21,8 +21,9 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Trash2, Plus, Search, Loader2, Send, Check } from 'lucide-react'
+import { Trash2, Plus, Search, Loader2, Send, Check, Download } from 'lucide-react'
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog'
+import { api, isWebBuild } from '@/lib/api'
 
 export interface InvoiceListProps {
   /** Callback when new invoice button is clicked */
@@ -95,6 +96,7 @@ export function InvoiceList({
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'all'>('all')
   const [deletingInvoiceId, setDeletingInvoiceId] = useState<string | null>(null)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
   // Filter invoices
   const filteredInvoices = useMemo(() => {
@@ -159,6 +161,37 @@ export function InvoiceList({
   const handleMarkAsPaid = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
     await markAsPaid(id, new Date())
+  }
+
+  // Handle PDF download
+  const handleDownloadPdf = async (e: React.MouseEvent, invoice: Invoice) => {
+    e.stopPropagation()
+
+    // Only available in web build (uses REST API)
+    if (!isWebBuild()) {
+      console.warn('PDF download is only available in web mode')
+      return
+    }
+
+    setDownloadingId(invoice.id)
+
+    try {
+      const blob = await api.downloadInvoicePdf(invoice.id)
+
+      // Create download link
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${invoice.invoiceNumber}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Failed to download PDF:', err)
+    } finally {
+      setDownloadingId(null)
+    }
   }
 
   // Loading state
@@ -293,6 +326,23 @@ export function InvoiceList({
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
+                          {/* Download PDF button (only in web mode) */}
+                          {isWebBuild() && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => handleDownloadPdf(e, invoice)}
+                              aria-label="Download PDF"
+                              title="Download PDF"
+                              disabled={downloadingId === invoice.id}
+                            >
+                              {downloadingId === invoice.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                              ) : (
+                                <Download className="h-4 w-4 text-muted-foreground hover:text-primary" />
+                              )}
+                            </Button>
+                          )}
                           {invoice.status === 'draft' && (
                             <Button
                               variant="ghost"

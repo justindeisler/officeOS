@@ -63,6 +63,7 @@ export type Assignee = "justin" | "james" | null;
 export interface Task {
   id: string;
   projectId?: string;
+  prdId?: string;
   title: string;
   description?: string;
   status: TaskStatus;
@@ -127,12 +128,20 @@ export interface InvoiceLineItem {
   total: number;
 }
 
+export type ProcessingStatus = "pending" | "processing" | "completed" | "failed";
+export type ProcessedBy = "manual" | "james";
+export type ArtifactType = "task" | "calendar_event" | "prd" | "note";
+
 export interface Capture {
   id: string;
   content: string;
   type: CaptureType;
   processed: boolean;
   processedTo?: string;
+  processingStatus?: ProcessingStatus;
+  processedBy?: ProcessedBy;
+  artifactType?: ArtifactType;
+  artifactId?: string;
   createdAt: string;
 }
 
@@ -157,12 +166,37 @@ export interface WeeklyMetrics {
   revenue: number;
 }
 
+export interface BusinessProfile {
+  // Personal Info
+  fullName: string;
+  jobTitle: string;
+  email: string;
+  phone?: string;
+
+  // Address
+  street: string;
+  postalCode: string;
+  city: string;
+  country: string;
+
+  // Tax Information
+  vatId?: string; // USt-IdNr
+  taxId?: string; // Steuernummer
+
+  // Bank Details
+  bankAccountHolder: string;
+  bankName: string;
+  bankIban: string;
+  bankBic: string;
+}
+
 export interface Settings {
   workspacePath?: string;
   theme: "light" | "dark" | "system";
   defaultArea: Area;
   defaultCurrency: string;
   userName: string;
+  businessProfile?: BusinessProfile;
 }
 
 // ============================================
@@ -180,4 +214,22 @@ export interface DashboardStats {
   timeTrackedToday: number; // minutes
   activeProjects: number;
   revenueMTD: number;
+}
+
+// ============================================
+// Second Brain Types
+// ============================================
+
+export interface SecondBrainDocument {
+  path: string;
+  name: string;
+  title: string;
+  folder: string;
+  lastModified: string;
+  content?: string;
+}
+
+export interface SecondBrainFolder {
+  name: string;
+  documents: SecondBrainDocument[];
 }

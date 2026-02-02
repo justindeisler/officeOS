@@ -23,6 +23,11 @@ export function TimePage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_350px]">
+        {/* Timer - Shown first on mobile, in sidebar on desktop */}
+        <div className="lg:hidden">
+          <Timer />
+        </div>
+        
         {/* Main Content */}
         <div className="space-y-6">
           <Tabs defaultValue="daily" className="w-full">
@@ -39,8 +44,8 @@ export function TimePage() {
           </Tabs>
         </div>
 
-        {/* Sidebar - Timer */}
-        <div className="space-y-4">
+        {/* Sidebar - Timer (desktop only) */}
+        <div className="hidden lg:block space-y-4">
           <Timer />
         </div>
       </div>

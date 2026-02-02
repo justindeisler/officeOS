@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Outlet, NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -18,6 +18,10 @@ import {
   Package,
   FileText,
   LogOut,
+  Folder,
+  Brain,
+  Bot,
+  Lightbulb,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -25,6 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { useUnprocessedCount } from "@/stores/captureStore";
 import { useUserName } from "@/stores/settingsStore";
 import { useAuthStore } from "@/stores/authStore";
+import { useActiveProjects } from "@/stores/projectStore";
 import { NavItemWithChildren, NavChild } from "./NavItemWithChildren";
 import type { LucideIcon } from "lucide-react";
 
@@ -36,13 +41,14 @@ interface NavItem {
   children?: NavChild[];
 }
 
-const navigation: NavItem[] = [
+// Base navigation items (Projects is dynamically generated with active projects)
+const baseNavigation: NavItem[] = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Tasks", href: "/tasks", icon: CheckSquare },
   { name: "Time", href: "/time", icon: Clock },
   { name: "Inbox", href: "/inbox", icon: Inbox, showBadge: true },
   { name: "Clients", href: "/clients", icon: Users },
-  { name: "Projects", href: "/projects", icon: FolderKanban },
+  // Projects nav item is added dynamically below
   {
     name: "Accounting",
     href: "/accounting",
@@ -56,6 +62,20 @@ const navigation: NavItem[] = [
       { name: "Reports", href: "/accounting/reports", icon: FileText },
     ],
   },
+  { name: "PRD Creator", href: "/prd", icon: FileText },
+  { name: "Second Brain", href: "/second-brain", icon: Brain },
+  { 
+    name: "James", 
+    href: "/james-brain", 
+    icon: Bot,
+    children: [
+      { name: "Overview", href: "/james-brain", icon: LayoutDashboard },
+      { name: "Suggestions", href: "/james-brain/suggestions", icon: Lightbulb },
+      { name: "Tasks", href: "/james-brain/tasks", icon: CheckSquare },
+      { name: "Automations", href: "/james-brain/automations", icon: Clock },
+      { name: "Activity Log", href: "/james-brain/activity", icon: Zap },
+    ],
+  },
 ];
 
 interface AppLayoutProps {
@@ -67,6 +87,34 @@ export function AppLayout({ onQuickCapture }: AppLayoutProps) {
   const unprocessedCount = useUnprocessedCount();
   const userName = useUserName();
   const logout = useAuthStore((state) => state.logout);
+  const activeProjects = useActiveProjects();
+
+  // Build navigation with dynamic project children
+  const navigation = useMemo(() => {
+    // Create project nav item with active projects as children
+    const projectChildren: NavChild[] = [
+      { name: "All Projects", href: "/projects", icon: FolderKanban },
+      ...activeProjects.slice(0, 10).map((project) => ({
+        name: project.name.length > 20 ? `${project.name.slice(0, 20)}...` : project.name,
+        href: `/projects/${project.id}`,
+        icon: Folder,
+      })),
+    ];
+
+    const projectNavItem: NavItem = {
+      name: "Projects",
+      href: "/projects",
+      icon: FolderKanban,
+      children: projectChildren,
+    };
+
+    // Insert Projects nav item at the correct position (after Clients)
+    const clientsIndex = baseNavigation.findIndex((item) => item.name === "Clients");
+    const navItems = [...baseNavigation];
+    navItems.splice(clientsIndex + 1, 0, projectNavItem);
+
+    return navItems;
+  }, [activeProjects]);
 
   // Close sidebar on navigation (mobile only)
   const handleNavClick = () => {
@@ -104,7 +152,7 @@ export function AppLayout({ onQuickCapture }: AppLayoutProps) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 p-4">
+      <nav className="flex-1 space-y-1 p-4 overflow-y-auto">
         {navigation.map((item) => {
           // Render expandable nav item for items with children
           if (item.children) {
@@ -190,11 +238,12 @@ export function AppLayout({ onQuickCapture }: AppLayoutProps) {
         >
           <Menu className="h-5 w-5" />
         </Button>
-        <img
-          src="/app-icon.png"
-          alt="Profile"
-          className="h-8 w-8 rounded-full shadow-md"
-        />
+        <span 
+          className="text-3xl text-primary"
+          style={{ fontFamily: "'Sacramento', cursive" }}
+        >
+          personal assistant
+        </span>
       </header>
 
       {/* Mobile sidebar overlay */}

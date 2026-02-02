@@ -169,12 +169,12 @@ export function AccountingDashboard({
   return (
     <div className={cn('space-y-6', className)}>
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Dashboard</h1>
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4">
           {/* Period selector */}
           <div className="flex items-center gap-2">
-            <Label htmlFor="year-select">Period</Label>
+            <Label htmlFor="year-select" className="hidden sm:inline">Period</Label>
             <select
               id="year-select"
               aria-label="Period"
@@ -191,7 +191,7 @@ export function AccountingDashboard({
           </div>
           <Button variant="outline" size="sm" onClick={refresh}>
             <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
         </div>
       </div>
@@ -202,7 +202,7 @@ export function AccountingDashboard({
       </p>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
+      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
         {/* Total Income */}
         <StatCard
           title="Total Income"

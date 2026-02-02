@@ -1,15 +1,17 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { format } from "date-fns";
-import { Calendar, FolderOpen, GripVertical, MoreHorizontal, Users } from "lucide-react";
+import { Bot, Calendar, FileText, FolderOpen, GripVertical, MoreHorizontal, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useProjectStore } from "@/stores/projectStore";
+import { usePRDStore } from "@/stores/prdStore";
 import type { Task } from "@/types";
 
 interface TaskCardProps {
   task: Task;
   onEdit: (task: Task) => void;
+  onAssignToJames?: (task: Task) => void;
   isDragging?: boolean;
 }
 
@@ -47,10 +49,14 @@ function getProjectColorIndex(projectName: string): number {
   return hash % projectColors.length;
 }
 
-export function TaskCard({ task, onEdit, isDragging }: TaskCardProps) {
+export function TaskCard({ task, onEdit, onAssignToJames, isDragging }: TaskCardProps) {
   const { projects } = useProjectStore();
+  const { prds } = usePRDStore();
   const project = task.projectId
     ? projects.find((p) => p.id === task.projectId)
+    : null;
+  const prd = task.prdId
+    ? prds.find((p) => p.id === task.prdId)
     : null;
 
   const {
@@ -132,6 +138,28 @@ export function TaskCard({ task, onEdit, isDragging }: TaskCardProps) {
               </span>
             )}
 
+            {/* PRD badge */}
+            {prd && (
+              <span
+                className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium bg-teal-500/20 text-teal-700 dark:text-teal-400 max-w-[140px]"
+                title={`PRD: ${prd.featureName}`}
+              >
+                <FileText className="h-3 w-3 shrink-0" />
+                <span className="truncate">{prd.featureName}</span>
+              </span>
+            )}
+
+            {/* James assignee badge */}
+            {task.assignee === "james" && (
+              <span
+                className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium bg-indigo-500/20 text-indigo-700 dark:text-indigo-400"
+                title="Assigned to James"
+              >
+                <Bot className="h-3 w-3 shrink-0" />
+                James
+              </span>
+            )}
+
             {/* Priority indicator */}
             <span
               className={cn(
@@ -152,13 +180,29 @@ export function TaskCard({ task, onEdit, isDragging }: TaskCardProps) {
           </div>
         </div>
 
-        {/* Actions menu */}
-        <button
-          onClick={() => onEdit(task)}
-          className="opacity-0 transition-opacity group-hover:opacity-100"
-        >
-          <MoreHorizontal className="h-4 w-4 text-muted-foreground hover:text-foreground" />
-        </button>
+        {/* Actions */}
+        <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+          {/* Assign to James button - only show if not already assigned */}
+          {task.assignee !== "james" && onAssignToJames && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onAssignToJames(task);
+              }}
+              className="p-1 rounded hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors"
+              title="Assign to James"
+            >
+              <Bot className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+            </button>
+          )}
+          {/* Edit menu */}
+          <button
+            onClick={() => onEdit(task)}
+            className="p-1 rounded hover:bg-muted transition-colors"
+          >
+            <MoreHorizontal className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+          </button>
+        </div>
       </div>
     </div>
   );

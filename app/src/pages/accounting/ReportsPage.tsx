@@ -45,12 +45,12 @@ export function ReportsPage() {
 
   return (
     <div className="space-y-6 animate-in fade-in">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Reports</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Reports</h1>
         </div>
         <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
-          <SelectTrigger className="w-[120px]">
+          <SelectTrigger className="w-full sm:w-[120px]">
             <SelectValue placeholder="Year" />
           </SelectTrigger>
           <SelectContent>
@@ -64,12 +64,12 @@ export function ReportsPage() {
       </div>
 
       <Tabs defaultValue="vat" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="vat">VAT (USt)</TabsTrigger>
-          <TabsTrigger value="euer">Profit (EÜR)</TabsTrigger>
-          <TabsTrigger value="assets">Asset Register</TabsTrigger>
-          <TabsTrigger value="afa">Depreciation</TabsTrigger>
-          <TabsTrigger value="datev">DATEV Export</TabsTrigger>
+        <TabsList className="flex w-full overflow-x-auto gap-1 sm:grid sm:grid-cols-5">
+          <TabsTrigger value="vat" className="flex-shrink-0">VAT (USt)</TabsTrigger>
+          <TabsTrigger value="euer" className="flex-shrink-0">Profit (EÜR)</TabsTrigger>
+          <TabsTrigger value="assets" className="flex-shrink-0 whitespace-nowrap">Asset Register</TabsTrigger>
+          <TabsTrigger value="afa" className="flex-shrink-0">Depreciation</TabsTrigger>
+          <TabsTrigger value="datev" className="flex-shrink-0 whitespace-nowrap">DATEV Export</TabsTrigger>
         </TabsList>
 
         <TabsContent value="vat" className="mt-6">

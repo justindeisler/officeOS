@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { settingsService } from "@/services";
 import { toast } from "sonner";
-import type { Settings, Area } from "@/types";
+import type { Settings, Area, BusinessProfile } from "@/types";
 
 interface SettingsState extends Settings {
   isLoaded: boolean;
@@ -15,6 +15,7 @@ interface SettingsState extends Settings {
   setDefaultArea: (area: Area) => Promise<void>;
   setDefaultCurrency: (currency: string) => Promise<void>;
   setUserName: (name: string) => Promise<void>;
+  setBusinessProfile: (profile: BusinessProfile) => Promise<void>;
   resetSettings: () => Promise<void>;
 }
 
@@ -131,6 +132,19 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
       set({ userName: previousName });
       console.error("Failed to save user name:", error);
       toast.error("Failed to save user name");
+    }
+  },
+
+  setBusinessProfile: async (profile) => {
+    const previousProfile = get().businessProfile;
+    set({ businessProfile: profile });
+
+    try {
+      await settingsService.set("businessProfile", profile);
+    } catch (error) {
+      set({ businessProfile: previousProfile });
+      console.error("Failed to save business profile:", error);
+      toast.error("Failed to save business profile");
     }
   },
 

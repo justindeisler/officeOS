@@ -3,7 +3,7 @@
  */
 
 import { api } from "@/lib/api";
-import type { Capture } from "@/types";
+import type { Capture, ProcessingStatus } from "@/types";
 
 function toCamelCase(obj: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {};
@@ -49,8 +49,27 @@ class CaptureService {
     await api.processCapture(id, processedTo);
   }
 
+  async processWithJames(id: string): Promise<{ status: string; message: string; captureId: string }> {
+    return api.processWithJames(id);
+  }
+
+  async getProcessingStatus(id: string): Promise<{
+    captureId: string;
+    processingStatus: ProcessingStatus;
+    processedBy?: string;
+    artifactType?: string;
+    artifactId?: string;
+    processed: boolean;
+  }> {
+    return api.getProcessingStatus(id);
+  }
+
   async delete(id: string): Promise<void> {
     await api.deleteCapture(id);
+  }
+
+  async update(id: string, updates: Partial<Capture>): Promise<void> {
+    // This is called by the store but we don't need it for web
   }
 }
 

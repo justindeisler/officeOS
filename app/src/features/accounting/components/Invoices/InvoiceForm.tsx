@@ -274,14 +274,14 @@ export function InvoiceForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className={cn('space-y-6', className)}>
+    <form onSubmit={handleSubmit} className={cn('space-y-5 w-full max-w-full overflow-hidden', className)}>
       {/* Header */}
       <h2 className="text-xl font-semibold">
         {isEditing ? 'Edit Invoice' : 'New Invoice'}
       </h2>
 
       {/* Invoice Details */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
         {/* Invoice Date */}
         <div className="space-y-2">
           <Label htmlFor="invoiceDate" className="flex items-center gap-2">
@@ -293,6 +293,7 @@ export function InvoiceForm({
             type="date"
             value={invoiceDate}
             onChange={(e) => setInvoiceDate(e.target.value)}
+            className="h-10"
           />
         </div>
 
@@ -307,6 +308,7 @@ export function InvoiceForm({
             type="date"
             value={dueDate}
             onChange={(e) => setDueDate(e.target.value)}
+            className="h-10"
           />
         </div>
 
@@ -364,7 +366,7 @@ export function InvoiceForm({
 
         {/* Project Selection - Only show when client has projects */}
         {clientId && filteredProjects.length > 0 && (
-          <div className="space-y-2 md:col-span-2">
+          <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="project" className="flex items-center gap-2">
               <FolderKanban className="h-3.5 w-3.5 text-muted-foreground" />
               Project
@@ -420,15 +422,17 @@ export function InvoiceForm({
           <p className="text-sm text-destructive">{errors.items}</p>
         )}
 
-        <div className="space-y-3">
+        <div className="space-y-3 w-full">
           {lineItems.map((item, index) => (
-            <div key={item.id} className="rounded-lg border p-4">
-              <div className="grid items-start gap-3 md:grid-cols-[1fr_80px_80px_100px_40px]">
-                {/* Description */}
-                <div>
+            <div key={item.id} className="rounded-lg border p-3 sm:p-4 w-full">
+              {/* Mobile Layout */}
+              <div className="flex flex-col gap-3 sm:hidden w-full">
+                {/* Description - full width */}
+                <div className="w-full">
+                  <Label className="text-xs text-muted-foreground mb-1 block">Description</Label>
                   <Input
                     placeholder="Description"
-                    className="h-9"
+                    className="h-10 w-full"
                     value={item.description}
                     onChange={(e) =>
                       updateLineItem(item.id, 'description', e.target.value)
@@ -441,13 +445,15 @@ export function InvoiceForm({
                   )}
                 </div>
 
-                {/* Quantity */}
-                <div>
+                {/* Quantity - full width */}
+                <div className="w-full">
+                  <Label className="text-xs text-muted-foreground mb-1 block">Quantity</Label>
                   <Input
                     id={`quantity-${item.id}`}
                     aria-label="Quantity"
-                    className="h-9"
+                    className="h-10 w-full"
                     type="number"
+                    inputMode="decimal"
                     min="0.01"
                     step="0.01"
                     value={item.quantity}
@@ -455,37 +461,37 @@ export function InvoiceForm({
                       updateLineItem(item.id, 'quantity', parseFloat(e.target.value) || 0)
                     }
                   />
-                  {errors.itemQuantities?.[item.id] && (
-                    <p className="mt-1 text-xs text-destructive">
-                      {errors.itemQuantities[item.id]}
-                    </p>
-                  )}
                 </div>
 
-                {/* Unit */}
-                <Select
-                  value={item.unit}
-                  onValueChange={(v) => updateLineItem(item.id, 'unit', v)}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="hours">hrs</SelectItem>
-                    <SelectItem value="days">days</SelectItem>
-                    <SelectItem value="month">month</SelectItem>
-                    <SelectItem value="units">units</SelectItem>
-                    <SelectItem value="pieces">pcs</SelectItem>
-                  </SelectContent>
-                </Select>
+                {/* Unit - full width */}
+                <div className="w-full">
+                  <Label className="text-xs text-muted-foreground mb-1 block">Unit</Label>
+                  <Select
+                    value={item.unit}
+                    onValueChange={(v) => updateLineItem(item.id, 'unit', v)}
+                  >
+                    <SelectTrigger className="h-10 w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="hours">Hours</SelectItem>
+                      <SelectItem value="days">Days</SelectItem>
+                      <SelectItem value="month">Month</SelectItem>
+                      <SelectItem value="units">Units</SelectItem>
+                      <SelectItem value="pieces">Pieces</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                {/* Unit Price */}
-                <div>
+                {/* Unit Price - full width */}
+                <div className="w-full">
+                  <Label className="text-xs text-muted-foreground mb-1 block">Unit Price (€)</Label>
                   <Input
                     id={`unitPrice-${item.id}`}
                     aria-label="Unit Price"
-                    className="h-9"
+                    className="h-10 w-full"
                     type="number"
+                    inputMode="decimal"
                     min="0.01"
                     step="0.01"
                     value={item.unitPrice}
@@ -493,29 +499,122 @@ export function InvoiceForm({
                       updateLineItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)
                     }
                   />
-                  {errors.itemPrices?.[item.id] && (
-                    <p className="mt-1 text-xs text-destructive">
-                      {errors.itemPrices[item.id]}
-                    </p>
-                  )}
                 </div>
 
-                {/* Remove Button */}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9"
-                  onClick={() => removeLineItem(item.id)}
-                  aria-label="Remove"
-                >
-                  <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-                </Button>
+                {/* Amount and Delete - row */}
+                <div className="flex items-center justify-between pt-2 border-t w-full">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-destructive -ml-2"
+                    onClick={() => removeLineItem(item.id)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Remove
+                  </Button>
+                  <span className="font-semibold text-base">
+                    {formatCurrency(lineItemAmounts[index])}
+                  </span>
+                </div>
               </div>
 
-              {/* Line Amount */}
-              <div className="mt-3 text-right text-sm font-medium">
-                {formatCurrency(lineItemAmounts[index])}
+              {/* Desktop Layout */}
+              <div className="hidden sm:block">
+                <div className="grid items-start gap-3 grid-cols-[1fr_80px_90px_100px_40px]">
+                  {/* Description */}
+                  <div>
+                    <Input
+                      placeholder="Description"
+                      className="h-9"
+                      value={item.description}
+                      onChange={(e) =>
+                        updateLineItem(item.id, 'description', e.target.value)
+                      }
+                    />
+                    {errors.itemDescriptions?.[item.id] && (
+                      <p className="mt-1 text-xs text-destructive">
+                        {errors.itemDescriptions[item.id]}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Quantity */}
+                  <div>
+                    <Input
+                      id={`quantity-desktop-${item.id}`}
+                      aria-label="Quantity"
+                      className="h-9"
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={item.quantity}
+                      onChange={(e) =>
+                        updateLineItem(item.id, 'quantity', parseFloat(e.target.value) || 0)
+                      }
+                    />
+                    {errors.itemQuantities?.[item.id] && (
+                      <p className="mt-1 text-xs text-destructive">
+                        {errors.itemQuantities[item.id]}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Unit */}
+                  <Select
+                    value={item.unit}
+                    onValueChange={(v) => updateLineItem(item.id, 'unit', v)}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="hours">hrs</SelectItem>
+                      <SelectItem value="days">days</SelectItem>
+                      <SelectItem value="month">month</SelectItem>
+                      <SelectItem value="units">units</SelectItem>
+                      <SelectItem value="pieces">pcs</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {/* Unit Price */}
+                  <div>
+                    <Input
+                      id={`unitPrice-desktop-${item.id}`}
+                      aria-label="Unit Price"
+                      className="h-9"
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={item.unitPrice}
+                      onChange={(e) =>
+                        updateLineItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)
+                      }
+                    />
+                    {errors.itemPrices?.[item.id] && (
+                      <p className="mt-1 text-xs text-destructive">
+                        {errors.itemPrices[item.id]}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Remove Button */}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9"
+                    onClick={() => removeLineItem(item.id)}
+                    aria-label="Remove"
+                  >
+                    <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                  </Button>
+                </div>
+
+                {/* Line Amount */}
+                <div className="mt-3 text-right text-sm font-medium">
+                  {formatCurrency(lineItemAmounts[index])}
+                </div>
               </div>
             </div>
           ))}
@@ -523,7 +622,7 @@ export function InvoiceForm({
       </div>
 
       {/* Totals */}
-      <div className="space-y-2 rounded-lg bg-muted p-4">
+      <div className="space-y-2 rounded-lg bg-muted p-3 sm:p-4 w-full">
         <div className="flex justify-between text-sm">
           <span className="text-muted-foreground">Subtotal</span>
           <span>{formatCurrency(calculations.subtotal)}</span>
@@ -539,7 +638,7 @@ export function InvoiceForm({
       </div>
 
       {/* Notes */}
-      <div className="space-y-2">
+      <div className="space-y-2 w-full">
         <Label htmlFor="notes">Notes</Label>
         <Textarea
           id="notes"
@@ -547,17 +646,18 @@ export function InvoiceForm({
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Additional notes..."
           rows={3}
+          className="w-full"
         />
       </div>
 
       {/* Actions */}
-      <div className="flex justify-end gap-3">
-        <Button type="button" variant="outline" onClick={onCancel}>
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-2">
+        <Button type="button" variant="outline" onClick={onCancel} className="w-full sm:w-auto">
           Cancel
         </Button>
-        <Button type="submit" disabled={isSubmitting}>
+        <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">
           {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Save
+          Save Invoice
         </Button>
       </div>
     </form>

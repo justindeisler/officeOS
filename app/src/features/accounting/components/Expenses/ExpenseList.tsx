@@ -5,8 +5,24 @@
  * and summary statistics. Shows Vorsteuer, GWG status, and recurring indicators.
  */
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useExpenses } from '../../hooks/useExpenses'
+
+/**
+ * Get auth token from localStorage (same as api.ts)
+ */
+function getAuthToken(): string | null {
+  try {
+    const stored = localStorage.getItem('pa-auth');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return parsed.state?.token || null;
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  return null;
+}
 import type { Expense } from '../../types'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -20,7 +36,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Trash2, Plus, Search, Loader2 } from 'lucide-react'
+import { Trash2, Plus, Search, Loader2, FileText, Download } from 'lucide-react'
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog'
 
 export interface ExpenseListProps {
@@ -150,9 +166,9 @@ export function ExpenseList({
   return (
     <div className={cn('space-y-4', className)}>
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-semibold tracking-tight">Expenses</h2>
-        <Button onClick={onAddExpense}>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight">Expenses</h2>
+        <Button onClick={onAddExpense} className="w-full sm:w-auto">
           <Plus className="mr-2 h-4 w-4" />
           Add Expense
         </Button>
@@ -181,8 +197,8 @@ export function ExpenseList({
       ) : (
         <>
           {/* Table */}
-          <div className="rounded-md border">
-            <Table>
+          <div className="rounded-md border overflow-x-auto">
+            <Table className="min-w-[800px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
@@ -192,6 +208,7 @@ export function ExpenseList({
                   <TableHead className="text-right">Net</TableHead>
                   <TableHead className="text-right">Vorsteuer</TableHead>
                   <TableHead className="text-right">Gross</TableHead>
+                  <TableHead className="text-center">Receipt</TableHead>
                   <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -238,6 +255,100 @@ export function ExpenseList({
                     <TableCell className="text-right font-medium">
                       {formatCurrency(item.grossAmount)}
                     </TableCell>
+                    <TableCell className="text-center">
+                      {item.receiptPath ? (
+                        <div className="flex items-center justify-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              e.preventDefault()
+                              const token = getAuthToken()
+                              if (!token) {
+                                alert('Not authenticated')
+                                return
+                              }
+                              // Open window immediately (iOS requires this)
+                              const newWindow = window.open('about:blank', '_blank')
+                              fetch(`/api/expenses/${item.id}/receipt`, {
+                                headers: { Authorization: `Bearer ${token}` }
+                              })
+                                .then(res => {
+                                  if (!res.ok) throw new Error('Failed')
+                                  return res.blob()
+                                })
+                                .then(blob => {
+                                  const url = URL.createObjectURL(blob)
+                                  if (newWindow) {
+                                    newWindow.location.href = url
+                                  } else {
+                                    // Fallback: create download link
+                                    const link = document.createElement('a')
+                                    link.href = url
+                                    link.target = '_blank'
+                                    link.click()
+                                  }
+                                })
+                                .catch(() => {
+                                  if (newWindow) newWindow.close()
+                                  alert('Failed to view receipt')
+                                })
+                            }}
+                            aria-label="View receipt"
+                            title="View PDF"
+                          >
+                            <FileText className="h-4 w-4 text-muted-foreground hover:text-primary" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              e.preventDefault()
+                              const token = getAuthToken()
+                              if (!token) {
+                                alert('Not authenticated')
+                                return
+                              }
+                              // For iOS: open in new tab which will trigger download
+                              const newWindow = window.open('about:blank', '_blank')
+                              fetch(`/api/expenses/${item.id}/receipt?download=true`, {
+                                headers: { Authorization: `Bearer ${token}` }
+                              })
+                                .then(res => {
+                                  if (!res.ok) throw new Error('Failed')
+                                  return res.blob()
+                                })
+                                .then(blob => {
+                                  const url = URL.createObjectURL(blob)
+                                  if (newWindow) {
+                                    newWindow.location.href = url
+                                  } else {
+                                    // Fallback
+                                    const link = document.createElement('a')
+                                    link.href = url
+                                    link.download = `receipt-${item.id}.pdf`
+                                    document.body.appendChild(link)
+                                    link.click()
+                                    document.body.removeChild(link)
+                                  }
+                                })
+                                .catch(() => {
+                                  if (newWindow) newWindow.close()
+                                  alert('Failed to download receipt')
+                                })
+                            }}
+                            aria-label="Download receipt"
+                            title="Download PDF"
+                          >
+                            <Download className="h-4 w-4 text-muted-foreground hover:text-primary" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <Button
                         variant="ghost"
@@ -255,21 +366,21 @@ export function ExpenseList({
           </div>
 
           {/* Summary */}
-          <div className="flex justify-end">
-            <div className="rounded-lg bg-muted p-4">
+          <div className="flex justify-start sm:justify-end">
+            <div className="rounded-lg bg-muted p-3 sm:p-4 w-full sm:w-auto">
               <div className="text-sm font-medium text-muted-foreground">Total</div>
-              <div className="mt-1 grid grid-cols-3 gap-4 text-right">
+              <div className="mt-1 grid grid-cols-3 gap-2 sm:gap-4 text-right">
                 <div>
                   <div className="text-xs text-muted-foreground">Net</div>
-                  <div className="font-medium">{formatCurrency(totals.net)}</div>
+                  <div className="font-medium text-sm sm:text-base">{formatCurrency(totals.net)}</div>
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Vorsteuer</div>
-                  <div className="font-medium">{formatCurrency(totals.vat)}</div>
+                  <div className="font-medium text-sm sm:text-base">{formatCurrency(totals.vat)}</div>
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Gross</div>
-                  <div className="font-semibold">{formatCurrency(totals.gross)}</div>
+                  <div className="font-semibold text-sm sm:text-base">{formatCurrency(totals.gross)}</div>
                 </div>
               </div>
             </div>

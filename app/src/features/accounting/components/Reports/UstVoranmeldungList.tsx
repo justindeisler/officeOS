@@ -142,9 +142,9 @@ export function UstVoranmeldungList({
   return (
     <div className={cn('space-y-6', className)}>
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-xl font-semibold">USt-Voranmeldung</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={handlePrint}>
             <Printer className="mr-2 h-4 w-4" />
             Drucken
@@ -152,14 +152,15 @@ export function UstVoranmeldungList({
           {ustVoranmeldung.status === 'draft' && (
             <Button size="sm" onClick={handleMarkAsFiled}>
               <FileCheck className="mr-2 h-4 w-4" />
-              Als gemeldet markieren
+              <span className="hidden sm:inline">Als gemeldet markieren</span>
+              <span className="sm:hidden">Melden</span>
             </Button>
           )}
         </div>
       </div>
 
       {/* Year and Quarter Selection */}
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-3 sm:gap-4">
         <div className="flex items-center gap-2">
           <label htmlFor="year-select" className="text-sm font-medium">
             Jahr:
@@ -197,7 +198,7 @@ export function UstVoranmeldungList({
       </div>
 
       {/* Period Info */}
-      <div className="flex items-center justify-between rounded-lg border p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border p-3 sm:p-4">
         <div>
           <p className="text-sm text-muted-foreground">Zeitraum</p>
           <p className="font-medium">{ustVoranmeldung.period}</p>
@@ -206,7 +207,7 @@ export function UstVoranmeldungList({
             {formatDate(ustVoranmeldung.endDate)}
           </p>
         </div>
-        <div className="text-right">
+        <div className="sm:text-right">
           <p className="text-sm text-muted-foreground">Status</p>
           {ustVoranmeldung.status === 'draft' ? (
             <Badge variant="secondary">Entwurf</Badge>
@@ -222,8 +223,8 @@ export function UstVoranmeldungList({
       </div>
 
       {/* VAT Summary Table */}
-      <div className="rounded-lg border">
-        <Table>
+      <div className="rounded-lg border overflow-x-auto">
+        <Table className="min-w-[400px]">
           <TableHeader>
             <TableRow>
               <TableHead className="w-[300px]">Position</TableHead>

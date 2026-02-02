@@ -4,11 +4,13 @@
  * React hook for managing expense state and operations.
  * Provides CRUD operations with loading and error states.
  * Includes Vorsteuer (input VAT) tracking and GWG detection.
+ * 
+ * Uses REST API via expensesService for web deployments.
  */
 
 import { useState, useCallback, useEffect } from 'react'
 import type { Expense, NewExpense } from '../types'
-import * as expensesApi from '../api/expenses'
+import { expensesService } from '@/services/web/expensesService'
 
 export interface UseExpensesOptions {
   /** Auto-fetch expenses on mount */
@@ -85,7 +87,7 @@ export function useExpenses(options: UseExpensesOptions = {}): UseExpensesReturn
     setError(null)
 
     try {
-      const data = await expensesApi.getAllExpenses()
+      const data = await expensesService.getAll()
       setExpenses(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch expenses')
@@ -102,7 +104,10 @@ export function useExpenses(options: UseExpensesOptions = {}): UseExpensesReturn
     setError(null)
 
     try {
-      const data = await expensesApi.getExpensesByDateRange(start, end)
+      const data = await expensesService.getAll({
+        startDate: start.toISOString().split('T')[0],
+        endDate: end.toISOString().split('T')[0],
+      })
       setExpenses(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch expenses')
@@ -113,14 +118,16 @@ export function useExpenses(options: UseExpensesOptions = {}): UseExpensesReturn
 
   /**
    * Fetch expenses by USt period
+   * Note: REST API doesn't support ustPeriod filter, so we fetch all and filter client-side
    */
   const fetchByUstPeriod = useCallback(async (period: string) => {
     setIsLoading(true)
     setError(null)
 
     try {
-      const data = await expensesApi.getExpensesByUstPeriod(period)
-      setExpenses(data)
+      const data = await expensesService.getAll()
+      const filtered = data.filter(e => e.ustPeriod === period)
+      setExpenses(filtered)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch expenses')
     } finally {
@@ -136,7 +143,7 @@ export function useExpenses(options: UseExpensesOptions = {}): UseExpensesReturn
     setError(null)
 
     try {
-      const data = await expensesApi.getExpensesByCategory(cat)
+      const data = await expensesService.getAll({ category: cat })
       setExpenses(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch expenses')
@@ -153,7 +160,7 @@ export function useExpenses(options: UseExpensesOptions = {}): UseExpensesReturn
     setError(null)
 
     try {
-      const newExpense = await expensesApi.createExpense(data)
+      const newExpense = await expensesService.create(data)
       setExpenses((prev) => [newExpense, ...prev])
       return newExpense
     } catch (err) {
@@ -173,7 +180,9 @@ export function useExpenses(options: UseExpensesOptions = {}): UseExpensesReturn
       setError(null)
 
       try {
-        const updated = await expensesApi.updateExpense(id, data)
+        await expensesService.update(id, data)
+        // Re-fetch the updated expense
+        const updated = await expensesService.getById(id)
         if (updated) {
           setExpenses((prev) =>
             prev.map((item) => (item.id === id ? updated : item))
@@ -202,14 +211,12 @@ export function useExpenses(options: UseExpensesOptions = {}): UseExpensesReturn
       setError(null)
 
       try {
-        const success = await expensesApi.deleteExpense(id)
-        if (success) {
-          setExpenses((prev) => prev.filter((item) => item.id !== id))
-          if (selectedExpense?.id === id) {
-            setSelectedExpense(null)
-          }
+        await expensesService.delete(id)
+        setExpenses((prev) => prev.filter((item) => item.id !== id))
+        if (selectedExpense?.id === id) {
+          setSelectedExpense(null)
         }
-        return success
+        return true
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to delete expense')
         return false
@@ -228,7 +235,7 @@ export function useExpenses(options: UseExpensesOptions = {}): UseExpensesReturn
     setError(null)
 
     try {
-      await expensesApi.markVorsteuerClaimed(ids)
+      await expensesService.markReported(ids)
       setExpenses((prev) =>
         prev.map((item) =>
           ids.includes(item.id) ? { ...item, vorsteuerClaimed: true } : item
@@ -246,7 +253,8 @@ export function useExpenses(options: UseExpensesOptions = {}): UseExpensesReturn
    */
   const getRecurringExpenses = useCallback(async (): Promise<Expense[]> => {
     try {
-      return await expensesApi.getRecurringExpenses()
+      const data = await expensesService.getAll()
+      return data.filter(e => e.isRecurring)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to get recurring expenses')
       return []
@@ -258,7 +266,8 @@ export function useExpenses(options: UseExpensesOptions = {}): UseExpensesReturn
    */
   const getGwgExpenses = useCallback(async (): Promise<Expense[]> => {
     try {
-      return await expensesApi.getGwgExpenses()
+      const data = await expensesService.getAll()
+      return data.filter(e => e.isGwg)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to get GWG expenses')
       return []
@@ -271,7 +280,32 @@ export function useExpenses(options: UseExpensesOptions = {}): UseExpensesReturn
   const getVorsteuerSummary = useCallback(
     async (start: Date, end: Date): Promise<VorsteuerSummary | null> => {
       try {
-        return await expensesApi.getVorsteuerSummary(start, end)
+        const rows = await expensesService.getAll({
+          startDate: start.toISOString().split('T')[0],
+          endDate: end.toISOString().split('T')[0],
+        })
+
+        const summary = {
+          total: 0,
+          byCategory: {} as Record<string, number>,
+          byVatRate: {} as Record<number, number>,
+        }
+
+        for (const expense of rows) {
+          summary.total += expense.vatAmount
+
+          if (!summary.byCategory[expense.euerCategory]) {
+            summary.byCategory[expense.euerCategory] = 0
+          }
+          summary.byCategory[expense.euerCategory] += expense.vatAmount
+
+          if (!summary.byVatRate[expense.vatRate]) {
+            summary.byVatRate[expense.vatRate] = 0
+          }
+          summary.byVatRate[expense.vatRate] += expense.vatAmount
+        }
+
+        return summary
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to get Vorsteuer summary')
         return null

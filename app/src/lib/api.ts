@@ -213,8 +213,387 @@ class ApiClient {
     });
   }
 
+  async processWithJames(id: string) {
+    return this.request<{ status: string; message: string; captureId: string }>(`/captures/${id}/process-with-james`, {
+      method: 'POST',
+    });
+  }
+
+  async getProcessingStatus(id: string) {
+    return this.request<{
+      captureId: string;
+      processingStatus: string;
+      processedBy?: string;
+      artifactType?: string;
+      artifactId?: string;
+      processed: boolean;
+    }>(`/captures/${id}/processing-status`);
+  }
+
   async deleteCapture(id: string) {
     return this.request<unknown>(`/captures/${id}`, { method: 'DELETE' });
+  }
+
+  // Invoices
+  async getInvoices(filters?: { status?: string; client_id?: string }) {
+    const params = new URLSearchParams();
+    if (filters?.status) params.set('status', filters.status);
+    if (filters?.client_id) params.set('client_id', filters.client_id);
+    const query = params.toString();
+    return this.request<unknown[]>(`/invoices${query ? `?${query}` : ''}`);
+  }
+
+  async getInvoice(id: string) {
+    return this.request<unknown>(`/invoices/${id}`);
+  }
+
+  async createInvoice(invoice: Record<string, unknown>) {
+    return this.request<unknown>('/invoices', {
+      method: 'POST',
+      body: JSON.stringify(invoice),
+    });
+  }
+
+  async updateInvoice(id: string, updates: Record<string, unknown>) {
+    return this.request<unknown>(`/invoices/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteInvoice(id: string) {
+    return this.request<unknown>(`/invoices/${id}`, { method: 'DELETE' });
+  }
+
+  async sendInvoice(id: string) {
+    return this.request<unknown>(`/invoices/${id}/send`, { method: 'POST' });
+  }
+
+  async payInvoice(id: string, paymentDate: string, paymentMethod?: string) {
+    return this.request<unknown>(`/invoices/${id}/pay`, {
+      method: 'POST',
+      body: JSON.stringify({ payment_date: paymentDate, payment_method: paymentMethod }),
+    });
+  }
+
+  async cancelInvoice(id: string) {
+    return this.request<unknown>(`/invoices/${id}/cancel`, { method: 'POST' });
+  }
+
+  // Second Brain
+  async getSecondBrainDocuments() {
+    return this.request<{
+      folders: Array<{
+        name: string;
+        documents: Array<{
+          path: string;
+          name: string;
+          title: string;
+          folder: string;
+          lastModified: string;
+        }>;
+      }>;
+    }>('/second-brain/documents');
+  }
+
+  async getSecondBrainDocument(path: string) {
+    return this.request<{
+      path: string;
+      name: string;
+      title: string;
+      content: string;
+      lastModified: string;
+    }>(`/second-brain/documents/${encodeURIComponent(path)}`);
+  }
+
+  async searchSecondBrain(query: string) {
+    return this.request<{
+      results: Array<{
+        path: string;
+        name: string;
+        title: string;
+        folder: string;
+        lastModified: string;
+      }>;
+    }>(`/second-brain/search?q=${encodeURIComponent(query)}`);
+  }
+
+  /**
+   * Download invoice PDF
+   * Returns a Blob for download
+   */
+  async downloadInvoicePdf(id: string): Promise<Blob> {
+    const token = getAuthToken();
+    const response = await fetch(`${API_BASE}/invoices/${id}/pdf`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to download PDF');
+    }
+
+    return response.blob();
+  }
+
+  /**
+   * Regenerate invoice PDF
+   */
+  async regenerateInvoicePdf(id: string) {
+    return this.request<{ success: boolean; pdf_path: string }>(`/invoices/${id}/regenerate-pdf`, {
+      method: 'POST',
+    });
+  }
+
+  // Income
+  async getIncome(filters?: { start_date?: string; end_date?: string; client_id?: string; ust_period?: string }) {
+    const params = new URLSearchParams();
+    if (filters?.start_date) params.set('start_date', filters.start_date);
+    if (filters?.end_date) params.set('end_date', filters.end_date);
+    if (filters?.client_id) params.set('client_id', filters.client_id);
+    if (filters?.ust_period) params.set('ust_period', filters.ust_period);
+    const query = params.toString();
+    return this.request<unknown[]>(`/income${query ? `?${query}` : ''}`);
+  }
+
+  async getIncomeById(id: string) {
+    return this.request<unknown>(`/income/${id}`);
+  }
+
+  async createIncome(income: Record<string, unknown>) {
+    return this.request<unknown>('/income', {
+      method: 'POST',
+      body: JSON.stringify(income),
+    });
+  }
+
+  async updateIncome(id: string, updates: Record<string, unknown>) {
+    return this.request<unknown>(`/income/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteIncome(id: string) {
+    return this.request<unknown>(`/income/${id}`, { method: 'DELETE' });
+  }
+
+  async markIncomeReported(ids: string[], ustPeriod?: string) {
+    return this.request<unknown>('/income/mark-reported', {
+      method: 'POST',
+      body: JSON.stringify({ ids, ust_period: ustPeriod }),
+    });
+  }
+
+  // Expenses
+  async getExpenses(filters?: { start_date?: string; end_date?: string; category?: string; vendor?: string }) {
+    const params = new URLSearchParams();
+    if (filters?.start_date) params.set('start_date', filters.start_date);
+    if (filters?.end_date) params.set('end_date', filters.end_date);
+    if (filters?.category) params.set('category', filters.category);
+    if (filters?.vendor) params.set('vendor', filters.vendor);
+    const query = params.toString();
+    return this.request<unknown[]>(`/expenses${query ? `?${query}` : ''}`);
+  }
+
+  async getExpenseById(id: string) {
+    return this.request<unknown>(`/expenses/${id}`);
+  }
+
+  async createExpense(expense: Record<string, unknown>) {
+    return this.request<unknown>('/expenses', {
+      method: 'POST',
+      body: JSON.stringify(expense),
+    });
+  }
+
+  async updateExpense(id: string, updates: Record<string, unknown>) {
+    return this.request<unknown>(`/expenses/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteExpense(id: string) {
+    return this.request<unknown>(`/expenses/${id}`, { method: 'DELETE' });
+  }
+
+  async getExpenseCategories() {
+    return this.request<unknown[]>('/expenses/categories');
+  }
+
+  async markExpensesReported(ids: string[], ustPeriod?: string) {
+    return this.request<unknown>('/expenses/mark-reported', {
+      method: 'POST',
+      body: JSON.stringify({ ids, ust_period: ustPeriod }),
+    });
+  }
+
+  // Assets
+  async getAssets(filters?: { status?: string; category?: string }) {
+    const params = new URLSearchParams();
+    if (filters?.status) params.set('status', filters.status);
+    if (filters?.category) params.set('category', filters.category);
+    const query = params.toString();
+    return this.request<unknown[]>(`/assets${query ? `?${query}` : ''}`);
+  }
+
+  async getAssetById(id: string) {
+    return this.request<unknown>(`/assets/${id}`);
+  }
+
+  async createAsset(asset: Record<string, unknown>) {
+    return this.request<unknown>('/assets', {
+      method: 'POST',
+      body: JSON.stringify(asset),
+    });
+  }
+
+  async updateAsset(id: string, updates: Record<string, unknown>) {
+    return this.request<unknown>(`/assets/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteAsset(id: string) {
+    return this.request<unknown>(`/assets/${id}`, { method: 'DELETE' });
+  }
+
+  async getAssetSchedule(id: string) {
+    return this.request<unknown[]>(`/assets/${id}/schedule`);
+  }
+
+  async depreciateAsset(id: string, year?: number) {
+    return this.request<unknown>(`/assets/${id}/depreciate`, {
+      method: 'POST',
+      body: JSON.stringify({ year }),
+    });
+  }
+
+  // James Actions (audit trail)
+  async getJamesActions(filters?: { project_id?: string; action_type?: string; limit?: number }) {
+    const params = new URLSearchParams();
+    if (filters?.project_id) params.set('project_id', filters.project_id);
+    if (filters?.action_type) params.set('action_type', filters.action_type);
+    if (filters?.limit) params.set('limit', String(filters.limit));
+    const query = params.toString();
+    return this.request<unknown[]>(`/james-actions${query ? `?${query}` : ''}`);
+  }
+
+  async createJamesAction(action: Record<string, unknown>) {
+    return this.request<unknown>('/james-actions', {
+      method: 'POST',
+      body: JSON.stringify(action),
+    });
+  }
+
+  // James Automations
+  async getJamesAutomations() {
+    return this.request<unknown[]>('/james-automations');
+  }
+
+  async createJamesAutomation(automation: Record<string, unknown>) {
+    return this.request<unknown>('/james-automations', {
+      method: 'POST',
+      body: JSON.stringify(automation),
+    });
+  }
+
+  async updateJamesAutomation(id: string, data: Record<string, unknown>) {
+    return this.request<unknown>(`/james-automations/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteJamesAutomation(id: string) {
+    return this.request<unknown>(`/james-automations/${id}`, { method: 'DELETE' });
+  }
+
+  // James Trigger
+  async triggerJames() {
+    return this.request<{ success: boolean; message: string }>('/james/check', { method: 'POST' });
+  }
+
+  // Suggestions
+  async getSuggestions(filters?: { status?: string; project_id?: string; limit?: number }) {
+    const params = new URLSearchParams();
+    if (filters?.status) params.set('status', filters.status);
+    if (filters?.project_id) params.set('project_id', filters.project_id);
+    if (filters?.limit) params.set('limit', String(filters.limit));
+    const query = params.toString();
+    return this.request<unknown[]>(`/suggestions${query ? `?${query}` : ''}`);
+  }
+
+  async createSuggestion(suggestion: Record<string, unknown>) {
+    return this.request<unknown>('/suggestions', {
+      method: 'POST',
+      body: JSON.stringify(suggestion),
+    });
+  }
+
+  async approveSuggestion(id: string) {
+    return this.request<unknown>(`/suggestions/${id}/approve`, { method: 'POST' });
+  }
+
+  async rejectSuggestion(id: string) {
+    return this.request<unknown>(`/suggestions/${id}/reject`, { method: 'POST' });
+  }
+
+  async updateSuggestion(id: string, data: { status?: string }) {
+    return this.request<unknown>(`/suggestions/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async implementSuggestion(id: string, data?: { prd_id?: string; task_id?: string }) {
+    return this.request<unknown>(`/suggestions/${id}/implement`, {
+      method: 'POST',
+      body: JSON.stringify(data || {}),
+    });
+  }
+
+  // James Tasks
+  async getJamesTasks(filters?: { status?: string; source?: string; limit?: number }) {
+    const params = new URLSearchParams();
+    if (filters?.status) params.set('status', filters.status);
+    if (filters?.source) params.set('source', filters.source);
+    if (filters?.limit) params.set('limit', String(filters.limit));
+    const query = params.toString();
+    return this.request<unknown[]>(`/james-tasks${query ? `?${query}` : ''}`);
+  }
+
+  async getJamesTask(id: string) {
+    return this.request<unknown>(`/james-tasks/${id}`);
+  }
+
+  async createJamesTask(task: Record<string, unknown>) {
+    return this.request<unknown>('/james-tasks', {
+      method: 'POST',
+      body: JSON.stringify(task),
+    });
+  }
+
+  async updateJamesTask(id: string, updates: Record<string, unknown>) {
+    return this.request<unknown>(`/james-tasks/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteJamesTask(id: string) {
+    return this.request<unknown>(`/james-tasks/${id}`, { method: 'DELETE' });
+  }
+
+  async getJamesTasksStats() {
+    return this.request<{
+      total: number;
+      backlog: number;
+      queue: number;
+      in_progress: number;
+      done: number;
+    }>('/james-tasks/stats/summary');
   }
 }
 

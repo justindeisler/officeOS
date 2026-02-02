@@ -312,6 +312,24 @@ const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 3,
+    description: "Add pdf_path column to invoices table for PDF generation",
+    up: async (database: Database) => {
+      // Check if pdf_path column already exists
+      const columns = await database.select<{ name: string }[]>(
+        "PRAGMA table_info(invoices)"
+      );
+      const columnNames = columns.map((c) => c.name);
+
+      if (!columnNames.includes('pdf_path')) {
+        await database.execute(`
+          ALTER TABLE invoices ADD COLUMN pdf_path TEXT
+        `);
+        console.log('Added pdf_path column to invoices table');
+      }
+    },
+  },
 ];
 
 async function runMigrations(database: Database): Promise<void> {

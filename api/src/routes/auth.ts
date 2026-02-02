@@ -1,5 +1,8 @@
 /**
  * Authentication routes
+ * 
+ * Credentials are loaded from environment variables for security.
+ * See .env.example for required configuration.
  */
 
 import { Router } from "express";
@@ -8,20 +11,40 @@ import bcrypt from "bcryptjs";
 
 const router = Router();
 
-// Secret key for JWT - in production, use environment variable
-const JWT_SECRET = process.env.JWT_SECRET || "pa-secret-key-change-in-production-2026";
+// Load and validate required environment variables
+if (!process.env.JWT_SECRET) {
+  throw new Error("FATAL: JWT_SECRET environment variable is required");
+}
+const JWT_SECRET: string = process.env.JWT_SECRET;
 
-// User credentials - in production, store hashed in database
-const USERS: Record<string, { passwordHash: string; name: string }> = {
-  justin: {
-    passwordHash: bcrypt.hashSync("Kobold11!", 10),
-    name: "Justin Deisler",
-  },
-  james: {
-    passwordHash: bcrypt.hashSync("J4m3s-PA-2026!", 10),
-    name: "James (AI Assistant)",
-  },
-};
+// Build users from environment variables
+interface UserConfig {
+  passwordHash: string;
+  name: string;
+}
+
+const USERS: Record<string, UserConfig> = {};
+
+// Load Justin's credentials
+if (process.env.AUTH_JUSTIN_HASH) {
+  USERS.justin = {
+    passwordHash: process.env.AUTH_JUSTIN_HASH,
+    name: process.env.AUTH_JUSTIN_NAME || "Justin",
+  };
+}
+
+// Load James's credentials
+if (process.env.AUTH_JAMES_HASH) {
+  USERS.james = {
+    passwordHash: process.env.AUTH_JAMES_HASH,
+    name: process.env.AUTH_JAMES_NAME || "James",
+  };
+}
+
+// Warn if no users configured
+if (Object.keys(USERS).length === 0) {
+  console.warn("[Auth] WARNING: No users configured. Set AUTH_*_HASH environment variables.");
+}
 
 // Login
 router.post("/login", async (req, res) => {

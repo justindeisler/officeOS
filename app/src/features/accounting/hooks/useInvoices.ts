@@ -4,11 +4,45 @@
  * React hook for managing invoice state and operations.
  * Provides CRUD operations with loading and error states.
  * Includes invoice status management and income linking.
+ * 
+ * Uses the centralized service layer which switches between
+ * Tauri SQLite and REST API based on the environment.
  */
 
 import { useState, useCallback, useEffect } from 'react'
 import type { Invoice, NewInvoice, InvoiceStatus } from '../types'
-import * as invoicesApi from '../api/invoices'
+import { invoiceService } from '@/services'
+import type { Invoice as GlobalInvoice } from '@/types'
+
+// Map from global Invoice type to accounting Invoice type
+function mapToAccountingInvoice(inv: GlobalInvoice): Invoice {
+  return {
+    id: inv.id,
+    invoiceNumber: inv.invoiceNumber,
+    invoiceDate: new Date(inv.issueDate || inv.createdAt),
+    dueDate: new Date(inv.dueDate),
+    status: inv.status as InvoiceStatus,
+    clientId: inv.clientId,
+    projectId: inv.projectId,
+    subtotal: inv.amount || 0,
+    vatRate: (inv.taxRate || 19) as 0 | 7 | 19,
+    vatAmount: inv.taxAmount || 0,
+    total: inv.totalAmount || 0,
+    paymentDate: inv.paidDate ? new Date(inv.paidDate) : undefined,
+    paymentMethod: undefined,
+    notes: inv.notes,
+    items: (inv.lineItems || []).map(item => ({
+      id: item.id,
+      invoiceId: inv.id,
+      description: item.description,
+      quantity: item.quantity,
+      unit: item.unit || 'hours',
+      unitPrice: item.unitPrice,
+      amount: item.amount,
+    })),
+    createdAt: new Date(inv.createdAt),
+  }
+}
 
 export interface UseInvoicesOptions {
   /** Auto-fetch invoices on mount */
@@ -73,8 +107,8 @@ export function useInvoices(options: UseInvoicesOptions = {}): UseInvoicesReturn
     setError(null)
 
     try {
-      const data = await invoicesApi.getAllInvoices()
-      setInvoices(data)
+      const data = await invoiceService.getAll()
+      setInvoices(data.map(mapToAccountingInvoice))
     } catch (err) {
       console.error('Failed to fetch invoices:', err)
       const message = err instanceof Error
@@ -96,8 +130,8 @@ export function useInvoices(options: UseInvoicesOptions = {}): UseInvoicesReturn
     setError(null)
 
     try {
-      const data = await invoicesApi.getInvoicesByStatus(status)
-      setInvoices(data)
+      const data = await invoiceService.getByStatus(status)
+      setInvoices(data.map(mapToAccountingInvoice))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch invoices')
     } finally {
@@ -113,8 +147,8 @@ export function useInvoices(options: UseInvoicesOptions = {}): UseInvoicesReturn
     setError(null)
 
     try {
-      const data = await invoicesApi.getInvoicesByClient(clientId)
-      setInvoices(data)
+      const data = await invoiceService.getByClient(clientId)
+      setInvoices(data.map(mapToAccountingInvoice))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch invoices')
     } finally {
@@ -130,10 +164,35 @@ export function useInvoices(options: UseInvoicesOptions = {}): UseInvoicesReturn
     setError(null)
 
     try {
-      const newInvoice = await invoicesApi.createInvoice(data)
+      // Map NewInvoice to the format expected by invoiceService
+      const serviceData = {
+        invoiceNumber: '', // Will be generated
+        clientId: data.clientId || '',
+        projectId: data.projectId,
+        issueDate: data.invoiceDate.toISOString(),
+        dueDate: data.dueDate.toISOString(),
+        status: 'draft' as const,
+        amount: data.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0),
+        taxRate: data.vatRate,
+        taxAmount: 0,
+        totalAmount: 0,
+        notes: data.notes,
+        lineItems: data.items.map(item => ({
+          id: crypto.randomUUID(),
+          description: item.description,
+          quantity: item.quantity,
+          unit: item.unit || 'hours',
+          unitPrice: item.unitPrice,
+          amount: item.quantity * item.unitPrice,
+        })),
+        updatedAt: new Date().toISOString(),
+      }
+      const created = await invoiceService.create(serviceData)
+      const newInvoice = mapToAccountingInvoice(created)
       setInvoices((prev) => [newInvoice, ...prev])
       return newInvoice
     } catch (err) {
+      console.error('Failed to create invoice:', err)
       setError(err instanceof Error ? err.message : 'Failed to create invoice')
       return null
     } finally {
@@ -150,16 +209,19 @@ export function useInvoices(options: UseInvoicesOptions = {}): UseInvoicesReturn
       setError(null)
 
       try {
-        const updated = await invoicesApi.updateInvoice(id, data)
-        if (updated) {
+        await invoiceService.update(id, data as unknown as Partial<GlobalInvoice>)
+        const updatedData = await invoiceService.getById(id)
+        if (updatedData) {
+          const updated = mapToAccountingInvoice(updatedData)
           setInvoices((prev) =>
             prev.map((invoice) => (invoice.id === id ? updated : invoice))
           )
           if (selectedInvoice?.id === id) {
             setSelectedInvoice(updated)
           }
+          return updated
         }
-        return updated
+        return null
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to update invoice')
         return null
@@ -179,14 +241,12 @@ export function useInvoices(options: UseInvoicesOptions = {}): UseInvoicesReturn
       setError(null)
 
       try {
-        const success = await invoicesApi.deleteInvoice(id)
-        if (success) {
-          setInvoices((prev) => prev.filter((invoice) => invoice.id !== id))
-          if (selectedInvoice?.id === id) {
-            setSelectedInvoice(null)
-          }
+        await invoiceService.delete(id)
+        setInvoices((prev) => prev.filter((invoice) => invoice.id !== id))
+        if (selectedInvoice?.id === id) {
+          setSelectedInvoice(null)
         }
-        return success
+        return true
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to delete invoice')
         return false
@@ -205,12 +265,11 @@ export function useInvoices(options: UseInvoicesOptions = {}): UseInvoicesReturn
     setError(null)
 
     try {
-      const updated = await invoicesApi.markAsSent(id)
-      if (updated) {
-        setInvoices((prev) =>
-          prev.map((invoice) => (invoice.id === id ? updated : invoice))
-        )
-      }
+      const result = await invoiceService.markAsSent(id)
+      const updated = mapToAccountingInvoice(result)
+      setInvoices((prev) =>
+        prev.map((invoice) => (invoice.id === id ? updated : invoice))
+      )
       return updated
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to mark invoice as sent')
@@ -233,12 +292,11 @@ export function useInvoices(options: UseInvoicesOptions = {}): UseInvoicesReturn
       setError(null)
 
       try {
-        const updated = await invoicesApi.markAsPaid(id, paymentDate, paymentMethod)
-        if (updated) {
-          setInvoices((prev) =>
-            prev.map((invoice) => (invoice.id === id ? updated : invoice))
-          )
-        }
+        const result = await invoiceService.markAsPaid(id, paymentDate, paymentMethod)
+        const updated = mapToAccountingInvoice(result)
+        setInvoices((prev) =>
+          prev.map((invoice) => (invoice.id === id ? updated : invoice))
+        )
         return updated
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to mark invoice as paid')
@@ -258,12 +316,11 @@ export function useInvoices(options: UseInvoicesOptions = {}): UseInvoicesReturn
     setError(null)
 
     try {
-      const updated = await invoicesApi.cancelInvoice(id)
-      if (updated) {
-        setInvoices((prev) =>
-          prev.map((invoice) => (invoice.id === id ? updated : invoice))
-        )
-      }
+      const result = await invoiceService.cancelInvoice(id)
+      const updated = mapToAccountingInvoice(result)
+      setInvoices((prev) =>
+        prev.map((invoice) => (invoice.id === id ? updated : invoice))
+      )
       return updated
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to cancel invoice')
@@ -278,7 +335,7 @@ export function useInvoices(options: UseInvoicesOptions = {}): UseInvoicesReturn
    */
   const getNextInvoiceNumber = useCallback(async (): Promise<string> => {
     try {
-      return await invoicesApi.getNextInvoiceNumber()
+      return await invoiceService.getNextInvoiceNumber()
     } catch (err) {
       // Fallback to a basic format
       const year = new Date().getFullYear()

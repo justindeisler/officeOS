@@ -87,6 +87,7 @@ router.post("/", (req, res) => {
     status = "backlog",
     description,
     project_id,
+    prd_id,
     due_date,
     estimated_minutes,
     assignee,
@@ -100,9 +101,9 @@ router.post("/", (req, res) => {
   const now = getCurrentTimestamp();
 
   db.prepare(
-    `INSERT INTO tasks (id, title, area, priority, status, description, project_id, due_date, estimated_minutes, assignee, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, title, area, priority, status, description || null, project_id || null, due_date || null, estimated_minutes || null, assignee || null, now, now);
+    `INSERT INTO tasks (id, title, area, priority, status, description, project_id, prd_id, due_date, estimated_minutes, assignee, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, title, area, priority, status, description || null, project_id || null, prd_id || null, due_date || null, estimated_minutes || null, assignee || null, now, now);
 
   const task = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
   res.status(201).json(task);
@@ -118,7 +119,7 @@ router.patch("/:id", (req, res) => {
     return res.status(404).json({ error: "Task not found" });
   }
 
-  const fields = ["title", "area", "priority", "status", "description", "project_id", "due_date", "estimated_minutes", "assignee"];
+  const fields = ["title", "area", "priority", "status", "description", "project_id", "prd_id", "due_date", "estimated_minutes", "assignee"];
   const updates: string[] = [];
   const params: unknown[] = [];
 
@@ -140,6 +141,14 @@ router.patch("/:id", (req, res) => {
     params.push(id);
 
     db.prepare(`UPDATE tasks SET ${updates.join(", ")} WHERE id = ?`).run(...params);
+  }
+
+  // Auto-update PRD status to "implemented" when linked task is moved to done
+  const existingTask = existing as Record<string, unknown>;
+  if (req.body.status === "done" && existingTask.status !== "done" && existingTask.prd_id) {
+    const now = getCurrentTimestamp();
+    db.prepare("UPDATE prds SET status = 'implemented', updated_at = ? WHERE id = ?").run(now, existingTask.prd_id);
+    console.log(`[API] PRD ${existingTask.prd_id} marked as implemented (linked task ${id} completed)`);
   }
 
   const task = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
@@ -164,8 +173,15 @@ router.post("/:id/move", (req, res) => {
 
   const now = getCurrentTimestamp();
   const completedAt = status === "done" ? now : null;
+  const existingTask = existing as Record<string, unknown>;
 
   db.prepare("UPDATE tasks SET status = ?, completed_at = ?, updated_at = ? WHERE id = ?").run(status, completedAt, now, id);
+
+  // Auto-update PRD status to "implemented" when linked task is moved to done
+  if (status === "done" && existingTask.status !== "done" && existingTask.prd_id) {
+    db.prepare("UPDATE prds SET status = 'implemented', updated_at = ? WHERE id = ?").run(now, existingTask.prd_id);
+    console.log(`[API] PRD ${existingTask.prd_id} marked as implemented (linked task ${id} moved to done)`);
+  }
 
   const task = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
   res.json(task);

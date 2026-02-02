@@ -18,6 +18,7 @@ export const timeEntryService = services.timeEntryService;
 export const invoiceService = services.invoiceService;
 export const captureService = services.captureService;
 export const settingsService = services.settingsService;
+export const prdService = services.prdService;
 
 // Note: backupService and attachmentService are NOT exported here to avoid
 // static Tauri imports blocking React mount.

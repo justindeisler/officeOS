@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { format } from "date-fns";
-import { Calendar, DollarSign, MoreHorizontal, Trash2, Edit2 } from "lucide-react";
+import { Calendar, DollarSign, MoreHorizontal, Trash2, Edit2, ExternalLink } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
@@ -66,7 +68,12 @@ export function ProjectCard({ project, onEdit }: ProjectCardProps) {
           <div className="flex-1 min-w-0">
             {/* Name */}
             <div className="flex items-center gap-2 mb-1">
-              <h3 className="font-medium truncate">{project.name}</h3>
+              <Link
+                to={`/projects/${project.id}`}
+                className="font-medium truncate hover:underline hover:text-primary"
+              >
+                {project.name}
+              </Link>
             </div>
 
             {/* Client */}
@@ -113,10 +120,17 @@ export function ProjectCard({ project, onEdit }: ProjectCardProps) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <Link to={`/projects/${project.id}`}>
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  View Details
+                </Link>
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => onEdit(project)}>
                 <Edit2 className="h-4 w-4 mr-2" />
                 Edit
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => setShowDeleteDialog(true)}
                 className="text-destructive focus:text-destructive"

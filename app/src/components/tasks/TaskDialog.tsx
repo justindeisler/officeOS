@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { format } from "date-fns";
-import { Trash2, Download, Bot } from "lucide-react";
+import { Trash2, Download, Bot, FileText } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -25,6 +25,7 @@ import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { useTaskStore } from "@/stores/taskStore";
 import { useProjectStore } from "@/stores/projectStore";
 import { useClientStore } from "@/stores/clientStore";
+import { usePRDStore } from "@/stores/prdStore";
 import {
   exportTaskToMarkdown,
   downloadMarkdown,
@@ -51,6 +52,7 @@ export function TaskDialog({
   const { addTask, updateTask, deleteTask } = useTaskStore();
   const { projects } = useProjectStore();
   const { clients } = useClientStore();
+  const { prds } = usePRDStore();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -59,6 +61,7 @@ export function TaskDialog({
   const [area, setArea] = useState<Area>("freelance");
   const [dueDate, setDueDate] = useState("");
   const [projectId, setProjectId] = useState<string | undefined>(undefined);
+  const [prdId, setPrdId] = useState<string | undefined>(undefined);
   const [assignee, setAssignee] = useState<Assignee>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
@@ -73,6 +76,7 @@ export function TaskDialog({
       setArea(task.area);
       setDueDate(task.dueDate ? format(new Date(task.dueDate), "yyyy-MM-dd") : "");
       setProjectId(task.projectId);
+      setPrdId(task.prdId);
       setAssignee(task.assignee || null);
     } else {
       setTitle("");
@@ -82,6 +86,7 @@ export function TaskDialog({
       setArea("freelance");
       setDueDate("");
       setProjectId(undefined);
+      setPrdId(undefined);
       setAssignee(null);
     }
   }, [task, defaultStatus, open]);
@@ -99,6 +104,7 @@ export function TaskDialog({
       area,
       dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
       projectId,
+      prdId,
       assignee,
     };
 
@@ -137,7 +143,7 @@ export function TaskDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-[500px] max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>{isEditing ? "Edit Task" : "New Task"}</DialogTitle>
@@ -193,6 +199,32 @@ export function TaskDialog({
                 </SelectContent>
               </Select>
             </div>
+
+            {/* PRD (optional) */}
+            {prds.length > 0 && (
+              <div className="grid gap-2">
+                <Label htmlFor="prd" className="flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  PRD
+                </Label>
+                <Select
+                  value={prdId || "none"}
+                  onValueChange={(v) => setPrdId(v === "none" ? undefined : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Link to a PRD..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No PRD</SelectItem>
+                    {prds.map((prd) => (
+                      <SelectItem key={prd.id} value={prd.id}>
+                        {prd.featureName} (v{prd.version})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {/* Status and Priority */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -258,6 +290,7 @@ export function TaskDialog({
                   type="date"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
+                  className="h-10"
                 />
               </div>
             </div>
@@ -283,34 +316,34 @@ export function TaskDialog({
             </div>
           </div>
 
-          <DialogFooter className="flex justify-between">
-            {isEditing && (
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setShowDeleteDialog(true)}
-                >
-                  <Trash2 className="h-4 w-4 mr-1" />
-                  Delete
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleExport}
-                >
-                  <Download className="h-4 w-4 mr-1" />
-                  Export
-                </Button>
-              </div>
-            )}
-            <div className="flex gap-2 ml-auto">
-              <Button type="button" variant="outline" onClick={onClose}>
+          <DialogFooter className="flex flex-row items-center justify-between gap-2">
+            <div className="flex gap-1.5">
+              {isEditing && (
+                <>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setShowDeleteDialog(true)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExport}
+                  >
+                    <Download className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
+            </div>
+            <div className="flex gap-1.5">
+              <Button type="button" variant="outline" size="sm" onClick={onClose}>
                 Cancel
               </Button>
-              <Button type="submit">{isEditing ? "Save" : "Create"}</Button>
+              <Button type="submit" size="sm">{isEditing ? "Save" : "Create"}</Button>
             </div>
           </DialogFooter>
         </form>

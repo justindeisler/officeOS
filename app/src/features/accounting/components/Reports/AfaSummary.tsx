@@ -211,12 +211,13 @@ export function AfaSummary({
   return (
     <div className={cn('space-y-6', className)}>
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-xl font-semibold">AfA-Übersicht {year}</h2>
         <Button
           variant="outline"
           size="sm"
           onClick={() => onExportCSV?.(sortedAssets, year)}
+          className="w-full sm:w-auto"
         >
           <FileSpreadsheet className="mr-2 h-4 w-4" />
           CSV Export
@@ -224,7 +225,7 @@ export function AfaSummary({
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4" data-testid="afa-summary-totals">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4" data-testid="afa-summary-totals">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -339,8 +340,8 @@ export function AfaSummary({
             AfA-Aufstellung {year}
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-0">
-          <Table>
+        <CardContent className="p-0 overflow-x-auto">
+          <Table className="min-w-[600px]">
             <TableHeader>
               <TableRow>
                 <TableHead scope="col">Anlage</TableHead>

@@ -7,7 +7,7 @@
  */
 
 import { useState, useMemo, useEffect } from 'react'
-import { Plus, FileText, TrendingUp, Send, Check, Trash2 } from 'lucide-react'
+import { Plus, FileText, TrendingUp, Send, Check, Trash2, Download, Loader2 } from 'lucide-react'
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog'
 import { MoneyRain } from '@/components/ui/MoneyRain'
 import { useCelebration } from '@/hooks/useCelebration'
@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/table'
 import { InvoiceDialog } from '@/features/accounting/components/Invoices'
 import { useInvoices } from '@/features/accounting/hooks/useInvoices'
+import { api } from '@/lib/api'
 import { useClients } from '@/features/accounting/hooks/useClients'
 import { useProjectStore } from '@/stores/projectStore'
 import type { Invoice, InvoiceStatus } from '@/features/accounting/types'
@@ -80,6 +81,7 @@ export function InvoicesPage() {
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null)
   const [activeTab, setActiveTab] = useState('all')
   const [deletingInvoice, setDeletingInvoice] = useState<Invoice | null>(null)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
   // Celebration animation for paid invoices
   const celebration = useCelebration()
@@ -239,6 +241,29 @@ export function InvoicesPage() {
     }
   }
 
+  const handleDownloadPdf = async (e: React.MouseEvent, invoice: Invoice) => {
+    e.stopPropagation()
+    setDownloadingId(invoice.id)
+
+    try {
+      const blob = await api.downloadInvoicePdf(invoice.id)
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${invoice.invoiceNumber}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+      toast.success('PDF downloaded')
+    } catch (err) {
+      console.error('Failed to download PDF:', err)
+      toast.error('Failed to download PDF')
+    } finally {
+      setDownloadingId(null)
+    }
+  }
+
   if (error) {
     return (
       <div className="space-y-6">
@@ -285,7 +310,7 @@ export function InvoicesPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
         <Card>
           <CardContent className="pt-4">
             <p className="text-sm text-muted-foreground">Draft</p>
@@ -362,14 +387,14 @@ export function InvoicesPage() {
 
       {/* Invoice List */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="all">All ({invoices.length})</TabsTrigger>
-          <TabsTrigger value="draft">Draft ({stats.draft})</TabsTrigger>
-          <TabsTrigger value="sent">Sent ({stats.sent})</TabsTrigger>
-          <TabsTrigger value="overdue" className="text-destructive">
+        <TabsList className="flex w-full overflow-x-auto gap-1 sm:inline-flex sm:w-auto">
+          <TabsTrigger value="all" className="flex-shrink-0">All ({invoices.length})</TabsTrigger>
+          <TabsTrigger value="draft" className="flex-shrink-0">Draft ({stats.draft})</TabsTrigger>
+          <TabsTrigger value="sent" className="flex-shrink-0">Sent ({stats.sent})</TabsTrigger>
+          <TabsTrigger value="overdue" className="text-destructive flex-shrink-0">
             Overdue ({stats.overdue})
           </TabsTrigger>
-          <TabsTrigger value="paid">Paid ({stats.paid})</TabsTrigger>
+          <TabsTrigger value="paid" className="flex-shrink-0">Paid ({stats.paid})</TabsTrigger>
         </TabsList>
 
         <TabsContent value={activeTab} className="mt-4">
@@ -403,8 +428,8 @@ export function InvoicesPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="rounded-md border">
-              <Table>
+            <div className="rounded-md border overflow-x-auto">
+              <Table className="min-w-[900px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Invoice №</TableHead>
@@ -470,6 +495,20 @@ export function InvoicesPage() {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
+                            {/* Download PDF button */}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => handleDownloadPdf(e, invoice)}
+                              title="Download PDF"
+                              disabled={downloadingId === invoice.id}
+                            >
+                              {downloadingId === invoice.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                              ) : (
+                                <Download className="h-4 w-4 text-muted-foreground hover:text-primary" />
+                              )}
+                            </Button>
                             {invoice.status === 'draft' && (
                               <Button
                                 variant="ghost"

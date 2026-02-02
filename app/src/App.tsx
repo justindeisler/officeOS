@@ -16,6 +16,7 @@ import { TimePage } from "./pages/TimePage";
 import { InboxPage } from "./pages/InboxPage";
 import { ClientsPage } from "./pages/ClientsPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
+import { ProjectDetailPage } from "./pages/ProjectDetailPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { AccountingPage } from "./pages/AccountingPage";
 import { InvoicesPage } from "./pages/accounting/InvoicesPage";
@@ -23,6 +24,17 @@ import { IncomePage } from "./pages/accounting/IncomePage";
 import { ExpensesPage } from "./pages/accounting/ExpensesPage";
 import { AssetsPage } from "./pages/accounting/AssetsPage";
 import { ReportsPage } from "./pages/accounting/ReportsPage";
+import { PrdPage } from "./pages/PrdPage";
+import { PrdDetailPage } from "./pages/PrdDetailPage";
+import { SecondBrainPage } from "./pages/SecondBrainPage";
+import { JamesBrainPage } from "./pages/JamesBrainPage";
+import {
+  OverviewPage as JamesBrainOverviewPage,
+  SuggestionsPage as JamesBrainSuggestionsPage,
+  TasksPage as JamesBrainTasksPage,
+  ActivityPage as JamesBrainActivityPage,
+  AutomationsPage as JamesBrainAutomationsPage,
+} from "./pages/james-brain";
 
 function App() {
   console.log("[App] Rendering App component...");
@@ -148,6 +160,7 @@ function App() {
           <Route path="/inbox" element={<InboxPage />} />
           <Route path="/clients" element={<ClientsPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
+          <Route path="/projects/:id" element={<ProjectDetailPage />} />
           {/* Redirect legacy /invoices to /accounting/invoices */}
           <Route path="/invoices" element={<Navigate to="/accounting/invoices" replace />} />
           <Route path="/accounting" element={<AccountingPage />} />
@@ -156,6 +169,15 @@ function App() {
           <Route path="/accounting/expenses" element={<ExpensesPage />} />
           <Route path="/accounting/assets" element={<AssetsPage />} />
           <Route path="/accounting/reports" element={<ReportsPage />} />
+          <Route path="/prd" element={<PrdPage />} />
+          <Route path="/prd/:id" element={<PrdDetailPage />} />
+          <Route path="/second-brain" element={<SecondBrainPage />} />
+          {/* James Brain routes */}
+          <Route path="/james-brain" element={<JamesBrainOverviewPage />} />
+          <Route path="/james-brain/suggestions" element={<JamesBrainSuggestionsPage />} />
+          <Route path="/james-brain/tasks" element={<JamesBrainTasksPage />} />
+          <Route path="/james-brain/activity" element={<JamesBrainActivityPage />} />
+          <Route path="/james-brain/automations" element={<JamesBrainAutomationsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>
       </Routes>
