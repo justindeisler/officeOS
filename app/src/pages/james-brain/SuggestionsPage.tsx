@@ -8,6 +8,7 @@ import {
   RefreshCw,
   RotateCcw,
   Archive,
+  CheckCircle2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -84,10 +85,13 @@ export function SuggestionsPage() {
     fetchSuggestions();
   }, []);
 
-  // Active = pending + approved + implemented
+  // Active = pending + approved (not yet implemented)
   const activeSuggestions = suggestions.filter(
-    (s) => s.status === "pending" || s.status === "approved" || s.status === "implemented"
+    (s) => s.status === "pending" || s.status === "approved"
   );
+  
+  // Implemented = completed suggestions
+  const implementedSuggestions = suggestions.filter((s) => s.status === "implemented");
   
   // Archived = rejected
   const archivedSuggestions = suggestions.filter((s) => s.status === "rejected");
@@ -246,10 +250,14 @@ export function SuggestionsPage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+        <TabsList className="grid w-full max-w-lg grid-cols-3">
           <TabsTrigger value="active" className="flex items-center gap-2">
             <Lightbulb className="h-4 w-4" />
             Active ({activeSuggestions.length})
+          </TabsTrigger>
+          <TabsTrigger value="implemented" className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4" />
+            Implemented ({implementedSuggestions.length})
           </TabsTrigger>
           <TabsTrigger value="archived" className="flex items-center gap-2">
             <Archive className="h-4 w-4" />
@@ -272,6 +280,29 @@ export function SuggestionsPage() {
               ) : (
                 <div className="space-y-3">
                   {activeSuggestions.map((suggestion) => (
+                    <SuggestionCard key={suggestion.id} suggestion={suggestion} />
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="implemented" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">
+                Implemented Suggestions
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {implementedSuggestions.length === 0 ? (
+                <p className="text-muted-foreground text-sm text-center py-8">
+                  No implemented suggestions yet. Completed improvements will appear here.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {implementedSuggestions.map((suggestion) => (
                     <SuggestionCard key={suggestion.id} suggestion={suggestion} />
                   ))}
                 </div>
