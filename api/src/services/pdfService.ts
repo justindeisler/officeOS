@@ -11,6 +11,9 @@ import { readFileSync, existsSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { getDb } from "../database.js";
+import { createLogger } from "../logger.js";
+
+const log = createLogger("pdf-service");
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -177,7 +180,7 @@ export function getDefaultSeller(): SellerInfo {
       
       // Only use database values if profile has required fields
       if (profile.fullName && profile.email && profile.street && profile.bankIban) {
-        console.log("[PDFService] Using business profile from database");
+        log.debug("Using business profile from database");
         return {
           name: profile.fullName,
           title: profile.jobTitle || "",
@@ -200,11 +203,11 @@ export function getDefaultSeller(): SellerInfo {
       }
     }
   } catch (error) {
-    console.log("[PDFService] Could not load business profile from database:", error);
+    log.warn({ err: error }, "Could not load business profile from database");
   }
 
   // Fall back to environment variables or placeholder values
-  console.log("[PDFService] Using fallback seller configuration");
+  log.debug("Using fallback seller configuration");
   return {
     name: process.env.SELLER_NAME || "Justin Deisler",
     title: process.env.SELLER_TITLE || "Full-Stack Developer",
@@ -337,14 +340,14 @@ export async function generateInvoicePdfBuffer(
   invoice: InvoiceData,
   seller?: SellerInfo
 ): Promise<Buffer> {
-  console.log("[PDFService] Generating PDF for invoice:", invoice.invoiceNumber);
+  log.info({ invoiceNumber: invoice.invoiceNumber }, "Generating PDF");
 
   // Prepare template data
   const templateData = prepareTemplateData(invoice, seller);
 
   // Render HTML
   const html = invoiceTemplate(templateData);
-  console.log("[PDFService] HTML template rendered, length:", html.length);
+  log.debug({ htmlLength: html.length }, "HTML template rendered");
 
   // Generate PDF using Puppeteer
   let browser: Browser | null = null;
@@ -352,16 +355,16 @@ export async function generateInvoicePdfBuffer(
 
   try {
     browser = await getBrowser();
-    console.log("[PDFService] Browser instance obtained");
+    log.debug("Browser instance obtained");
 
     page = await browser.newPage();
-    console.log("[PDFService] New page created");
+    log.debug("New page created");
 
     await page.setContent(html, {
       waitUntil: "networkidle0",
       timeout: 30000,
     });
-    console.log("[PDFService] Content set on page");
+    log.debug("Content set on page");
 
     const pdfBuffer = await page.pdf({
       format: "A4",
@@ -375,14 +378,14 @@ export async function generateInvoicePdfBuffer(
       displayHeaderFooter: false,
     });
 
-    console.log("[PDFService] PDF generated, size:", pdfBuffer.length, "bytes");
+    log.info({ invoiceNumber: invoice.invoiceNumber, sizeBytes: pdfBuffer.length }, "PDF generated");
     return Buffer.from(pdfBuffer);
   } catch (error) {
-    console.error("[PDFService] Error generating PDF:", error);
+    log.error({ err: error, invoiceNumber: invoice.invoiceNumber }, "Error generating PDF");
     throw error;
   } finally {
     if (page) {
-      await page.close().catch((e: Error) => console.error("[PDFService] Error closing page:", e));
+      await page.close().catch((e: Error) => log.error({ err: e }, "Error closing page"));
     }
   }
 }

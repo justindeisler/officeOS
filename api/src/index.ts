@@ -11,6 +11,7 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { existsSync } from "fs";
 import { closeDb } from "./database.js";
+import { logger } from "./logger.js";
 import tasksRouter from "./routes/tasks.js";
 import projectsRouter from "./routes/projects.js";
 import clientsRouter from "./routes/clients.js";
@@ -72,7 +73,7 @@ app.use("/api/james-tasks", authMiddleware, jamesTasksRouter);
 
 // Serve static files from the web build
 if (existsSync(STATIC_PATH)) {
-  console.log(`[API] Serving static files from: ${STATIC_PATH}`);
+  logger.info({ path: STATIC_PATH }, "Serving static files");
   app.use(express.static(STATIC_PATH));
   
   // SPA fallback - serve index.html for all non-API routes
@@ -80,26 +81,28 @@ if (existsSync(STATIC_PATH)) {
     res.sendFile(join(STATIC_PATH, "index.html"));
   });
 } else {
-  console.log(`[API] Static path not found: ${STATIC_PATH}`);
+  logger.warn({ path: STATIC_PATH }, "Static path not found");
 }
 
 // Error handler
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error("[API Error]", err);
+  logger.error({ err }, "API error");
   res.status(500).json({ error: err.message });
 });
 
 // Graceful shutdown
 process.on("SIGINT", () => {
+  logger.info("Shutting down (SIGINT)");
   closeDb();
   process.exit(0);
 });
 
 process.on("SIGTERM", () => {
+  logger.info("Shutting down (SIGTERM)");
   closeDb();
   process.exit(0);
 });
 
 app.listen(PORT, () => {
-  console.log(`[API] Personal Assistant API running on port ${PORT}`);
+  logger.info({ port: PORT }, "Personal Assistant API running");
 });
