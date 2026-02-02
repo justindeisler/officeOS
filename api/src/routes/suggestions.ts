@@ -3,9 +3,28 @@
  */
 
 import { Router } from "express";
+import { exec } from "child_process";
 import { getDb, generateId, getCurrentTimestamp } from "../database.js";
+import { createLogger } from "../logger.js";
 
 const router = Router();
+const log = createLogger("suggestions");
+
+/**
+ * Trigger James to implement a suggestion via Clawdbot wake event
+ */
+function triggerJamesImplementation(suggestion: { id: string; title: string; description: string | null; project_name: string | null }) {
+  const message = `Implement approved suggestion: "${suggestion.title}" (ID: ${suggestion.id})${suggestion.project_name ? ` for project ${suggestion.project_name}` : ''}. Description: ${suggestion.description || 'No description'}. Use the coding-agent skill if needed. Mark as implemented when done.`;
+  
+  // Use clawdbot wake to send the task directly to the session
+  exec(`clawdbot cron wake --text "${message.replace(/"/g, '\\"')}" 2>&1`, (error, stdout, stderr) => {
+    if (error) {
+      log.error({ err: error, suggestionId: suggestion.id }, "Failed to trigger James");
+    } else {
+      log.info({ suggestionId: suggestion.id, stdout }, "Triggered James to implement suggestion");
+    }
+  });
+}
 
 // List suggestions
 router.get("/", (req, res) => {
@@ -79,13 +98,17 @@ router.post("/:id/approve", (req, res) => {
   const { id } = req.params;
   const now = getCurrentTimestamp();
 
-  const existing = db.prepare("SELECT * FROM suggestions WHERE id = ?").get(id);
+  const existing = db.prepare("SELECT * FROM suggestions WHERE id = ?").get(id) as { id: string; title: string; description: string | null; project_name: string | null } | undefined;
   if (!existing) {
     return res.status(404).json({ error: "Suggestion not found" });
   }
 
   db.prepare("UPDATE suggestions SET status = 'approved', decided_at = ?, updated_at = ? WHERE id = ?")
     .run(now, now, id);
+
+  // Trigger James to implement the suggestion
+  triggerJamesImplementation(existing);
+  log.info({ suggestionId: id, title: existing.title }, "Suggestion approved, James notified");
 
   const suggestion = db.prepare("SELECT * FROM suggestions WHERE id = ?").get(id);
   res.json(suggestion);
