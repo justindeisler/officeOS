@@ -7,6 +7,8 @@ import "dotenv/config";
 
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { existsSync } from "fs";
@@ -38,7 +40,24 @@ const PORT = process.env.PORT || 3001;
 // Static files path (web build)
 const STATIC_PATH = process.env.STATIC_PATH || join(__dirname, "../../app/dist-web");
 
-// Middleware
+// Security middleware
+app.use(helmet({
+  contentSecurityPolicy: false, // Disable for SPA compatibility
+  crossOriginEmbedderPolicy: false,
+}));
+
+// Rate limiting - 100 requests per 15 minutes per IP
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please try again later" },
+  skip: (req) => req.path === "/health", // Skip health checks
+});
+app.use("/api/", limiter);
+
+// CORS and body parsing
 app.use(cors());
 app.use(express.json());
 

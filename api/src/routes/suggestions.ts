@@ -3,27 +3,42 @@
  */
 
 import { Router } from "express";
-import { exec } from "child_process";
 import { getDb, generateId, getCurrentTimestamp } from "../database.js";
 import { createLogger } from "../logger.js";
 
 const router = Router();
 const log = createLogger("suggestions");
 
+// Clawdbot Gateway config
+const CLAWDBOT_GATEWAY_URL = process.env.CLAWDBOT_GATEWAY_URL || "http://localhost:18789";
+const CLAWDBOT_GATEWAY_TOKEN = process.env.CLAWDBOT_GATEWAY_TOKEN || "bbcf416eb09a9808d8f09e80eebbfe6e83dae0c5aa5f6e15";
+
 /**
  * Trigger James to implement a suggestion via Clawdbot wake event
  */
-function triggerJamesImplementation(suggestion: { id: string; title: string; description: string | null; project_name: string | null }) {
+async function triggerJamesImplementation(suggestion: { id: string; title: string; description: string | null; project_name: string | null }) {
   const message = `Implement approved suggestion: "${suggestion.title}" (ID: ${suggestion.id})${suggestion.project_name ? ` for project ${suggestion.project_name}` : ''}. Description: ${suggestion.description || 'No description'}. Use the coding-agent skill if needed. Mark as implemented when done.`;
   
-  // Use clawdbot wake to send the task directly to the session
-  exec(`clawdbot cron wake --text "${message.replace(/"/g, '\\"')}" 2>&1`, (error, stdout, stderr) => {
-    if (error) {
-      log.error({ err: error, suggestionId: suggestion.id }, "Failed to trigger James");
+  try {
+    // Use Clawdbot Gateway HTTP API to send wake event
+    const response = await fetch(`${CLAWDBOT_GATEWAY_URL}/api/cron/wake`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${CLAWDBOT_GATEWAY_TOKEN}`
+      },
+      body: JSON.stringify({ text: message })
+    });
+    
+    if (response.ok) {
+      log.info({ suggestionId: suggestion.id }, "Triggered James to implement suggestion");
     } else {
-      log.info({ suggestionId: suggestion.id, stdout }, "Triggered James to implement suggestion");
+      const error = await response.text();
+      log.error({ suggestionId: suggestion.id, status: response.status, error }, "Failed to trigger James");
     }
-  });
+  } catch (error) {
+    log.error({ err: error, suggestionId: suggestion.id }, "Failed to trigger James");
+  }
 }
 
 // List suggestions
