@@ -112,7 +112,12 @@ export function PLChart({
           />
           <YAxis
             tick={{ fontSize: 12 }}
-            tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
+            tickFormatter={(value) => {
+              if (Math.abs(value) >= 1000) {
+                return `${(value / 1000).toFixed(1)}k`
+              }
+              return value.toFixed(0)
+            }}
             className="text-muted-foreground"
           />
           <Tooltip content={<CustomTooltip />} />
