@@ -90,7 +90,7 @@ function getQuarterDates(year: number, quarter: 1 | 2 | 3 | 4) {
 async function getYearlyDepreciation(year: number): Promise<number> {
   const db = getDb();
   const result = db.prepare(
-    `SELECT SUM(amount) as total FROM depreciation_schedule WHERE year = ?`
+    `SELECT SUM(depreciation_amount) as total FROM depreciation_schedule WHERE year = ?`
   ).get(year) as { total: number } | undefined;
   return result?.total || 0;
 }
@@ -107,10 +107,10 @@ async function getDisposalGains(year: number): Promise<number> {
     `SELECT SUM(
       CASE
         WHEN disposal_price > (purchase_price - 
-          (SELECT COALESCE(SUM(amount), 0) FROM depreciation_schedule 
+          (SELECT COALESCE(SUM(depreciation_amount), 0) FROM depreciation_schedule 
            WHERE asset_id = assets.id AND year < ?))
         THEN disposal_price - (purchase_price - 
-          (SELECT COALESCE(SUM(amount), 0) FROM depreciation_schedule 
+          (SELECT COALESCE(SUM(depreciation_amount), 0) FROM depreciation_schedule 
            WHERE asset_id = assets.id AND year < ?))
         ELSE 0
       END
@@ -136,14 +136,14 @@ async function getDisposalLosses(year: number): Promise<number> {
     `SELECT SUM(
       CASE
         WHEN disposal_price IS NULL OR disposal_price = 0
-        THEN purchase_price - (SELECT COALESCE(SUM(amount), 0) 
+        THEN purchase_price - (SELECT COALESCE(SUM(depreciation_amount), 0) 
              FROM depreciation_schedule 
              WHERE asset_id = assets.id AND year < ?)
         WHEN disposal_price < (purchase_price - 
-          (SELECT COALESCE(SUM(amount), 0) FROM depreciation_schedule 
+          (SELECT COALESCE(SUM(depreciation_amount), 0) FROM depreciation_schedule 
            WHERE asset_id = assets.id AND year < ?))
         THEN (purchase_price - 
-          (SELECT COALESCE(SUM(amount), 0) FROM depreciation_schedule 
+          (SELECT COALESCE(SUM(depreciation_amount), 0) FROM depreciation_schedule 
            WHERE asset_id = assets.id AND year < ?)) - disposal_price
         ELSE 0
       END
