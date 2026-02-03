@@ -97,64 +97,20 @@ async function getYearlyDepreciation(year: number): Promise<number> {
 
 /**
  * Get asset disposal gains for a year
+ * TODO: Asset disposal not yet implemented in database schema
+ * (requires disposal_price, disposal_date columns)
  */
 async function getDisposalGains(year: number): Promise<number> {
-  const startDate = `${year}-01-01`;
-  const endDate = `${year}-12-31`;
-
-  const db = getDb();
-  const result = db.prepare(
-    `SELECT SUM(
-      CASE
-        WHEN disposal_price > (purchase_price - 
-          (SELECT COALESCE(SUM(depreciation_amount), 0) FROM depreciation_schedule 
-           WHERE asset_id = assets.id AND year < ?))
-        THEN disposal_price - (purchase_price - 
-          (SELECT COALESCE(SUM(depreciation_amount), 0) FROM depreciation_schedule 
-           WHERE asset_id = assets.id AND year < ?))
-        ELSE 0
-      END
-    ) as total
-    FROM assets
-    WHERE status = 'disposed'
-      AND disposal_date >= ?
-      AND disposal_date <= ?`
-  ).get(year, year, startDate, endDate) as { total: number } | undefined;
-
-  return result?.total || 0;
+  return 0;
 }
 
 /**
  * Get asset disposal losses for a year
+ * TODO: Asset disposal not yet implemented in database schema
+ * (requires disposal_price, disposal_date columns)
  */
 async function getDisposalLosses(year: number): Promise<number> {
-  const startDate = `${year}-01-01`;
-  const endDate = `${year}-12-31`;
-
-  const db = getDb();
-  const result = db.prepare(
-    `SELECT SUM(
-      CASE
-        WHEN disposal_price IS NULL OR disposal_price = 0
-        THEN purchase_price - (SELECT COALESCE(SUM(depreciation_amount), 0) 
-             FROM depreciation_schedule 
-             WHERE asset_id = assets.id AND year < ?)
-        WHEN disposal_price < (purchase_price - 
-          (SELECT COALESCE(SUM(depreciation_amount), 0) FROM depreciation_schedule 
-           WHERE asset_id = assets.id AND year < ?))
-        THEN (purchase_price - 
-          (SELECT COALESCE(SUM(depreciation_amount), 0) FROM depreciation_schedule 
-           WHERE asset_id = assets.id AND year < ?)) - disposal_price
-        ELSE 0
-      END
-    ) as total
-    FROM assets
-    WHERE status = 'disposed'
-      AND disposal_date >= ?
-      AND disposal_date <= ?`
-  ).get(year, year, year, startDate, endDate) as { total: number } | undefined;
-
-  return result?.total || 0;
+  return 0;
 }
 
 /**
