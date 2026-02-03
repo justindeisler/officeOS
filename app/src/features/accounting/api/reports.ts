@@ -38,7 +38,16 @@ function getApiUrl(): string {
  * Get auth token from localStorage
  */
 function getAuthToken(): string | null {
-  return localStorage.getItem('auth_token');
+  try {
+    const stored = localStorage.getItem('pa-auth');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return parsed.state?.token || null;
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  return null;
 }
 
 /**
