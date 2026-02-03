@@ -4,7 +4,7 @@
  */
 
 import express from 'express';
-import { db } from '../database.js';
+import { getDb } from '../database.js';
 
 const router = express.Router();
 
@@ -88,6 +88,7 @@ function getQuarterDates(year: number, quarter: 1 | 2 | 3 | 4) {
  * Get asset depreciation for a year
  */
 async function getYearlyDepreciation(year: number): Promise<number> {
+  const db = getDb();
   const result = await db.get<{ total: number }>(
     `SELECT SUM(amount) as total FROM depreciation_schedule WHERE year = ?`,
     [year]
@@ -102,6 +103,7 @@ async function getDisposalGains(year: number): Promise<number> {
   const startDate = `${year}-01-01`;
   const endDate = `${year}-12-31`;
 
+  const db = getDb();
   const result = await db.get<{ total: number }>(
     `SELECT SUM(
       CASE
@@ -131,6 +133,7 @@ async function getDisposalLosses(year: number): Promise<number> {
   const startDate = `${year}-01-01`;
   const endDate = `${year}-12-31`;
 
+  const db = getDb();
   const result = await db.get<{ total: number }>(
     `SELECT SUM(
       CASE
@@ -171,6 +174,8 @@ router.get('/ust/:year/:quarter', async (req, res) => {
     }
 
     const { startDate, endDate } = getQuarterDates(year, quarter);
+
+    const db = getDb();
 
     // Get income for the quarter
     const incomeRecords = await db.all<IncomeRow[]>(
@@ -268,6 +273,8 @@ router.post('/ust/:year/:quarter/file', async (req, res) => {
 
     const { startDate, endDate } = getQuarterDates(year, quarter);
 
+    const db = getDb();
+
     // Mark all income in this period as reported
     await db.run(
       `UPDATE income SET ust_reported = 1 WHERE date >= ? AND date <= ?`,
@@ -310,6 +317,8 @@ router.get('/euer/:year', async (req, res) => {
 
     const startDate = `${year}-01-01`;
     const endDate = `${year}-12-31`;
+
+    const db = getDb();
 
     // Get income for the year
     const incomeRecords = await db.all<IncomeRow[]>(
