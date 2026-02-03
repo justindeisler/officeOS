@@ -3,11 +3,71 @@
  *
  * Database operations for expense management.
  * Uses @tauri-apps/plugin-sql for Tauri-compatible database operations.
+ * Falls back to REST API in web mode.
  */
 
 import { getDb } from './db'
 import type { Expense, NewExpense, VatRate } from '../types'
 import { GWG_THRESHOLDS } from '../types'
+
+/**
+ * Check if running in Tauri environment
+ */
+function isTauri(): boolean {
+  return typeof window !== 'undefined' &&
+         '__TAURI__' in window &&
+         !!(window as unknown as { __TAURI__?: unknown }).__TAURI__;
+}
+
+/**
+ * Get API base URL
+ */
+function getApiUrl(): string {
+  return import.meta.env.VITE_API_URL || '';
+}
+
+/**
+ * Get auth token from localStorage
+ */
+function getAuthToken(): string | null {
+  try {
+    const stored = localStorage.getItem('pa-auth');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return parsed.state?.token || null;
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  return null;
+}
+
+/**
+ * Make authenticated API request
+ */
+async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getAuthToken();
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...(options?.headers || {}),
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${getApiUrl()}${path}`, {
+    ...options,
+    headers,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(error.error || `Request failed: ${response.statusText}`);
+  }
+
+  return response.json();
+}
 
 /**
  * Database row type for expenses
@@ -89,6 +149,17 @@ function rowToExpense(row: ExpenseRow): Expense {
  * Get all expenses ordered by date
  */
 export async function getAllExpenses(): Promise<Expense[]> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    const data = await apiRequest<Expense[]>('/api/expenses');
+    return data.map(item => ({
+      ...item,
+      date: new Date(item.date),
+      createdAt: new Date(item.createdAt),
+    }));
+  }
+
+  // Tauri mode - use database
   const db = await getDb()
   const rows = await db.select<ExpenseRow[]>(
     'SELECT * FROM expenses ORDER BY date DESC'
@@ -100,6 +171,21 @@ export async function getAllExpenses(): Promise<Expense[]> {
  * Get expense by ID
  */
 export async function getExpenseById(id: string): Promise<Expense | null> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    try {
+      const data = await apiRequest<Expense>(`/api/expenses/${id}`);
+      return {
+        ...data,
+        date: new Date(data.date),
+        createdAt: new Date(data.createdAt),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  // Tauri mode - use database
   const db = await getDb()
   const rows = await db.select<ExpenseRow[]>(
     'SELECT * FROM expenses WHERE id = $1',
@@ -112,6 +198,19 @@ export async function getExpenseById(id: string): Promise<Expense | null> {
  * Get expenses by date range
  */
 export async function getExpensesByDateRange(start: Date, end: Date): Promise<Expense[]> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    const startStr = start.toISOString().split('T')[0];
+    const endStr = end.toISOString().split('T')[0];
+    const data = await apiRequest<Expense[]>(`/api/expenses?startDate=${startStr}&endDate=${endStr}`);
+    return data.map(item => ({
+      ...item,
+      date: new Date(item.date),
+      createdAt: new Date(item.createdAt),
+    }));
+  }
+
+  // Tauri mode - use database
   const db = await getDb()
   const rows = await db.select<ExpenseRow[]>(
     'SELECT * FROM expenses WHERE date >= $1 AND date <= $2 ORDER BY date DESC',
@@ -124,6 +223,17 @@ export async function getExpensesByDateRange(start: Date, end: Date): Promise<Ex
  * Get expenses by USt period
  */
 export async function getExpensesByUstPeriod(period: string): Promise<Expense[]> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    const data = await apiRequest<Expense[]>(`/api/expenses?ustPeriod=${period}`);
+    return data.map(item => ({
+      ...item,
+      date: new Date(item.date),
+      createdAt: new Date(item.createdAt),
+    }));
+  }
+
+  // Tauri mode - use database
   const db = await getDb()
   const rows = await db.select<ExpenseRow[]>(
     'SELECT * FROM expenses WHERE ust_period = $1 ORDER BY date DESC',
@@ -136,6 +246,17 @@ export async function getExpensesByUstPeriod(period: string): Promise<Expense[]>
  * Get expenses by category
  */
 export async function getExpensesByCategory(category: string): Promise<Expense[]> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    const data = await apiRequest<Expense[]>(`/api/expenses?category=${category}`);
+    return data.map(item => ({
+      ...item,
+      date: new Date(item.date),
+      createdAt: new Date(item.createdAt),
+    }));
+  }
+
+  // Tauri mode - use database
   const db = await getDb()
   const rows = await db.select<ExpenseRow[]>(
     'SELECT * FROM expenses WHERE euer_category = $1 ORDER BY date DESC',
@@ -148,6 +269,17 @@ export async function getExpensesByCategory(category: string): Promise<Expense[]
  * Get recurring expenses
  */
 export async function getRecurringExpenses(): Promise<Expense[]> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    const data = await apiRequest<Expense[]>('/api/expenses?recurring=true');
+    return data.map(item => ({
+      ...item,
+      date: new Date(item.date),
+      createdAt: new Date(item.createdAt),
+    }));
+  }
+
+  // Tauri mode - use database
   const db = await getDb()
   const rows = await db.select<ExpenseRow[]>(
     'SELECT * FROM expenses WHERE is_recurring = 1 ORDER BY date DESC'
@@ -159,6 +291,17 @@ export async function getRecurringExpenses(): Promise<Expense[]> {
  * Get GWG expenses
  */
 export async function getGwgExpenses(): Promise<Expense[]> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    const data = await apiRequest<Expense[]>('/api/expenses?gwg=true');
+    return data.map(item => ({
+      ...item,
+      date: new Date(item.date),
+      createdAt: new Date(item.createdAt),
+    }));
+  }
+
+  // Tauri mode - use database
   const db = await getDb()
   const rows = await db.select<ExpenseRow[]>(
     'SELECT * FROM expenses WHERE is_gwg = 1 ORDER BY date DESC'
@@ -170,6 +313,17 @@ export async function getGwgExpenses(): Promise<Expense[]> {
  * Get unclaimed Vorsteuer expenses
  */
 export async function getUnclaimedVorsteuer(): Promise<Expense[]> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    const data = await apiRequest<Expense[]>('/api/expenses?vorsteuerClaimed=false');
+    return data.map(item => ({
+      ...item,
+      date: new Date(item.date),
+      createdAt: new Date(item.createdAt),
+    }));
+  }
+
+  // Tauri mode - use database
   const db = await getDb()
   const rows = await db.select<ExpenseRow[]>(
     'SELECT * FROM expenses WHERE vorsteuer_claimed = 0 ORDER BY date DESC'
@@ -181,6 +335,23 @@ export async function getUnclaimedVorsteuer(): Promise<Expense[]> {
  * Create a new expense
  */
 export async function createExpense(data: NewExpense): Promise<Expense> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    const response = await apiRequest<Expense>('/api/expenses', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...data,
+        date: data.date.toISOString().split('T')[0],
+      }),
+    });
+    return {
+      ...response,
+      date: new Date(response.date),
+      createdAt: new Date(response.createdAt),
+    };
+  }
+
+  // Tauri mode - use database
   const db = await getDb()
   const vatAmount = calculateVat(data.netAmount, data.vatRate)
   const grossAmount = data.netAmount + vatAmount
@@ -252,6 +423,28 @@ export async function updateExpense(
   id: string,
   data: Partial<NewExpense>
 ): Promise<Expense | null> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    try {
+      const updateData = { ...data };
+      if (data.date) {
+        updateData.date = data.date.toISOString().split('T')[0] as any;
+      }
+      const response = await apiRequest<Expense>(`/api/expenses/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(updateData),
+      });
+      return {
+        ...response,
+        date: new Date(response.date),
+        createdAt: new Date(response.createdAt),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  // Tauri mode - use database
   const existing = await getExpenseById(id)
   if (!existing) return null
 
@@ -349,6 +542,15 @@ export async function updateExpense(
  * Delete an expense
  */
 export async function deleteExpense(id: string): Promise<boolean> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    await apiRequest(`/api/expenses/${id}`, {
+      method: 'DELETE',
+    });
+    return true;
+  }
+
+  // Tauri mode - use database
   const db = await getDb()
   await db.execute('DELETE FROM expenses WHERE id = $1', [id])
   return true
@@ -358,6 +560,16 @@ export async function deleteExpense(id: string): Promise<boolean> {
  * Mark expenses as Vorsteuer claimed
  */
 export async function markVorsteuerClaimed(ids: string[]): Promise<void> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    await apiRequest('/api/expenses/mark-vorsteuer', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    });
+    return;
+  }
+
+  // Tauri mode - use database
   const db = await getDb()
   for (const id of ids) {
     await db.execute('UPDATE expenses SET vorsteuer_claimed = 1 WHERE id = $1', [id])
@@ -375,6 +587,14 @@ export async function getVorsteuerSummary(
   byCategory: Record<string, number>
   byVatRate: Record<number, number>
 }> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    const startStr = start.toISOString().split('T')[0];
+    const endStr = end.toISOString().split('T')[0];
+    return await apiRequest(`/api/expenses/vorsteuer-summary?startDate=${startStr}&endDate=${endStr}`);
+  }
+
+  // Tauri mode - use database
   const rows = await getExpensesByDateRange(start, end)
 
   const summary = {

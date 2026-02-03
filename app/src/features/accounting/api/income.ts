@@ -3,10 +3,70 @@
  *
  * Provides database operations for income records.
  * Uses @tauri-apps/plugin-sql for type-safe queries.
+ * Falls back to REST API in web mode.
  */
 
 import { getDb } from './db'
 import type { Income, NewIncome, VatRate } from '../types'
+
+/**
+ * Check if running in Tauri environment
+ */
+function isTauri(): boolean {
+  return typeof window !== 'undefined' &&
+         '__TAURI__' in window &&
+         !!(window as unknown as { __TAURI__?: unknown }).__TAURI__;
+}
+
+/**
+ * Get API base URL
+ */
+function getApiUrl(): string {
+  return import.meta.env.VITE_API_URL || '';
+}
+
+/**
+ * Get auth token from localStorage
+ */
+function getAuthToken(): string | null {
+  try {
+    const stored = localStorage.getItem('pa-auth');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return parsed.state?.token || null;
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  return null;
+}
+
+/**
+ * Make authenticated API request
+ */
+async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getAuthToken();
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...(options?.headers || {}),
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${getApiUrl()}${path}`, {
+    ...options,
+    headers,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(error.error || `Request failed: ${response.statusText}`);
+  }
+
+  return response.json();
+}
 
 /**
  * Database row type for income
@@ -48,6 +108,17 @@ function calculateVat(netAmount: number, vatRate: VatRate): number {
  * Get all income records, ordered by date descending
  */
 export async function getAllIncome(): Promise<Income[]> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    const data = await apiRequest<Income[]>('/api/income');
+    return data.map(item => ({
+      ...item,
+      date: new Date(item.date),
+      createdAt: new Date(item.createdAt),
+    }));
+  }
+
+  // Tauri mode - use database
   const db = await getDb()
   const results = await db.select<IncomeRow[]>(
     'SELECT * FROM income ORDER BY date DESC'
@@ -59,6 +130,21 @@ export async function getAllIncome(): Promise<Income[]> {
  * Get income record by ID
  */
 export async function getIncomeById(id: string): Promise<Income | null> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    try {
+      const data = await apiRequest<Income>(`/api/income/${id}`);
+      return {
+        ...data,
+        date: new Date(data.date),
+        createdAt: new Date(data.createdAt),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  // Tauri mode - use database
   const db = await getDb()
   const results = await db.select<IncomeRow[]>(
     'SELECT * FROM income WHERE id = $1',
@@ -75,6 +161,19 @@ export async function getIncomeByDateRange(
   startDate: Date,
   endDate: Date
 ): Promise<Income[]> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    const start = startDate.toISOString().split('T')[0];
+    const end = endDate.toISOString().split('T')[0];
+    const data = await apiRequest<Income[]>(`/api/income?startDate=${start}&endDate=${end}`);
+    return data.map(item => ({
+      ...item,
+      date: new Date(item.date),
+      createdAt: new Date(item.createdAt),
+    }));
+  }
+
+  // Tauri mode - use database
   const db = await getDb()
   const results = await db.select<IncomeRow[]>(
     'SELECT * FROM income WHERE date >= $1 AND date <= $2 ORDER BY date DESC',
@@ -87,6 +186,17 @@ export async function getIncomeByDateRange(
  * Get income records for a specific USt period (e.g., "2024-Q1")
  */
 export async function getIncomeByUstPeriod(period: string): Promise<Income[]> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    const data = await apiRequest<Income[]>(`/api/income?ustPeriod=${period}`);
+    return data.map(item => ({
+      ...item,
+      date: new Date(item.date),
+      createdAt: new Date(item.createdAt),
+    }));
+  }
+
+  // Tauri mode - use database
   const db = await getDb()
   const results = await db.select<IncomeRow[]>(
     'SELECT * FROM income WHERE ust_period = $1 ORDER BY date DESC',
@@ -99,6 +209,17 @@ export async function getIncomeByUstPeriod(period: string): Promise<Income[]> {
  * Get unreported income for USt-Voranmeldung
  */
 export async function getUnreportedIncome(): Promise<Income[]> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    const data = await apiRequest<Income[]>('/api/income?ustReported=false');
+    return data.map(item => ({
+      ...item,
+      date: new Date(item.date),
+      createdAt: new Date(item.createdAt),
+    }));
+  }
+
+  // Tauri mode - use database
   const db = await getDb()
   const results = await db.select<IncomeRow[]>(
     'SELECT * FROM income WHERE ust_reported = 0 ORDER BY date ASC'
@@ -110,6 +231,23 @@ export async function getUnreportedIncome(): Promise<Income[]> {
  * Create a new income record
  */
 export async function createIncome(data: NewIncome): Promise<Income> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    const response = await apiRequest<Income>('/api/income', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...data,
+        date: data.date.toISOString().split('T')[0],
+      }),
+    });
+    return {
+      ...response,
+      date: new Date(response.date),
+      createdAt: new Date(response.createdAt),
+    };
+  }
+
+  // Tauri mode - use database
   const db = await getDb()
   const id = generateId()
   const vatAmount = calculateVat(data.netAmount, data.vatRate)
@@ -173,6 +311,28 @@ export async function updateIncome(
   id: string,
   data: Partial<NewIncome>
 ): Promise<Income | null> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    try {
+      const updateData = { ...data };
+      if (data.date) {
+        updateData.date = data.date.toISOString().split('T')[0] as any;
+      }
+      const response = await apiRequest<Income>(`/api/income/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(updateData),
+      });
+      return {
+        ...response,
+        date: new Date(response.date),
+        createdAt: new Date(response.createdAt),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  // Tauri mode - use database
   const existing = await getIncomeById(id)
   if (!existing) return null
 
@@ -251,6 +411,15 @@ export async function updateIncome(
  * Delete an income record
  */
 export async function deleteIncome(id: string): Promise<boolean> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    await apiRequest(`/api/income/${id}`, {
+      method: 'DELETE',
+    });
+    return true;
+  }
+
+  // Tauri mode - use database
   const db = await getDb()
   await db.execute('DELETE FROM income WHERE id = $1', [id])
   return true
@@ -260,6 +429,16 @@ export async function deleteIncome(id: string): Promise<boolean> {
  * Mark income records as reported for USt-Voranmeldung
  */
 export async function markIncomeAsReported(ids: string[]): Promise<void> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    await apiRequest('/api/income/mark-reported', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    });
+    return;
+  }
+
+  // Tauri mode - use database
   const db = await getDb()
   for (const id of ids) {
     await db.execute('UPDATE income SET ust_reported = 1 WHERE id = $1', [id])
@@ -279,6 +458,14 @@ export async function getIncomeSummary(
   count: number
   byVatRate: Record<number, { net: number; vat: number }>
 }> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    const start = startDate.toISOString().split('T')[0];
+    const end = endDate.toISOString().split('T')[0];
+    return await apiRequest(`/api/income/summary?startDate=${start}&endDate=${end}`);
+  }
+
+  // Tauri mode - use database
   const records = await getIncomeByDateRange(startDate, endDate)
 
   const summary = {

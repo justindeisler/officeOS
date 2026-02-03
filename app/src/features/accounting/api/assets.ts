@@ -3,12 +3,72 @@
  *
  * Database operations for asset management with depreciation (AfA).
  * Uses @tauri-apps/plugin-sql for Tauri-compatible database operations.
+ * Falls back to REST API in web mode.
  */
 
 import { getDb } from './db'
 import type { Asset, NewAsset, AssetCategory, VatRate, DepreciationEntry, AssetStatus, AfaMethod } from '../types'
 import { AFA_YEARS, GWG_THRESHOLDS } from '../types'
 import { attachmentService } from '@/services/attachmentService'
+
+/**
+ * Check if running in Tauri environment
+ */
+function isTauri(): boolean {
+  return typeof window !== 'undefined' &&
+         '__TAURI__' in window &&
+         !!(window as unknown as { __TAURI__?: unknown }).__TAURI__;
+}
+
+/**
+ * Get API base URL
+ */
+function getApiUrl(): string {
+  return import.meta.env.VITE_API_URL || '';
+}
+
+/**
+ * Get auth token from localStorage
+ */
+function getAuthToken(): string | null {
+  try {
+    const stored = localStorage.getItem('pa-auth');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return parsed.state?.token || null;
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  return null;
+}
+
+/**
+ * Make authenticated API request
+ */
+async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getAuthToken();
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...(options?.headers || {}),
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${getApiUrl()}${path}`, {
+    ...options,
+    headers,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(error.error || `Request failed: ${response.statusText}`);
+  }
+
+  return response.json();
+}
 
 /**
  * Database row type for assets
@@ -277,6 +337,19 @@ async function getNextInventoryNumber(): Promise<string> {
  * Get all assets ordered by purchase date
  */
 export async function getAllAssets(): Promise<Asset[]> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    const data = await apiRequest<Asset[]>('/api/assets');
+    return data.map(item => ({
+      ...item,
+      purchaseDate: new Date(item.purchaseDate),
+      afaStartDate: new Date(item.afaStartDate),
+      disposalDate: item.disposalDate ? new Date(item.disposalDate) : undefined,
+      createdAt: new Date(item.createdAt),
+    }));
+  }
+
+  // Tauri mode - use database
   const db = await getDb()
   const rows = await db.select<AssetRow[]>(
     'SELECT * FROM assets ORDER BY purchase_date DESC'
@@ -295,6 +368,23 @@ export async function getAllAssets(): Promise<Asset[]> {
  * Get asset by ID
  */
 export async function getAssetById(id: string): Promise<Asset | null> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    try {
+      const data = await apiRequest<Asset>(`/api/assets/${id}`);
+      return {
+        ...data,
+        purchaseDate: new Date(data.purchaseDate),
+        afaStartDate: new Date(data.afaStartDate),
+        disposalDate: data.disposalDate ? new Date(data.disposalDate) : undefined,
+        createdAt: new Date(data.createdAt),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  // Tauri mode - use database
   const db = await getDb()
   const rows = await db.select<AssetRow[]>(
     'SELECT * FROM assets WHERE id = $1',
@@ -313,6 +403,19 @@ export async function getAssetById(id: string): Promise<Asset | null> {
  * Get assets by category
  */
 export async function getAssetsByCategory(category: AssetCategory): Promise<Asset[]> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    const data = await apiRequest<Asset[]>(`/api/assets?category=${category}`);
+    return data.map(item => ({
+      ...item,
+      purchaseDate: new Date(item.purchaseDate),
+      afaStartDate: new Date(item.afaStartDate),
+      disposalDate: item.disposalDate ? new Date(item.disposalDate) : undefined,
+      createdAt: new Date(item.createdAt),
+    }));
+  }
+
+  // Tauri mode - use database
   const db = await getDb()
   const rows = await db.select<AssetRow[]>(
     'SELECT * FROM assets WHERE category = $1 ORDER BY purchase_date DESC',
@@ -332,6 +435,19 @@ export async function getAssetsByCategory(category: AssetCategory): Promise<Asse
  * Get assets by status
  */
 export async function getAssetsByStatus(status: AssetStatus): Promise<Asset[]> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    const data = await apiRequest<Asset[]>(`/api/assets?status=${status}`);
+    return data.map(item => ({
+      ...item,
+      purchaseDate: new Date(item.purchaseDate),
+      afaStartDate: new Date(item.afaStartDate),
+      disposalDate: item.disposalDate ? new Date(item.disposalDate) : undefined,
+      createdAt: new Date(item.createdAt),
+    }));
+  }
+
+  // Tauri mode - use database
   const db = await getDb()
   const rows = await db.select<AssetRow[]>(
     'SELECT * FROM assets WHERE status = $1 ORDER BY purchase_date DESC',
@@ -358,6 +474,19 @@ export async function getActiveAssets(): Promise<Asset[]> {
  * Get disposed or sold assets
  */
 export async function getDisposedAssets(): Promise<Asset[]> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    const data = await apiRequest<Asset[]>('/api/assets?status=disposed,sold');
+    return data.map(item => ({
+      ...item,
+      purchaseDate: new Date(item.purchaseDate),
+      afaStartDate: new Date(item.afaStartDate),
+      disposalDate: item.disposalDate ? new Date(item.disposalDate) : undefined,
+      createdAt: new Date(item.createdAt),
+    }));
+  }
+
+  // Tauri mode - use database
   const db = await getDb()
   const rows = await db.select<AssetRow[]>(
     `SELECT * FROM assets WHERE status IN ('disposed', 'sold') ORDER BY purchase_date DESC`
@@ -379,6 +508,26 @@ export async function getDisposedAssets(): Promise<Asset[]> {
  * @param existingId Optional pre-generated ID (used when file attachments are saved before asset creation)
  */
 export async function createAsset(data: NewAsset, existingId?: string): Promise<Asset> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    const response = await apiRequest<Asset>('/api/assets', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...data,
+        purchaseDate: data.purchaseDate.toISOString().split('T')[0],
+        id: existingId,
+      }),
+    });
+    return {
+      ...response,
+      purchaseDate: new Date(response.purchaseDate),
+      afaStartDate: new Date(response.afaStartDate),
+      disposalDate: response.disposalDate ? new Date(response.disposalDate) : undefined,
+      createdAt: new Date(response.createdAt),
+    };
+  }
+
+  // Tauri mode - use database
   const db = await getDb()
   const id = existingId ?? crypto.randomUUID()
   const now = new Date().toISOString()
@@ -476,6 +625,30 @@ export async function updateAsset(
   id: string,
   data: Partial<NewAsset>
 ): Promise<Asset | null> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    try {
+      const updateData = { ...data };
+      if (data.purchaseDate) {
+        updateData.purchaseDate = data.purchaseDate.toISOString().split('T')[0] as any;
+      }
+      const response = await apiRequest<Asset>(`/api/assets/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(updateData),
+      });
+      return {
+        ...response,
+        purchaseDate: new Date(response.purchaseDate),
+        afaStartDate: new Date(response.afaStartDate),
+        disposalDate: response.disposalDate ? new Date(response.disposalDate) : undefined,
+        createdAt: new Date(response.createdAt),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  // Tauri mode - use database
   const existing = await getAssetById(id)
   if (!existing) return null
 
@@ -605,6 +778,15 @@ export async function updateAsset(
  * Delete an asset
  */
 export async function deleteAsset(id: string): Promise<boolean> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    await apiRequest(`/api/assets/${id}`, {
+      method: 'DELETE',
+    });
+    return true;
+  }
+
+  // Tauri mode - use database
   const existing = await getAssetById(id)
   if (!existing) return false
 
@@ -629,6 +811,26 @@ export async function disposeAsset(
   status: 'disposed' | 'sold',
   disposalPrice?: number
 ): Promise<Asset | null> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    const response = await apiRequest<Asset>(`/api/assets/${id}/dispose`, {
+      method: 'POST',
+      body: JSON.stringify({
+        disposalDate: disposalDate.toISOString().split('T')[0],
+        status,
+        disposalPrice,
+      }),
+    });
+    return {
+      ...response,
+      purchaseDate: new Date(response.purchaseDate),
+      afaStartDate: new Date(response.afaStartDate),
+      disposalDate: response.disposalDate ? new Date(response.disposalDate) : undefined,
+      createdAt: new Date(response.createdAt),
+    };
+  }
+
+  // Tauri mode - use database
   const existing = await getAssetById(id)
   if (!existing) return null
 
