@@ -89,10 +89,9 @@ function getQuarterDates(year: number, quarter: 1 | 2 | 3 | 4) {
  */
 async function getYearlyDepreciation(year: number): Promise<number> {
   const db = getDb();
-  const result = await db.get<{ total: number }>(
-    `SELECT SUM(amount) as total FROM depreciation_schedule WHERE year = ?`,
-    [year]
-  );
+  const result = db.prepare(
+    `SELECT SUM(amount) as total FROM depreciation_schedule WHERE year = ?`
+  ).get(year) as { total: number } | undefined;
   return result?.total || 0;
 }
 
@@ -104,7 +103,7 @@ async function getDisposalGains(year: number): Promise<number> {
   const endDate = `${year}-12-31`;
 
   const db = getDb();
-  const result = await db.get<{ total: number }>(
+  const result = db.prepare(
     `SELECT SUM(
       CASE
         WHEN disposal_price > (purchase_price - 
@@ -119,9 +118,8 @@ async function getDisposalGains(year: number): Promise<number> {
     FROM assets
     WHERE status = 'disposed'
       AND disposal_date >= ?
-      AND disposal_date <= ?`,
-    [year, year, startDate, endDate]
-  );
+      AND disposal_date <= ?`
+  ).get(year, year, startDate, endDate) as { total: number } | undefined;
 
   return result?.total || 0;
 }
@@ -134,7 +132,7 @@ async function getDisposalLosses(year: number): Promise<number> {
   const endDate = `${year}-12-31`;
 
   const db = getDb();
-  const result = await db.get<{ total: number }>(
+  const result = db.prepare(
     `SELECT SUM(
       CASE
         WHEN disposal_price IS NULL OR disposal_price = 0
@@ -153,9 +151,8 @@ async function getDisposalLosses(year: number): Promise<number> {
     FROM assets
     WHERE status = 'disposed'
       AND disposal_date >= ?
-      AND disposal_date <= ?`,
-    [year, year, year, startDate, endDate]
-  );
+      AND disposal_date <= ?`
+  ).get(year, year, year, startDate, endDate) as { total: number } | undefined;
 
   return result?.total || 0;
 }
@@ -178,16 +175,14 @@ router.get('/ust/:year/:quarter', async (req, res) => {
     const db = getDb();
 
     // Get income for the quarter
-    const incomeRecords = await db.all<IncomeRow[]>(
-      `SELECT * FROM income WHERE date >= ? AND date <= ? ORDER BY date DESC`,
-      [startDate, endDate]
-    );
+    const incomeRecords = db.prepare(
+      `SELECT * FROM income WHERE date >= ? AND date <= ? ORDER BY date DESC`
+    ).all(startDate, endDate) as IncomeRow[];
 
     // Get expenses for the quarter
-    const expenseRecords = await db.all<ExpenseRow[]>(
-      `SELECT * FROM expenses WHERE date >= ? AND date <= ? ORDER BY date DESC`,
-      [startDate, endDate]
-    );
+    const expenseRecords = db.prepare(
+      `SELECT * FROM expenses WHERE date >= ? AND date <= ? ORDER BY date DESC`
+    ).all(startDate, endDate) as ExpenseRow[];
 
     // Calculate Umsatzsteuer (output VAT) by rate
     const umsatzsteuer19 = incomeRecords
@@ -276,16 +271,14 @@ router.post('/ust/:year/:quarter/file', async (req, res) => {
     const db = getDb();
 
     // Mark all income in this period as reported
-    await db.run(
-      `UPDATE income SET ust_reported = 1 WHERE date >= ? AND date <= ?`,
-      [startDate, endDate]
-    );
+    db.prepare(
+      `UPDATE income SET ust_reported = 1 WHERE date >= ? AND date <= ?`
+    ).run(startDate, endDate);
 
     // Mark all expenses in this period as Vorsteuer claimed
-    await db.run(
-      `UPDATE expenses SET vorsteuer_claimed = 1 WHERE date >= ? AND date <= ?`,
-      [startDate, endDate]
-    );
+    db.prepare(
+      `UPDATE expenses SET vorsteuer_claimed = 1 WHERE date >= ? AND date <= ?`
+    ).run(startDate, endDate);
 
     // Get updated report (reuse the GET endpoint logic)
     const response = await fetch(
@@ -321,16 +314,14 @@ router.get('/euer/:year', async (req, res) => {
     const db = getDb();
 
     // Get income for the year
-    const incomeRecords = await db.all<IncomeRow[]>(
-      `SELECT * FROM income WHERE date >= ? AND date <= ? ORDER BY date DESC`,
-      [startDate, endDate]
-    );
+    const incomeRecords = db.prepare(
+      `SELECT * FROM income WHERE date >= ? AND date <= ? ORDER BY date DESC`
+    ).all(startDate, endDate) as IncomeRow[];
 
     // Get expenses for the year
-    const expenseRecords = await db.all<ExpenseRow[]>(
-      `SELECT * FROM expenses WHERE date >= ? AND date <= ? ORDER BY date DESC`,
-      [startDate, endDate]
-    );
+    const expenseRecords = db.prepare(
+      `SELECT * FROM expenses WHERE date >= ? AND date <= ? ORDER BY date DESC`
+    ).all(startDate, endDate) as ExpenseRow[];
 
     // Get asset depreciation (AfA) for the year
     const assetAfA = await getYearlyDepreciation(year);
