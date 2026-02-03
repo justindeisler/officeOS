@@ -6,18 +6,12 @@
  */
 
 import Database from 'better-sqlite3'
-import { drizzle, BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
-import * as schema from '@/features/accounting/api/schema'
-
-// Type for our test database instance
-export type TestDatabase = BetterSQLite3Database<typeof schema>
 
 /**
  * Create an in-memory SQLite database for testing
- * Returns both the Drizzle ORM instance and the raw SQLite connection
+ * Returns the raw SQLite connection
  */
 export function createTestDatabase(): {
-  db: TestDatabase
   sqlite: Database.Database
 } {
   // Create in-memory SQLite database
@@ -29,10 +23,7 @@ export function createTestDatabase(): {
   // Create all tables
   initializeTestSchema(sqlite)
 
-  // Create Drizzle ORM instance
-  const db = drizzle(sqlite, { schema })
-
-  return { db, sqlite }
+  return { sqlite }
 }
 
 /**

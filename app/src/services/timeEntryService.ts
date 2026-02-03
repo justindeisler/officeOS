@@ -144,6 +144,26 @@ class TimeEntryService extends BaseService<TimeEntry> {
 
     return result[0]?.total || 0;
   }
+
+  async update(id: string, updates: Partial<TimeEntry>): Promise<void> {
+    const db = await getDb();
+    const dbUpdates = toDbFormat(updates as Record<string, unknown>);
+    
+    // Handle isRunning boolean conversion for SQLite
+    if ('isRunning' in updates) {
+      dbUpdates.is_running = updates.isRunning ? 1 : 0;
+      delete dbUpdates.isRunning;
+    }
+    
+    // Build SET clause dynamically
+    const setClauses = Object.keys(dbUpdates).map(key => `${key} = ?`).join(", ");
+    const values = [...Object.values(dbUpdates), id];
+
+    await db.execute(
+      `UPDATE time_entries SET ${setClauses} WHERE id = ?`,
+      values
+    );
+  }
 }
 
 export const timeEntryService = new TimeEntryService();

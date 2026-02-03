@@ -79,6 +79,11 @@ class TimeEntryService {
   async delete(id: string): Promise<void> {
     await api.deleteTimeEntry(id);
   }
+
+  async update(id: string, updates: Partial<TimeEntry>): Promise<void> {
+    const snakeUpdates = toSnakeCase(updates as unknown as Record<string, unknown>);
+    await api.updateTimeEntry(id, snakeUpdates);
+  }
 }
 
 export const timeEntryService = new TimeEntryService();

@@ -22,7 +22,7 @@ interface SettingsState extends Settings {
 const defaultSettings: Settings = {
   workspacePath: undefined,
   theme: "dark",
-  defaultArea: "freelance",
+  defaultArea: "freelance" as Area,
   defaultCurrency: "EUR",
   userName: "Justin Deisler",
 };
@@ -51,7 +51,11 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
 
     try {
       const settings = await settingsService.getAll();
-      set({ ...settings, isLoaded: true });
+      set({ 
+        ...settings, 
+        defaultArea: settings.defaultArea as Area,
+        isLoaded: true 
+      });
 
       // Apply theme after loading
       applyTheme(settings.theme);

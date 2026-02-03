@@ -190,6 +190,13 @@ class ApiClient {
     return this.request<unknown>(`/time/${id}`, { method: 'DELETE' });
   }
 
+  async updateTimeEntry(id: string, updates: Record<string, unknown>) {
+    return this.request<unknown>(`/time/${id}`, { 
+      method: 'PATCH',
+      body: JSON.stringify(updates)
+    });
+  }
+
   // Captures
   async getCaptures(filters?: { processed?: boolean; type?: string }) {
     const params = new URLSearchParams();
