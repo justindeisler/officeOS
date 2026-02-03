@@ -537,13 +537,54 @@ router.post("/:id/pay", (req: Request, res: Response) => {
     return res.status(400).json({ error: "Cannot pay cancelled invoices" });
   }
 
+  const finalPaymentDate = payment_date || new Date().toISOString().split("T")[0];
+  const finalPaymentMethod = payment_method || null;
+
+  // Update invoice status to paid
   db.prepare(
     "UPDATE invoices SET status = 'paid', payment_date = ?, payment_method = ? WHERE id = ?"
   ).run(
-    payment_date || new Date().toISOString().split("T")[0],
-    payment_method || null,
+    finalPaymentDate,
+    finalPaymentMethod,
     id
   );
+
+  // Check if income record already exists for this invoice
+  const existingIncome = db.prepare("SELECT id FROM income WHERE invoice_id = ?").get(id) as
+    | { id: string }
+    | undefined;
+
+  if (!existingIncome) {
+    // Automatically create income record
+    const incomeId = generateId();
+    const now = getCurrentTimestamp();
+
+    db.prepare(
+      `INSERT INTO income (
+        id, date, client_id, invoice_id, description, net_amount, vat_rate,
+        vat_amount, gross_amount, euer_line, euer_category, payment_method,
+        bank_reference, ust_period, ust_reported, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`
+    ).run(
+      incomeId,
+      finalPaymentDate,
+      existing.client_id || null,
+      id,
+      `Payment for Invoice #${existing.invoice_number}`,
+      existing.subtotal,
+      existing.vat_rate,
+      existing.vat_amount,
+      existing.total,
+      14, // Default EÜR line for services
+      "services", // Default category
+      finalPaymentMethod,
+      null, // bank_reference
+      null, // ust_period
+      now
+    );
+
+    console.log(`[Invoices] Auto-created income record ${incomeId} for invoice ${existing.invoice_number}`);
+  }
 
   const invoice = db.prepare("SELECT * FROM invoices WHERE id = ?").get(id);
   res.json(invoice);
