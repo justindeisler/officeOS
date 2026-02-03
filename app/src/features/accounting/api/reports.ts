@@ -4,6 +4,7 @@
  * Provides functions to generate USt-Voranmeldung (quarterly VAT)
  * and EÜR (annual profit) reports from income and expense data.
  * Uses @tauri-apps/plugin-sql for Tauri-compatible database operations.
+ * Falls back to REST API in web mode.
  */
 
 import { getDb } from './db'
@@ -16,6 +17,56 @@ import type {
   VatRate,
 } from '../types'
 import { EUER_LINES, HOMEOFFICE_PAUSCHALE } from '../types'
+
+/**
+ * Check if running in Tauri environment
+ */
+function isTauri(): boolean {
+  return typeof window !== 'undefined' &&
+         '__TAURI__' in window &&
+         !!(window as unknown as { __TAURI__?: unknown }).__TAURI__;
+}
+
+/**
+ * Get API base URL
+ */
+function getApiUrl(): string {
+  return import.meta.env.VITE_API_URL || '';
+}
+
+/**
+ * Get auth token from localStorage
+ */
+function getAuthToken(): string | null {
+  return localStorage.getItem('auth_token');
+}
+
+/**
+ * Make authenticated API request
+ */
+async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getAuthToken();
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...(options?.headers || {}),
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${getApiUrl()}${path}`, {
+    ...options,
+    headers,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(error.error || `Request failed: ${response.statusText}`);
+  }
+
+  return response.json();
+}
 
 /**
  * Database row type for income
@@ -225,6 +276,18 @@ export async function getUstVoranmeldung(
   year: number,
   quarter: 1 | 2 | 3 | 4
 ): Promise<UstVoranmeldung> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    const data = await apiRequest<UstVoranmeldung>(`/api/reports/ust/${year}/${quarter}`);
+    return {
+      ...data,
+      startDate: new Date(data.startDate),
+      endDate: new Date(data.endDate),
+      filedDate: data.filedDate ? new Date(data.filedDate) : undefined,
+    };
+  }
+
+  // Tauri mode - use database directly
   const { startDate, endDate } = getQuarterDates(year, quarter)
 
   const incomeRecords = await getIncomeForQuarter(year, quarter)
@@ -274,6 +337,18 @@ export async function getUstVoranmeldung(
 export async function getUstVoranmeldungenForYear(
   year: number
 ): Promise<UstVoranmeldung[]> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    const data = await apiRequest<UstVoranmeldung[]>(`/api/reports/ust/${year}`);
+    return data.map(item => ({
+      ...item,
+      startDate: new Date(item.startDate),
+      endDate: new Date(item.endDate),
+      filedDate: item.filedDate ? new Date(item.filedDate) : undefined,
+    }));
+  }
+
+  // Tauri mode - use database directly
   const quarters: (1 | 2 | 3 | 4)[] = [1, 2, 3, 4]
   const results = await Promise.all(
     quarters.map((q) => getUstVoranmeldung(year, q))
@@ -289,6 +364,21 @@ export async function markUstAsFiled(
   year: number,
   quarter: 1 | 2 | 3 | 4
 ): Promise<UstVoranmeldung> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    const data = await apiRequest<UstVoranmeldung>(
+      `/api/reports/ust/${year}/${quarter}/file`,
+      { method: 'POST' }
+    );
+    return {
+      ...data,
+      startDate: new Date(data.startDate),
+      endDate: new Date(data.endDate),
+      filedDate: data.filedDate ? new Date(data.filedDate) : undefined,
+    };
+  }
+
+  // Tauri mode - use database directly
   const { startDate, endDate } = getQuarterDates(year, quarter)
   const db = await getDb()
 
@@ -322,6 +412,12 @@ export async function markUstAsFiled(
  * Includes asset depreciation (AfA) from the assets module
  */
 export async function getEuerReport(year: number): Promise<EuerReport> {
+  // Use REST API in web mode
+  if (!isTauri()) {
+    return apiRequest<EuerReport>(`/api/reports/euer/${year}`);
+  }
+
+  // Tauri mode - use database directly
   const incomeRecords = await getIncomeForYear(year)
   const expenseRecords = await getExpensesForYear(year)
 

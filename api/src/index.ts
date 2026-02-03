@@ -32,6 +32,7 @@ import suggestionsRouter from "./routes/suggestions.js";
 import jamesActionsRouter from "./routes/james-actions.js";
 import jamesAutomationsRouter from "./routes/james-automations.js";
 import jamesTasksRouter from "./routes/james-tasks.js";
+import reportsRouter from "./routes/reports.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -89,6 +90,7 @@ app.use("/api/suggestions", authMiddleware, suggestionsRouter);
 app.use("/api/james-actions", authMiddleware, jamesActionsRouter);
 app.use("/api/james-automations", authMiddleware, jamesAutomationsRouter);
 app.use("/api/james-tasks", authMiddleware, jamesTasksRouter);
+app.use("/api/reports", authMiddleware, reportsRouter);
 
 // Serve static files from the web build
 if (existsSync(STATIC_PATH)) {
