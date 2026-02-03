@@ -6,6 +6,9 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import type { DashboardStats, Income, Expense, Invoice } from '../types'
+import * as incomeApi from '../api/income'
+import * as expensesApi from '../api/expenses'
+import * as invoicesApi from '../api/invoices'
 
 export interface UseAccountingStatsOptions {
   /** Year to calculate stats for */
@@ -134,11 +137,12 @@ export function useAccountingStats(
     setError(null)
 
     try {
-      // In a real app, these would be API calls
-      // For now, we'll simulate with empty arrays (to be connected to actual APIs)
-      const incomes: Income[] = []
-      const expenses: Expense[] = []
-      const invoices: Invoice[] = []
+      // Fetch data from APIs in parallel
+      const [incomes, expenses, invoices] = await Promise.all([
+        incomeApi.getAllIncome(),
+        expensesApi.getAllExpenses(),
+        invoicesApi.getAllInvoices(),
+      ])
 
       const calculatedStats = calculateStats(incomes, expenses, invoices)
       setStats(calculatedStats)
