@@ -63,7 +63,6 @@ const baseNavigation: NavItem[] = [
     ],
   },
   { name: "PRD Creator", href: "/prd", icon: FileText },
-  { name: "Second Brain", href: "/second-brain", icon: Brain },
   { 
     name: "James", 
     href: "/james-brain", 
@@ -74,6 +73,7 @@ const baseNavigation: NavItem[] = [
       { name: "Tasks", href: "/james-brain/tasks", icon: CheckSquare },
       { name: "Automations", href: "/james-brain/automations", icon: Clock },
       { name: "Activity Log", href: "/james-brain/activity", icon: Zap },
+      { name: "Second Brain", href: "/second-brain", icon: Brain },
     ],
   },
 ];
