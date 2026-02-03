@@ -16,7 +16,7 @@
     "test:coverage": "vitest run --coverage",
     "test:ci": "vitest run --coverage --reporter=junit",
     "dev:web": "vite --config vite.config.web.ts",
-    "build:web": "tsc -b && vite build --config vite.config.web.ts",
+    "build:web": "vite build --config vite.config.web.ts",
     "preview:web": "vite preview --config vite.config.web.ts"
   },
   "dependencies": {

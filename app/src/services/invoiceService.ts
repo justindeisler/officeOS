@@ -128,9 +128,16 @@ class InvoiceService extends BaseService<Invoice> {
     );
   }
 
-  async markAsPaid(id: string, paidDate?: string): Promise<void> {
+  async markAsPaid(id: string, paidDate?: Date | string, _paymentMethod?: string): Promise<void> {
     const db = await getDb();
-    const date = paidDate || formatDate(new Date()).split("T")[0];
+    let date: string;
+    if (paidDate instanceof Date) {
+      date = paidDate.toISOString().split("T")[0];
+    } else if (typeof paidDate === "string") {
+      date = paidDate;
+    } else {
+      date = formatDate(new Date()).split("T")[0];
+    }
     await db.execute(
       `UPDATE invoices SET status = 'paid', paid_date = ?, updated_at = ? WHERE id = ?`,
       [date, formatDate(new Date()), id]
@@ -159,6 +166,24 @@ class InvoiceService extends BaseService<Invoice> {
       [startDate, endDate]
     );
     return result[0]?.total || 0;
+  }
+
+  async markAsSent(id: string): Promise<Invoice> {
+    await this.update(id, { status: "sent" });
+    const invoice = await this.getById(id);
+    if (!invoice) {
+      throw new Error(`Invoice ${id} not found`);
+    }
+    return invoice;
+  }
+
+  async cancelInvoice(id: string): Promise<Invoice> {
+    await this.update(id, { status: "cancelled" });
+    const invoice = await this.getById(id);
+    if (!invoice) {
+      throw new Error(`Invoice ${id} not found`);
+    }
+    return invoice;
   }
 }
 

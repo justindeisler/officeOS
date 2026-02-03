@@ -52,6 +52,7 @@ function mapInvoice(raw: Record<string, unknown>): Invoice {
     dueDate: camel.dueDate as string,
     status: camel.status as Invoice['status'],
     amount: camel.subtotal as number || camel.amount as number || 0,
+    currency: camel.currency as string || 'EUR',
     taxRate: camel.vatRate as number || camel.taxRate as number || 19,
     taxAmount: camel.vatAmount as number || camel.taxAmount as number || 0,
     totalAmount: camel.total as number || camel.totalAmount as number || 0,

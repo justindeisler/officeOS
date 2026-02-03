@@ -157,7 +157,7 @@ export function InvoiceCard({ invoice, onEdit, onExport }: InvoiceCardProps) {
                   <span className="truncate max-w-[200px]">
                     {item.description}
                   </span>
-                  <span>{formatCurrency(item.total)}</span>
+                  <span>{formatCurrency(item.amount)}</span>
                 </div>
               ))}
               {invoice.lineItems.length > 2 && (

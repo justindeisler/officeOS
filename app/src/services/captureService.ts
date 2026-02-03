@@ -88,6 +88,31 @@ class CaptureService extends BaseService<Capture> {
     );
     return result[0]?.count || 0;
   }
+
+  async processWithJames(_id: string): Promise<{ status: string; message: string; captureId: string }> {
+    // Tauri app doesn't support James processing yet
+    throw new Error("James processing is not available in the desktop app");
+  }
+
+  async getProcessingStatus(captureId: string): Promise<{
+    captureId: string;
+    processingStatus: string;
+    processedBy?: string;
+    artifactType?: string;
+    artifactId?: string;
+    processed: boolean;
+  }> {
+    // Tauri app doesn't track processing status yet
+    const capture = await this.getById(captureId);
+    if (!capture) {
+      throw new Error(`Capture ${captureId} not found`);
+    }
+    return {
+      captureId,
+      processingStatus: capture.processed ? "completed" : "pending",
+      processed: capture.processed,
+    };
+  }
 }
 
 export const captureService = new CaptureService();

@@ -55,7 +55,6 @@ export const useCaptureStore = create<CaptureState>()((set, get) => ({
             : c
         ),
       }));
-      return status;
     } catch (error) {
       console.error("Failed to refresh capture:", error);
     }

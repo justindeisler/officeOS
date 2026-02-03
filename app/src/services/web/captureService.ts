@@ -61,15 +61,20 @@ class CaptureService {
     artifactId?: string;
     processed: boolean;
   }> {
-    return api.getProcessingStatus(id);
+    const result = await api.getProcessingStatus(id);
+    return {
+      ...result,
+      processingStatus: result.processingStatus as ProcessingStatus,
+    };
   }
 
   async delete(id: string): Promise<void> {
     await api.deleteCapture(id);
   }
 
-  async update(id: string, updates: Partial<Capture>): Promise<void> {
+  async update(_id: string, _updates: Partial<Capture>): Promise<void> {
     // This is called by the store but we don't need it for web
+    // Updates are handled through specific methods like markProcessed
   }
 }
 

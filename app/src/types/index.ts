@@ -117,15 +117,18 @@ export interface Invoice {
   notes?: string;
   lineItems: InvoiceLineItem[];
   markdownPath?: string;
+  pdfPath?: string;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface InvoiceLineItem {
+  id?: string;
   description: string;
   quantity: number;
+  unit?: string;
   unitPrice: number;
-  total: number;
+  amount: number;
 }
 
 export type ProcessingStatus = "pending" | "processing" | "completed" | "failed";
@@ -232,4 +235,35 @@ export interface SecondBrainDocument {
 export interface SecondBrainFolder {
   name: string;
   documents: SecondBrainDocument[];
+}
+
+// ============================================
+// Accounting Types (Placeholders)
+// ============================================
+
+export interface Asset {
+  id: string;
+  name: string;
+  category: string;
+  purchaseDate: string;
+  purchasePrice: number;
+  usefulLifeYears: number;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DepreciationScheduleEntry {
+  year: number;
+  depreciation: number;
+  bookValue: number;
+}
+
+export interface Income {
+  id: string;
+  description: string;
+  amount: number;
+  date: string;
+  category?: string;
+  createdAt: string;
 }

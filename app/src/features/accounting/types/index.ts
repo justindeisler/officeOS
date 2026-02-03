@@ -319,6 +319,8 @@ export const EXPENSE_CATEGORIES = {
   office_supplies: { label: 'Büromaterial', vorsteuer: true },
 } as const;
 
+export type ExpenseCategory = keyof typeof EXPENSE_CATEGORIES;
+
 /** AfA useful life in years (AfA-Tabelle) */
 export const AFA_YEARS: Record<AssetCategory, number> = {
   computer: 3, // Computer, Notebook, Monitor, Printer

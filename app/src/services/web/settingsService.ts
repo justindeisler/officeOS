@@ -3,8 +3,6 @@
  * Syncs settings with the REST API and uses localStorage as cache
  */
 
-import { api } from "@/lib/api";
-
 interface Settings {
   theme: 'light' | 'dark' | 'system';
   defaultArea: string;

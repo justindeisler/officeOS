@@ -48,7 +48,7 @@ export function exportInvoiceToMarkdown(
   const lineItemsTable = invoice.lineItems
     .map(
       (item) =>
-        `| ${item.description} | ${item.quantity} | ${formatCurrency(item.unitPrice)} | ${formatCurrency(item.total)} |`
+        `| ${item.description} | ${item.quantity} | ${formatCurrency(item.unitPrice)} | ${formatCurrency(item.amount)} |`
     )
     .join("\n");
 

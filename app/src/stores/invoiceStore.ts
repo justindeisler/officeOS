@@ -25,7 +25,7 @@ const calculateTotals = (
   lineItems: InvoiceLineItem[],
   taxRate: number
 ): { amount: number; taxAmount: number; totalAmount: number } => {
-  const amount = lineItems.reduce((sum, item) => sum + item.total, 0);
+  const amount = lineItems.reduce((sum, item) => sum + item.amount, 0);
   const taxAmount = amount * (taxRate / 100);
   const totalAmount = amount + taxAmount;
   return { amount, taxAmount, totalAmount };
@@ -91,6 +91,7 @@ export const useInvoiceStore = create<InvoiceState>()((set, get) => ({
         amount,
         taxAmount,
         totalAmount,
+        updatedAt: now,
       });
       set((state) => ({
         invoices: state.invoices.map((inv) =>
@@ -194,7 +195,8 @@ export const useInvoiceStore = create<InvoiceState>()((set, get) => ({
 
   markAsPaid: async (id) => {
     const previousInvoices = get().invoices;
-    const now = new Date().toISOString();
+    const now = new Date();
+    const nowString = now.toISOString();
 
     set((state) => ({
       invoices: state.invoices.map((invoice) =>
@@ -202,15 +204,15 @@ export const useInvoiceStore = create<InvoiceState>()((set, get) => ({
           ? {
               ...invoice,
               status: "paid" as InvoiceStatus,
-              paidDate: now,
-              updatedAt: now,
+              paidDate: nowString,
+              updatedAt: nowString,
             }
           : invoice
       ),
     }));
 
     try {
-      await invoiceService.markAsPaid(id, now.split("T")[0]);
+      await invoiceService.markAsPaid(id, now);
     } catch (error) {
       set({ invoices: previousInvoices });
       console.error("Failed to mark invoice as paid:", error);

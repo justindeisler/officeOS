@@ -11,7 +11,7 @@ export function createMockLineItem(overrides: Partial<InvoiceLineItem> = {}): In
     description: 'Development work',
     quantity,
     unitPrice,
-    total: quantity * unitPrice,
+    amount: quantity * unitPrice,
     ...overrides,
   }
 }
@@ -27,7 +27,7 @@ export function createMockInvoice(overrides: Partial<Invoice> = {}): Invoice {
   const dueDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) // 30 days from now
 
   const lineItems = overrides.lineItems ?? [createMockLineItem()]
-  const amount = lineItems.reduce((sum, item) => sum + item.total, 0)
+  const amount = lineItems.reduce((sum, item) => sum + item.amount, 0)
   const taxRate = overrides.taxRate ?? 19
   const taxAmount = amount * (taxRate / 100)
   const totalAmount = amount + taxAmount

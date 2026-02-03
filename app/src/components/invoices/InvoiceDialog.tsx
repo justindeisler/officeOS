@@ -36,7 +36,7 @@ const emptyLineItem: InvoiceLineItem = {
   description: "",
   quantity: 1,
   unitPrice: 0,
-  total: 0,
+  amount: 0,
 };
 
 export function InvoiceDialog({
@@ -105,9 +105,9 @@ export function InvoiceDialog({
     const updated = [...lineItems];
     updated[index] = { ...updated[index], [field]: value };
 
-    // Recalculate total for this line
+    // Recalculate amount for this line
     if (field === "quantity" || field === "unitPrice") {
-      updated[index].total =
+      updated[index].amount =
         Number(updated[index].quantity) * Number(updated[index].unitPrice);
     }
 
@@ -124,7 +124,7 @@ export function InvoiceDialog({
     }
   };
 
-  const subtotal = lineItems.reduce((sum, item) => sum + item.total, 0);
+  const subtotal = lineItems.reduce((sum, item) => sum + item.amount, 0);
   const taxAmount = subtotal * (taxRate / 100);
   const total = subtotal + taxAmount;
 
@@ -336,7 +336,7 @@ export function InvoiceDialog({
                     </div>
                     <div className="flex items-center justify-between sm:justify-end gap-2">
                       <div className="sm:w-28 text-left sm:text-right text-sm font-medium sm:font-normal pt-0 sm:pt-2">
-                        {formatCurrency(item.total)}
+                        {formatCurrency(item.amount)}
                       </div>
                       <Button
                         type="button"

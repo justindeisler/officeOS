@@ -127,7 +127,7 @@ async function migrateSingleInvoice(
     // Insert line items
     for (const item of legacyInvoice.lineItems) {
       const itemId = crypto.randomUUID()
-      const itemAmount = item.total
+      const itemAmount = item.amount
 
       await db.execute(
         `INSERT INTO invoice_items (

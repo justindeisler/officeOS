@@ -6,6 +6,7 @@ const defaultSettings: Settings = {
   theme: "dark",
   defaultArea: "freelance",
   defaultCurrency: "EUR",
+  userName: "",
 };
 
 class SettingsService {
