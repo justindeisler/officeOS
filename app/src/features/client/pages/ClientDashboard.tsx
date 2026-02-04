@@ -16,9 +16,7 @@ import {
   Calendar, 
   Loader2,
   Inbox,
-  Clock,
-  ChevronDown,
-  ChevronUp
+  Clock
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -139,7 +137,6 @@ export function ClientDashboard() {
 
   // Pending requests state
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
-  const [pendingExpanded, setPendingExpanded] = useState(true);
 
   // Quick capture dialog state
   const [captureOpen, setCaptureOpen] = useState(false);
@@ -156,8 +153,6 @@ export function ClientDashboard() {
     try {
       const data = await getPendingRequests();
       setPendingRequests(data.requests);
-      // Auto-collapse if more than 3 pending requests
-      setPendingExpanded(data.requests.length <= 3);
     } catch (err) {
       console.error('Failed to load pending requests:', err);
     }
@@ -296,46 +291,44 @@ export function ClientDashboard() {
         </Button>
       </div>
 
-      {/* Pending Requests Section */}
-      {pendingRequests.length > 0 && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-950/20">
-          <button
-            onClick={() => setPendingExpanded(!pendingExpanded)}
-            className="flex items-center justify-between w-full p-4 text-left"
-          >
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-amber-600 dark:text-amber-500" />
-              <span className="font-medium text-amber-800 dark:text-amber-200">
-                Pending Review
-              </span>
-              <span className="inline-flex items-center justify-center rounded-full bg-amber-200 dark:bg-amber-800 px-2 py-0.5 text-xs font-medium text-amber-800 dark:text-amber-200">
-                {pendingRequests.length}
-              </span>
+      {/* Pending Review Section - Always visible */}
+      <div className="rounded-lg bg-white dark:bg-card border shadow-sm">
+        <div className="flex items-center gap-2 p-4 border-b">
+          <Clock className="h-5 w-5 text-amber-500" />
+          <h2 className="font-semibold text-base">Pending Review</h2>
+          {pendingRequests.length > 0 && (
+            <span className="inline-flex items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300">
+              {pendingRequests.length}
+            </span>
+          )}
+        </div>
+        <div className="p-4">
+          {pendingRequests.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <div className="h-10 w-10 rounded-full bg-muted/50 flex items-center justify-center mb-3">
+                <Clock className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <p className="text-sm text-muted-foreground">No requests pending review</p>
+              <p className="text-xs text-muted-foreground mt-1">New requests will appear here</p>
             </div>
-            {pendingExpanded ? (
-              <ChevronUp className="h-4 w-4 text-amber-600 dark:text-amber-500" />
-            ) : (
-              <ChevronDown className="h-4 w-4 text-amber-600 dark:text-amber-500" />
-            )}
-          </button>
-          {pendingExpanded && (
-            <div className="px-4 pb-4 space-y-3">
+          ) : (
+            <div className="space-y-3">
               {pendingRequests.map((request) => (
                 <div
                   key={request.id}
-                  className="flex items-start gap-3 p-3 rounded-md bg-white dark:bg-card border border-amber-100 dark:border-amber-900/30"
+                  className="flex items-start gap-3 p-3 rounded-lg bg-muted/30 border"
                 >
-                  <div className="mt-0.5 h-2 w-2 rounded-full bg-amber-400 flex-shrink-0" />
+                  <div className="mt-1.5 h-2 w-2 rounded-full bg-amber-400 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm">
                       {request.metadata?.original_title || request.content}
                     </p>
-                    <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-2 mt-1.5 text-xs text-muted-foreground">
                       <span>
                         Submitted {format(new Date(request.created_at), "MMM d")}
                       </span>
-                      <span className="text-amber-600 dark:text-amber-500">
-                        • Awaiting review
+                      <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
+                        Awaiting review
                       </span>
                     </div>
                   </div>
@@ -344,7 +337,7 @@ export function ClientDashboard() {
             </div>
           )}
         </div>
-      )}
+      </div>
 
       {/* Kanban Board */}
       {activeProject && (

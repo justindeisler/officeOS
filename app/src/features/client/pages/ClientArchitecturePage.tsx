@@ -25,7 +25,7 @@ interface Relationship {
   toField: string;
 }
 
-// Wellfy schema definition - with proper spacing to avoid overlaps
+// Wellfy schema definition - with generous spacing
 const wellifySchema: { tables: Table[]; relationships: Relationship[] } = {
   tables: [
     {
@@ -50,7 +50,7 @@ const wellifySchema: { tables: Table[]; relationships: Relationship[] } = {
         { name: 'instructorId', type: 'uuid', isForeignKey: true },
         { name: 'price', type: 'decimal' },
       ],
-      x: 300,
+      x: 350,
       y: 50,
     },
     {
@@ -62,7 +62,7 @@ const wellifySchema: { tables: Table[]; relationships: Relationship[] } = {
         { name: 'type', type: 'enum' },
         { name: 'order', type: 'int' },
       ],
-      x: 550,
+      x: 650,
       y: 50,
     },
     {
@@ -74,7 +74,7 @@ const wellifySchema: { tables: Table[]; relationships: Relationship[] } = {
         { name: 'type', type: 'enum' },
         { name: 'order', type: 'int' },
       ],
-      x: 800,
+      x: 950,
       y: 50,
     },
     {
@@ -86,7 +86,7 @@ const wellifySchema: { tables: Table[]; relationships: Relationship[] } = {
         { name: 'status', type: 'enum' },
       ],
       x: 50,
-      y: 300,
+      y: 330,
     },
     {
       name: 'Enrollment',
@@ -97,8 +97,8 @@ const wellifySchema: { tables: Table[]; relationships: Relationship[] } = {
         { name: 'enrolledAt', type: 'timestamp' },
         { name: 'completedAt', type: 'timestamp' },
       ],
-      x: 300,
-      y: 300,
+      x: 350,
+      y: 330,
     },
     {
       name: 'UserProgress',
@@ -108,8 +108,8 @@ const wellifySchema: { tables: Table[]; relationships: Relationship[] } = {
         { name: 'lessonId', type: 'uuid', isForeignKey: true },
         { name: 'completed', type: 'boolean' },
       ],
-      x: 800,
-      y: 300,
+      x: 950,
+      y: 330,
     },
     {
       name: 'Order',
@@ -121,7 +121,7 @@ const wellifySchema: { tables: Table[]; relationships: Relationship[] } = {
         { name: 'total', type: 'decimal' },
       ],
       x: 50,
-      y: 530,
+      y: 600,
     },
     {
       name: 'Payment',
@@ -131,8 +131,8 @@ const wellifySchema: { tables: Table[]; relationships: Relationship[] } = {
         { name: 'amount', type: 'decimal' },
         { name: 'status', type: 'enum' },
       ],
-      x: 300,
-      y: 530,
+      x: 350,
+      y: 600,
     },
     {
       name: 'Certificate',
@@ -142,8 +142,8 @@ const wellifySchema: { tables: Table[]; relationships: Relationship[] } = {
         { name: 'courseId', type: 'uuid', isForeignKey: true },
         { name: 'certificateNumber', type: 'varchar' },
       ],
-      x: 550,
-      y: 530,
+      x: 650,
+      y: 600,
     },
   ],
   relationships: [
@@ -475,8 +475,8 @@ export function ClientArchitecturePage() {
           style={{
             transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
             transformOrigin: '0 0',
-            width: '1200px',
-            height: '800px',
+            width: '1400px',
+            height: '900px',
           }}
         >
           <RelationshipLines 
