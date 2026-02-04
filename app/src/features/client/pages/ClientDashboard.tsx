@@ -81,7 +81,7 @@ function TaskCard({ task }: TaskCardProps) {
             {formatDate(task.due_date)}
           </span>
         )}
-        {task.quick_capture && (
+        {!!task.quick_capture && (
           <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
             Request
           </span>
