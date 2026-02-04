@@ -33,19 +33,32 @@ router.get("/", (req, res) => {
 
   const prds = db.prepare(sql).all(...params) as Record<string, unknown>[];
   
+  // Helper to safely parse JSON, returning original value or empty array if not valid JSON
+  const safeJsonParse = (value: unknown): unknown[] => {
+    if (!value) return [];
+    if (typeof value !== 'string') return [];
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [parsed];
+    } catch {
+      // If not valid JSON, wrap the text as a single-item array
+      return value.trim() ? [value] : [];
+    }
+  };
+
   // Parse JSON fields
   const parsed = prds.map((prd) => ({
     ...prd,
-    goals: prd.goals ? JSON.parse(prd.goals as string) : [],
-    nonGoals: prd.non_goals ? JSON.parse(prd.non_goals as string) : [],
-    userStories: prd.user_stories ? JSON.parse(prd.user_stories as string) : [],
-    requirements: prd.requirements ? JSON.parse(prd.requirements as string) : [],
-    dependencies: prd.dependencies ? JSON.parse(prd.dependencies as string) : [],
-    risks: prd.risks ? JSON.parse(prd.risks as string) : [],
-    assumptions: prd.assumptions ? JSON.parse(prd.assumptions as string) : [],
-    constraints: prd.constraints ? JSON.parse(prd.constraints as string) : [],
-    successMetrics: prd.success_metrics ? JSON.parse(prd.success_metrics as string) : [],
-    milestones: prd.milestones ? JSON.parse(prd.milestones as string) : [],
+    goals: safeJsonParse(prd.goals),
+    nonGoals: safeJsonParse(prd.non_goals),
+    userStories: safeJsonParse(prd.user_stories),
+    requirements: safeJsonParse(prd.requirements),
+    dependencies: safeJsonParse(prd.dependencies),
+    risks: safeJsonParse(prd.risks),
+    assumptions: safeJsonParse(prd.assumptions),
+    constraints: safeJsonParse(prd.constraints),
+    successMetrics: safeJsonParse(prd.success_metrics),
+    milestones: safeJsonParse(prd.milestones),
     // Map snake_case to camelCase
     featureName: prd.feature_name,
     projectId: prd.project_id,

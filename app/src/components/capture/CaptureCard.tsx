@@ -13,6 +13,8 @@ import {
   Loader2,
   ExternalLink,
   AlertCircle,
+  MessageSquare,
+  Building2,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -54,6 +56,11 @@ const typeConfig: Record<CaptureType, { icon: React.ReactNode; color: string; la
     icon: <Calendar className="h-4 w-4" />,
     color: "bg-green-500/10 text-green-500 border-green-500/20",
     label: "Meeting",
+  },
+  client_request: {
+    icon: <MessageSquare className="h-4 w-4" />,
+    color: "bg-pink-500/10 text-pink-500 border-pink-500/20",
+    label: "Client Request",
   },
 };
 
@@ -136,6 +143,23 @@ export function CaptureCard({ capture, onProcess }: CaptureCardProps) {
             </div>
 
             <p className="text-sm whitespace-pre-wrap">{capture.content}</p>
+
+            {/* Client Request Info */}
+            {capture.type === "client_request" && capture.metadata && (
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                {capture.metadata.client_name && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-pink-500/10 text-pink-700 dark:text-pink-400">
+                    <Building2 className="h-3 w-3" />
+                    {capture.metadata.client_name}
+                  </span>
+                )}
+                {capture.metadata.client_email && (
+                  <span className="text-muted-foreground">
+                    {capture.metadata.client_email}
+                  </span>
+                )}
+              </div>
+            )}
 
             {/* Artifact Link */}
             {isCompleted && capture.artifactId && capture.artifactType && (

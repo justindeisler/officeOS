@@ -119,29 +119,30 @@ function getUstPeriod(date: Date): string {
 
 /**
  * Convert database row to Expense type
+ * Works for both Tauri DB rows and REST API responses (snake_case)
  */
-function rowToExpense(row: ExpenseRow): Expense {
+function rowToExpense(row: ExpenseRow | Record<string, unknown>): Expense {
   return {
-    id: row.id,
-    date: new Date(row.date),
-    vendor: row.vendor,
-    description: row.description,
-    netAmount: row.net_amount,
-    vatRate: row.vat_rate as VatRate,
-    vatAmount: row.vat_amount,
-    grossAmount: row.gross_amount,
-    euerLine: row.euer_line,
-    euerCategory: row.euer_category,
-    deductiblePercent: row.deductible_percent,
-    paymentMethod: row.payment_method as Expense['paymentMethod'],
-    receiptPath: row.receipt_path ?? undefined,
+    id: (row.id as string),
+    date: new Date((row.date as string)),
+    vendor: (row.vendor as string),
+    description: (row.description as string),
+    netAmount: (row.net_amount as number),
+    vatRate: (row.vat_rate as VatRate),
+    vatAmount: (row.vat_amount as number),
+    grossAmount: (row.gross_amount as number),
+    euerLine: (row.euer_line as number),
+    euerCategory: (row.euer_category as string),
+    deductiblePercent: (row.deductible_percent as number) ?? 100,
+    paymentMethod: (row.payment_method as Expense['paymentMethod']),
+    receiptPath: (row.receipt_path as string) ?? undefined,
     isRecurring: row.is_recurring === 1,
-    recurringFrequency: row.recurring_frequency as Expense['recurringFrequency'],
-    ustPeriod: row.ust_period ?? undefined,
+    recurringFrequency: (row.recurring_frequency as Expense['recurringFrequency']),
+    ustPeriod: (row.ust_period as string) ?? undefined,
     vorsteuerClaimed: row.vorsteuer_claimed === 1,
     isGwg: row.is_gwg === 1,
-    assetId: row.asset_id ?? undefined,
-    createdAt: new Date(row.created_at),
+    assetId: (row.asset_id as string) ?? undefined,
+    createdAt: new Date((row.created_at as string) ?? Date.now()),
   }
 }
 
@@ -151,12 +152,8 @@ function rowToExpense(row: ExpenseRow): Expense {
 export async function getAllExpenses(): Promise<Expense[]> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const data = await apiRequest<Expense[]>('/api/expenses');
-    return data.map(item => ({
-      ...item,
-      date: new Date(item.date),
-      createdAt: new Date(item.createdAt),
-    }));
+    const data = await apiRequest<Record<string, unknown>[]>('/api/expenses');
+    return data.map(rowToExpense);
   }
 
   // Tauri mode - use database
@@ -174,12 +171,8 @@ export async function getExpenseById(id: string): Promise<Expense | null> {
   // Use REST API in web mode
   if (!isTauri()) {
     try {
-      const data = await apiRequest<Expense>(`/api/expenses/${id}`);
-      return {
-        ...data,
-        date: new Date(data.date),
-        createdAt: new Date(data.createdAt),
-      };
+      const data = await apiRequest<Record<string, unknown>>(`/api/expenses/${id}`);
+      return rowToExpense(data);
     } catch {
       return null;
     }
@@ -202,12 +195,8 @@ export async function getExpensesByDateRange(start: Date, end: Date): Promise<Ex
   if (!isTauri()) {
     const startStr = start.toISOString().split('T')[0];
     const endStr = end.toISOString().split('T')[0];
-    const data = await apiRequest<Expense[]>(`/api/expenses?startDate=${startStr}&endDate=${endStr}`);
-    return data.map(item => ({
-      ...item,
-      date: new Date(item.date),
-      createdAt: new Date(item.createdAt),
-    }));
+    const data = await apiRequest<Record<string, unknown>[]>(`/api/expenses?startDate=${startStr}&endDate=${endStr}`);
+    return data.map(rowToExpense);
   }
 
   // Tauri mode - use database
@@ -225,12 +214,8 @@ export async function getExpensesByDateRange(start: Date, end: Date): Promise<Ex
 export async function getExpensesByUstPeriod(period: string): Promise<Expense[]> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const data = await apiRequest<Expense[]>(`/api/expenses?ustPeriod=${period}`);
-    return data.map(item => ({
-      ...item,
-      date: new Date(item.date),
-      createdAt: new Date(item.createdAt),
-    }));
+    const data = await apiRequest<Record<string, unknown>[]>(`/api/expenses?ustPeriod=${period}`);
+    return data.map(rowToExpense);
   }
 
   // Tauri mode - use database
@@ -248,12 +233,8 @@ export async function getExpensesByUstPeriod(period: string): Promise<Expense[]>
 export async function getExpensesByCategory(category: string): Promise<Expense[]> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const data = await apiRequest<Expense[]>(`/api/expenses?category=${category}`);
-    return data.map(item => ({
-      ...item,
-      date: new Date(item.date),
-      createdAt: new Date(item.createdAt),
-    }));
+    const data = await apiRequest<Record<string, unknown>[]>(`/api/expenses?category=${category}`);
+    return data.map(rowToExpense);
   }
 
   // Tauri mode - use database
@@ -271,12 +252,8 @@ export async function getExpensesByCategory(category: string): Promise<Expense[]
 export async function getRecurringExpenses(): Promise<Expense[]> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const data = await apiRequest<Expense[]>('/api/expenses?recurring=true');
-    return data.map(item => ({
-      ...item,
-      date: new Date(item.date),
-      createdAt: new Date(item.createdAt),
-    }));
+    const data = await apiRequest<Record<string, unknown>[]>('/api/expenses?recurring=true');
+    return data.map(rowToExpense);
   }
 
   // Tauri mode - use database
@@ -293,12 +270,8 @@ export async function getRecurringExpenses(): Promise<Expense[]> {
 export async function getGwgExpenses(): Promise<Expense[]> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const data = await apiRequest<Expense[]>('/api/expenses?gwg=true');
-    return data.map(item => ({
-      ...item,
-      date: new Date(item.date),
-      createdAt: new Date(item.createdAt),
-    }));
+    const data = await apiRequest<Record<string, unknown>[]>('/api/expenses?gwg=true');
+    return data.map(rowToExpense);
   }
 
   // Tauri mode - use database
@@ -315,12 +288,8 @@ export async function getGwgExpenses(): Promise<Expense[]> {
 export async function getUnclaimedVorsteuer(): Promise<Expense[]> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const data = await apiRequest<Expense[]>('/api/expenses?vorsteuerClaimed=false');
-    return data.map(item => ({
-      ...item,
-      date: new Date(item.date),
-      createdAt: new Date(item.createdAt),
-    }));
+    const data = await apiRequest<Record<string, unknown>[]>('/api/expenses?vorsteuerClaimed=false');
+    return data.map(rowToExpense);
   }
 
   // Tauri mode - use database
@@ -337,18 +306,26 @@ export async function getUnclaimedVorsteuer(): Promise<Expense[]> {
 export async function createExpense(data: NewExpense): Promise<Expense> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const response = await apiRequest<Expense>('/api/expenses', {
+    const response = await apiRequest<Record<string, unknown>>('/api/expenses', {
       method: 'POST',
       body: JSON.stringify({
-        ...data,
         date: data.date.toISOString().split('T')[0],
+        vendor: data.vendor,
+        description: data.description,
+        net_amount: data.netAmount,
+        vat_rate: data.vatRate,
+        euer_line: data.euerLine,
+        euer_category: data.euerCategory,
+        deductible_percent: data.deductiblePercent,
+        payment_method: data.paymentMethod,
+        receipt_path: data.receiptPath,
+        is_recurring: data.isRecurring,
+        recurring_frequency: data.recurringFrequency,
+        ust_period: data.ustPeriod,
+        asset_id: data.assetId,
       }),
     });
-    return {
-      ...response,
-      date: new Date(response.date),
-      createdAt: new Date(response.createdAt),
-    };
+    return rowToExpense(response);
   }
 
   // Tauri mode - use database
@@ -426,19 +403,28 @@ export async function updateExpense(
   // Use REST API in web mode
   if (!isTauri()) {
     try {
-      const updateData = { ...data };
-      if (data.date) {
-        updateData.date = data.date.toISOString().split('T')[0] as any;
-      }
-      const response = await apiRequest<Expense>(`/api/expenses/${id}`, {
+      // Convert camelCase to snake_case for API
+      const updateData: Record<string, unknown> = {};
+      if (data.date) updateData.date = data.date.toISOString().split('T')[0];
+      if (data.vendor !== undefined) updateData.vendor = data.vendor;
+      if (data.description !== undefined) updateData.description = data.description;
+      if (data.netAmount !== undefined) updateData.net_amount = data.netAmount;
+      if (data.vatRate !== undefined) updateData.vat_rate = data.vatRate;
+      if (data.euerLine !== undefined) updateData.euer_line = data.euerLine;
+      if (data.euerCategory !== undefined) updateData.euer_category = data.euerCategory;
+      if (data.deductiblePercent !== undefined) updateData.deductible_percent = data.deductiblePercent;
+      if (data.paymentMethod !== undefined) updateData.payment_method = data.paymentMethod;
+      if (data.receiptPath !== undefined) updateData.receipt_path = data.receiptPath;
+      if (data.isRecurring !== undefined) updateData.is_recurring = data.isRecurring;
+      if (data.recurringFrequency !== undefined) updateData.recurring_frequency = data.recurringFrequency;
+      if (data.ustPeriod !== undefined) updateData.ust_period = data.ustPeriod;
+      if (data.assetId !== undefined) updateData.asset_id = data.assetId;
+      
+      const response = await apiRequest<Record<string, unknown>>(`/api/expenses/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(updateData),
       });
-      return {
-        ...response,
-        date: new Date(response.date),
-        createdAt: new Date(response.createdAt),
-      };
+      return rowToExpense(response);
     } catch {
       return null;
     }

@@ -18,7 +18,12 @@ interface InitializationState {
   };
 }
 
-export function useAppInitialization(): InitializationState {
+/**
+ * Hook to initialize the app after authentication is verified.
+ * Pass isAuthenticated=true to trigger store initialization.
+ * If not authenticated, returns a "ready" state (for login page).
+ */
+export function useAppInitialization(isAuthenticated: boolean): InitializationState {
   const [state, setState] = useState<InitializationState>({
     isReady: false,
     isLoading: true,
@@ -48,20 +53,25 @@ export function useAppInitialization(): InitializationState {
           progress: { ...prev.progress, database: true },
         }));
 
-        // Step 2: Initialize all stores in parallel
-        console.log("[App] Step 2: Initializing stores...");
-        await Promise.all([
-          useSettingsStore.getState().initialize(), // Settings first for theme
-          useClientStore.getState().initialize(),
-          useProjectStore.getState().initialize(),
-          useTaskStore.getState().initialize(),
-          useTimerStore.getState().initialize(),
-          useInvoiceStore.getState().initialize(),
-          useCaptureStore.getState().initialize(),
-          usePRDStore.getState().initialize(),
-        ]);
+        // Step 2: Initialize all stores in parallel (only if authenticated)
+        // This is where the API calls happen, so we need a valid token
+        if (isAuthenticated) {
+          console.log("[App] Step 2: Initializing stores...");
+          await Promise.all([
+            useSettingsStore.getState().initialize(), // Settings first for theme
+            useClientStore.getState().initialize(),
+            useProjectStore.getState().initialize(),
+            useTaskStore.getState().initialize(),
+            useTimerStore.getState().initialize(),
+            useInvoiceStore.getState().initialize(),
+            useCaptureStore.getState().initialize(),
+            usePRDStore.getState().initialize(),
+          ]);
+          console.log("[App] Stores initialized!");
+        } else {
+          console.log("[App] Step 2: Skipping store initialization (not authenticated)");
+        }
 
-        console.log("[App] Stores initialized!");
         if (!mounted) return;
         console.log("[App] Initialization complete!");
         setState({
@@ -92,7 +102,7 @@ export function useAppInitialization(): InitializationState {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [isAuthenticated]);
 
   return state;
 }

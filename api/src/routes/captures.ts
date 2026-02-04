@@ -8,6 +8,18 @@ import { getDb, generateId, getCurrentTimestamp } from "../database.js";
 
 const router = Router();
 
+// Helper to parse metadata JSON
+function parseCapture(capture: any) {
+  if (capture && capture.metadata && typeof capture.metadata === 'string') {
+    try {
+      capture.metadata = JSON.parse(capture.metadata);
+    } catch (e) {
+      // Keep as string if parsing fails
+    }
+  }
+  return capture;
+}
+
 // List captures
 router.get("/", (req, res) => {
   const db = getDb();
@@ -28,7 +40,7 @@ router.get("/", (req, res) => {
   sql += " ORDER BY created_at DESC LIMIT ?";
   params.push(Number(limit));
 
-  const captures = db.prepare(sql).all(...params);
+  const captures = db.prepare(sql).all(...params).map(parseCapture);
   res.json(captures);
 });
 
@@ -39,7 +51,7 @@ router.get("/:id", (req, res) => {
   if (!capture) {
     return res.status(404).json({ error: "Capture not found" });
   }
-  res.json(capture);
+  res.json(parseCapture(capture));
 });
 
 // Create capture

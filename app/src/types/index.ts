@@ -23,7 +23,7 @@ export type TimeCategory =
   | "other";
 
 // Capture types for quick capture
-export type CaptureType = "task" | "note" | "idea" | "meeting";
+export type CaptureType = "task" | "note" | "idea" | "meeting" | "client_request";
 
 // ============================================
 // Core Data Models
@@ -76,6 +76,10 @@ export interface Task {
   markdownPath?: string;
   sortOrder: number;
   tags?: Tag[];
+  quickCapture?: boolean;
+  createdBy?: string;
+  aiProcessed?: boolean;
+  originalCapture?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -145,6 +149,15 @@ export interface Capture {
   processedBy?: ProcessedBy;
   artifactType?: ArtifactType;
   artifactId?: string;
+  source?: string;
+  metadata?: {
+    client_id?: string;
+    client_email?: string;
+    client_name?: string;
+    project_id?: string;
+    original_title?: string;
+    original_description?: string;
+  };
   createdAt: string;
 }
 

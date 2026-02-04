@@ -102,6 +102,7 @@ router.get('/projects/:projectId/tasks', requireClientAuth, async (req: Request,
     // Group by status for Kanban
     const kanban = {
       backlog: tasks.filter((t: any) => t.status === 'backlog'),
+      queue: tasks.filter((t: any) => t.status === 'queue'),
       in_progress: tasks.filter((t: any) => t.status === 'in_progress'),
       done: tasks.filter((t: any) => t.status === 'done')
     };
@@ -134,10 +135,10 @@ router.get('/tasks/:taskId', requireClientAuth, async (req: Request, res: Respon
   }
 });
 
-// Create task (client can create tasks in their assigned projects)
+// Create task request (now creates a capture for inbox review)
 router.post('/tasks', requireClientAuth, async (req: Request, res: Response) => {
   try {
-    const { project_id, title, description, quick_capture = false, original_capture = null } = req.body;
+    const { project_id, title, description } = req.body;
     const client = (req as any).client;
     const assignedProjects = client.assignedProjects || [];
 
@@ -150,34 +151,74 @@ router.post('/tasks', requireClientAuth, async (req: Request, res: Response) => 
     }
 
     const db = getDb();
-    const taskId = `task-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    const captureId = crypto.randomUUID();
     const now = new Date().toISOString();
 
+    // Create capture instead of task - goes to inbox for review
+    const content = `${title}${description ? '\n\n' + description : ''}`;
+    const metadata = JSON.stringify({
+      client_id: client.id,
+      client_email: client.email,
+      client_name: client.name,
+      project_id: project_id,
+      original_title: title,
+      original_description: description || ''
+    });
+
     db.prepare(
-      `INSERT INTO tasks (
-        id, project_id, title, description, status, priority, 
-        created_by, quick_capture, ai_processed, original_capture,
-        created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO captures (
+        id, content, type, source, processed, metadata, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)`
     ).run(
-      taskId,
-      project_id,
-      title,
-      description || '',
-      'backlog',
-      2, // default priority
-      client.email,
-      quick_capture ? 1 : 0,
-      0, // not AI processed yet
-      original_capture,
-      now,
+      captureId,
+      content,
+      'client_request',
+      'client_portal',
+      0, // not processed
+      metadata,
       now
     );
 
-    const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId);
-    res.status(201).json(task);
+    const capture = db.prepare('SELECT * FROM captures WHERE id = ?').get(captureId);
+    
+    // Return in a format compatible with the client dashboard expecting a "task"
+    res.status(201).json({
+      id: captureId,
+      title: title,
+      description: description || '',
+      status: 'pending_review', // indicates it's in inbox
+      project_id: project_id,
+      created_by: client.email,
+      created_at: now,
+      message: 'Your request has been submitted and is pending review'
+    });
   } catch (error) {
-    console.error('Create task error:', error);
+    console.error('Create task request error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get pending requests (captures awaiting review)
+router.get('/pending-requests', requireClientAuth, async (req: Request, res: Response) => {
+  try {
+    const client = (req as any).client;
+    const db = getDb();
+    
+    const requests = db.prepare(`
+      SELECT id, content, created_at, metadata 
+      FROM captures 
+      WHERE type = 'client_request' 
+      AND processed = 0 
+      AND json_extract(metadata, '$.client_email') = ?
+      ORDER BY created_at DESC
+    `).all(client.email) as any[];
+    
+    res.json({ requests: requests.map(r => ({
+      ...r,
+      metadata: r.metadata ? JSON.parse(r.metadata) : null
+    }))});
+  } catch (error) {
+    console.error('Get pending requests error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

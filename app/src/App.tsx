@@ -45,15 +45,18 @@ function App() {
   console.log("[App] Rendering App component...");
   const [captureDialogOpen, setCaptureDialogOpen] = useState(false);
   const navigate = useNavigate();
-  const { isLoading, error } = useAppInitialization();
   
-  // Auth state
+  // Auth state - must verify first before initializing stores
   const { isAuthenticated, isLoading: authLoading, verifyToken } = useAuthStore();
   
-  // Verify token on mount
+  // Verify token on mount (loads token from localStorage)
   useEffect(() => {
     verifyToken();
   }, [verifyToken]);
+  
+  // Only initialize stores AFTER auth is verified (so API calls have the token)
+  // Pass isAuthenticated so stores only load when user is logged in
+  const { isLoading, error } = useAppInitialization(isAuthenticated && !authLoading);
   
   console.log("[App] State:", { isLoading, error, isAuthenticated, authLoading });
 
@@ -131,8 +134,9 @@ function App() {
     );
   }
 
-  // Show login page if not authenticated
-  if (!isAuthenticated) {
+  // Show login page if not authenticated (but allow client portal routes)
+  const isClientRoute = window.location.pathname.startsWith('/client');
+  if (!isAuthenticated && !isClientRoute) {
     return <LoginPage />;
   }
 

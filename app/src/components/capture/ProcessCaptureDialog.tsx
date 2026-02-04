@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { useCaptureStore } from "@/stores/captureStore";
 import { useTaskStore } from "@/stores/taskStore";
+import { useProjectStore } from "@/stores/projectStore";
 import type { Capture, TaskStatus, TaskPriority, Area } from "@/types";
 
 interface ProcessCaptureDialogProps {
@@ -38,45 +39,79 @@ export function ProcessCaptureDialog({
 }: ProcessCaptureDialogProps) {
   const { markProcessed } = useCaptureStore();
   const { addTask } = useTaskStore();
+  const { projects } = useProjectStore();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<TaskStatus>("backlog");
   const [priority, setPriority] = useState<TaskPriority>(2);
   const [area, setArea] = useState<Area>("freelance");
+  const [projectId, setProjectId] = useState<string | undefined>(undefined);
+
+  // For client requests, store the metadata
+  const isClientRequest = capture?.type === "client_request";
+  const clientMetadata = capture?.metadata;
 
   useEffect(() => {
     if (capture) {
-      // Smart parsing: first line becomes title, rest becomes description
-      const lines = capture.content.split("\n");
-      const firstLine = lines[0] || "";
-      const restLines = lines.slice(1).join("\n").trim();
-
-      setTitle(firstLine);
-      setDescription(restLines);
-
-      // Default priority based on capture type
-      if (capture.type === "meeting") {
-        setPriority(1); // High priority for meeting action items
-      } else {
+      // For client requests, use the original title/description from metadata
+      if (capture.type === "client_request" && capture.metadata) {
+        setTitle(capture.metadata.original_title || "");
+        setDescription(capture.metadata.original_description || "");
+        
+        // Pre-fill project if specified
+        if (capture.metadata.project_id) {
+          const matchedProject = projects.find(p => p.id === capture.metadata!.project_id);
+          if (matchedProject) {
+            setProjectId(matchedProject.id);
+            setArea(matchedProject.area);
+          }
+        }
         setPriority(2);
+      } else {
+        // Smart parsing: first line becomes title, rest becomes description
+        const lines = capture.content.split("\n");
+        const firstLine = lines[0] || "";
+        const restLines = lines.slice(1).join("\n").trim();
+
+        setTitle(firstLine);
+        setDescription(restLines);
+        setProjectId(undefined);
+
+        // Default priority based on capture type
+        if (capture.type === "meeting") {
+          setPriority(1); // High priority for meeting action items
+        } else {
+          setPriority(2);
+        }
       }
     }
-  }, [capture, open]);
+  }, [capture, open, projects]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!title.trim() || !capture) return;
 
-    // Create the task
-    addTask({
+    // Build task data
+    const taskData: Parameters<typeof addTask>[0] = {
       title: title.trim(),
       description: description.trim() || undefined,
       status,
       priority,
       area,
-    });
+      projectId,
+    };
+
+    // For client requests, mark as quick_capture and set created_by
+    if (isClientRequest && clientMetadata) {
+      taskData.quickCapture = true;
+      taskData.createdBy = clientMetadata.client_email;
+      taskData.originalCapture = capture.id;
+    }
+
+    // Create the task
+    addTask(taskData);
 
     // Mark capture as processed
     markProcessed(capture.id, "task");
@@ -87,6 +122,7 @@ export function ProcessCaptureDialog({
     setStatus("backlog");
     setPriority(2);
     setArea("freelance");
+    setProjectId(undefined);
     onClose();
   };
 
@@ -111,8 +147,23 @@ export function ProcessCaptureDialog({
             </DialogDescription>
           </DialogHeader>
 
+          {/* Client Request Banner */}
+          {isClientRequest && clientMetadata && (
+            <div className="bg-pink-500/10 border border-pink-500/20 rounded-lg p-3 my-4">
+              <div className="flex items-center gap-2 text-sm text-pink-700 dark:text-pink-400">
+                <span className="font-medium">Client Request</span>
+                {clientMetadata.client_name && (
+                  <span>from {clientMetadata.client_name}</span>
+                )}
+                {clientMetadata.client_email && (
+                  <span className="text-muted-foreground">({clientMetadata.client_email})</span>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Original Capture Preview */}
-          {capture && (
+          {capture && !isClientRequest && (
             <div className="bg-muted/50 rounded-lg p-3 my-4 text-sm">
               <p className="text-xs text-muted-foreground mb-1">Original capture:</p>
               <p className="whitespace-pre-wrap">{capture.content}</p>
@@ -192,6 +243,40 @@ export function ProcessCaptureDialog({
                   <SelectItem value="wellfy">Wellfy</SelectItem>
                   <SelectItem value="freelance">Freelance</SelectItem>
                   <SelectItem value="personal">Personal</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Project */}
+            <div className="grid gap-2">
+              <Label htmlFor="project">Project (optional)</Label>
+              <Select 
+                value={projectId || "none"} 
+                onValueChange={(v) => {
+                  if (v === "none") {
+                    setProjectId(undefined);
+                  } else {
+                    setProjectId(v);
+                    // Auto-set area based on project
+                    const project = projects.find(p => p.id === v);
+                    if (project) {
+                      setArea(project.area);
+                    }
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a project..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No project</SelectItem>
+                  {projects
+                    .filter(p => p.status === 'active' || p.status === 'pipeline')
+                    .map((project) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        {project.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>

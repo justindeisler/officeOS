@@ -30,19 +30,32 @@ function toSnakeCase(obj: Record<string, unknown>): Record<string, unknown> {
 }
 
 /**
- * Convert API response to Expense type with proper Date objects
+ * Convert API response to Expense type with proper types
  */
 function toExpense(obj: Record<string, unknown>): Expense {
   const camelCase = toCamelCase(obj);
   return {
-    ...camelCase,
+    id: String(camelCase.id ?? ''),
     date: new Date(camelCase.date as string),
-    createdAt: new Date(camelCase.createdAt as string),
+    vendor: String(camelCase.vendor ?? ''),
+    description: String(camelCase.description ?? ''),
+    netAmount: Number(camelCase.netAmount) || 0,
+    vatRate: (Number(camelCase.vatRate) || 0) as 0 | 7 | 19,
+    vatAmount: Number(camelCase.vatAmount) || 0,
+    grossAmount: Number(camelCase.grossAmount) || 0,
+    euerLine: Number(camelCase.euerLine) || 34,
+    euerCategory: String(camelCase.euerCategory ?? 'Sonstige Aufwendungen'),
+    deductiblePercent: Number(camelCase.deductiblePercent) || 100,
+    paymentMethod: camelCase.paymentMethod as Expense['paymentMethod'],
+    receiptPath: camelCase.receiptPath as string | undefined,
     isRecurring: Boolean(camelCase.isRecurring),
+    recurringFrequency: camelCase.recurringFrequency as Expense['recurringFrequency'],
+    ustPeriod: camelCase.ustPeriod as string | undefined,
     vorsteuerClaimed: Boolean(camelCase.vorsteuerClaimed || camelCase.ustReported),
     isGwg: Boolean(camelCase.isGwg),
-    deductiblePercent: (camelCase.deductiblePercent as number) ?? 100,
-  } as Expense;
+    assetId: camelCase.assetId as string | undefined,
+    createdAt: new Date(camelCase.createdAt as string),
+  };
 }
 
 class ExpensesService {

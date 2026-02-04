@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3005';
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 function getClientToken(): string | null {
   const stored = localStorage.getItem('client-auth');
@@ -52,6 +52,7 @@ export interface KanbanData {
   tasks: Task[];
   kanban: {
     backlog: Task[];
+    queue: Task[];
     in_progress: Task[];
     done: Task[];
   };
@@ -189,6 +190,29 @@ export async function updateTask(
     throw new Error(error.error || 'Failed to update task');
   }
 
+  return response.json();
+}
+
+export interface PendingRequest {
+  id: string;
+  content: string;
+  created_at: string;
+  metadata: {
+    original_title: string;
+    original_description?: string;
+    project_id: string;
+  } | null;
+}
+
+export async function getPendingRequests(): Promise<{ requests: PendingRequest[] }> {
+  const token = getClientToken();
+  if (!token) throw new Error('Not authenticated');
+
+  const response = await fetch(`${API_URL}/api/client/pending-requests`, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+
+  if (!response.ok) throw new Error('Failed to get pending requests');
   return response.json();
 }
 

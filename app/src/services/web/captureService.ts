@@ -14,6 +14,24 @@ function toCamelCase(obj: Record<string, unknown>): Record<string, unknown> {
   return result;
 }
 
+// Explicitly pick only the fields we need for Capture
+function sanitizeCapture(raw: Record<string, unknown>): Record<string, unknown> {
+  const camel = toCamelCase(raw);
+  return {
+    id: camel.id,
+    content: camel.content,
+    type: camel.type,
+    processed: Boolean(camel.processed),
+    processedTo: camel.processedTo,
+    processingStatus: camel.processingStatus,
+    processedBy: camel.processedBy,
+    artifactType: camel.artifactType,
+    artifactId: camel.artifactId,
+    createdAt: camel.createdAt,
+    metadata: camel.metadata,
+  };
+}
+
 function toSnakeCase(obj: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(obj)) {
@@ -26,7 +44,7 @@ function toSnakeCase(obj: Record<string, unknown>): Record<string, unknown> {
 class CaptureService {
   async getAll(): Promise<Capture[]> {
     const captures = await api.getCaptures();
-    return captures.map(c => toCamelCase(c as Record<string, unknown>) as unknown as Capture);
+    return captures.map(c => sanitizeCapture(c as Record<string, unknown>) as unknown as Capture);
   }
 
   async getById(id: string): Promise<Capture | null> {
@@ -36,7 +54,7 @@ class CaptureService {
 
   async getUnprocessed(): Promise<Capture[]> {
     const captures = await api.getCaptures({ processed: false });
-    return captures.map(c => toCamelCase(c as Record<string, unknown>) as unknown as Capture);
+    return captures.map(c => sanitizeCapture(c as Record<string, unknown>) as unknown as Capture);
   }
 
   async create(item: Omit<Capture, "id" | "createdAt" | "processed" | "processedTo">): Promise<Capture> {

@@ -236,32 +236,33 @@ function rowToDepreciationEntry(row: DepreciationRow): DepreciationEntry {
 
 /**
  * Map database row to Asset type
+ * Works for both Tauri DB rows and REST API responses (snake_case)
  */
-function rowToAsset(row: AssetRow, schedule: DepreciationEntry[]): Asset {
+function rowToAsset(row: AssetRow | Record<string, unknown>, schedule: DepreciationEntry[] = []): Asset {
   return {
-    id: row.id,
-    name: row.name,
-    description: row.description ?? undefined,
-    purchaseDate: new Date(row.purchase_date),
-    vendor: row.vendor ?? undefined,
-    purchasePrice: row.purchase_price,
-    vatPaid: row.vat_paid,
-    grossPrice: row.gross_price,
-    afaMethod: row.afa_method as Asset['afaMethod'],
-    afaYears: row.afa_years,
-    afaStartDate: new Date(row.afa_start_date),
-    afaAnnualAmount: row.afa_annual_amount,
-    status: row.status as AssetStatus,
-    disposalDate: row.disposal_date ? new Date(row.disposal_date) : undefined,
-    disposalPrice: row.disposal_price ?? undefined,
-    euerLine: row.euer_line,
-    euerCategory: row.euer_category,
-    category: row.category as AssetCategory,
-    inventoryNumber: row.inventory_number ?? undefined,
-    location: row.location ?? undefined,
-    billPath: row.bill_path ?? undefined,
+    id: row.id as string,
+    name: row.name as string,
+    description: (row.description as string) ?? undefined,
+    purchaseDate: new Date(row.purchase_date as string),
+    vendor: (row.vendor as string) ?? undefined,
+    purchasePrice: row.purchase_price as number,
+    vatPaid: (row.vat_paid as number) ?? 0,
+    grossPrice: (row.gross_price as number) ?? (row.purchase_price as number),
+    afaMethod: (row.afa_method ?? row.depreciation_method ?? 'linear') as Asset['afaMethod'],
+    afaYears: (row.afa_years ?? row.useful_life_years ?? 3) as number,
+    afaStartDate: new Date((row.afa_start_date ?? row.purchase_date) as string),
+    afaAnnualAmount: (row.afa_annual_amount ?? 0) as number,
+    status: (row.status ?? 'active') as AssetStatus,
+    disposalDate: row.disposal_date ? new Date(row.disposal_date as string) : undefined,
+    disposalPrice: (row.disposal_price as number) ?? undefined,
+    euerLine: (row.euer_line ?? 30) as number,
+    euerCategory: (row.euer_category ?? 'afa_beweglich') as string,
+    category: (row.category as AssetCategory),
+    inventoryNumber: (row.inventory_number as string) ?? undefined,
+    location: (row.location as string) ?? undefined,
+    billPath: (row.bill_path as string) ?? undefined,
     depreciationSchedule: schedule,
-    createdAt: new Date(row.created_at),
+    createdAt: new Date((row.created_at as string) ?? Date.now()),
   }
 }
 
@@ -339,14 +340,8 @@ async function getNextInventoryNumber(): Promise<string> {
 export async function getAllAssets(): Promise<Asset[]> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const data = await apiRequest<Asset[]>('/api/assets');
-    return data.map(item => ({
-      ...item,
-      purchaseDate: new Date(item.purchaseDate),
-      afaStartDate: new Date(item.afaStartDate),
-      disposalDate: item.disposalDate ? new Date(item.disposalDate) : undefined,
-      createdAt: new Date(item.createdAt),
-    }));
+    const data = await apiRequest<Record<string, unknown>[]>('/api/assets');
+    return data.map(item => rowToAsset(item));
   }
 
   // Tauri mode - use database
@@ -371,14 +366,8 @@ export async function getAssetById(id: string): Promise<Asset | null> {
   // Use REST API in web mode
   if (!isTauri()) {
     try {
-      const data = await apiRequest<Asset>(`/api/assets/${id}`);
-      return {
-        ...data,
-        purchaseDate: new Date(data.purchaseDate),
-        afaStartDate: new Date(data.afaStartDate),
-        disposalDate: data.disposalDate ? new Date(data.disposalDate) : undefined,
-        createdAt: new Date(data.createdAt),
-      };
+      const data = await apiRequest<Record<string, unknown>>(`/api/assets/${id}`);
+      return rowToAsset(data);
     } catch {
       return null;
     }
@@ -405,14 +394,8 @@ export async function getAssetById(id: string): Promise<Asset | null> {
 export async function getAssetsByCategory(category: AssetCategory): Promise<Asset[]> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const data = await apiRequest<Asset[]>(`/api/assets?category=${category}`);
-    return data.map(item => ({
-      ...item,
-      purchaseDate: new Date(item.purchaseDate),
-      afaStartDate: new Date(item.afaStartDate),
-      disposalDate: item.disposalDate ? new Date(item.disposalDate) : undefined,
-      createdAt: new Date(item.createdAt),
-    }));
+    const data = await apiRequest<Record<string, unknown>[]>(`/api/assets?category=${category}`);
+    return data.map(item => rowToAsset(item));
   }
 
   // Tauri mode - use database
@@ -437,14 +420,8 @@ export async function getAssetsByCategory(category: AssetCategory): Promise<Asse
 export async function getAssetsByStatus(status: AssetStatus): Promise<Asset[]> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const data = await apiRequest<Asset[]>(`/api/assets?status=${status}`);
-    return data.map(item => ({
-      ...item,
-      purchaseDate: new Date(item.purchaseDate),
-      afaStartDate: new Date(item.afaStartDate),
-      disposalDate: item.disposalDate ? new Date(item.disposalDate) : undefined,
-      createdAt: new Date(item.createdAt),
-    }));
+    const data = await apiRequest<Record<string, unknown>[]>(`/api/assets?status=${status}`);
+    return data.map(item => rowToAsset(item));
   }
 
   // Tauri mode - use database
@@ -476,14 +453,8 @@ export async function getActiveAssets(): Promise<Asset[]> {
 export async function getDisposedAssets(): Promise<Asset[]> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const data = await apiRequest<Asset[]>('/api/assets?status=disposed,sold');
-    return data.map(item => ({
-      ...item,
-      purchaseDate: new Date(item.purchaseDate),
-      afaStartDate: new Date(item.afaStartDate),
-      disposalDate: item.disposalDate ? new Date(item.disposalDate) : undefined,
-      createdAt: new Date(item.createdAt),
-    }));
+    const data = await apiRequest<Record<string, unknown>[]>('/api/assets?status=disposed,sold');
+    return data.map(item => rowToAsset(item));
   }
 
   // Tauri mode - use database
@@ -510,21 +481,25 @@ export async function getDisposedAssets(): Promise<Asset[]> {
 export async function createAsset(data: NewAsset, existingId?: string): Promise<Asset> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const response = await apiRequest<Asset>('/api/assets', {
+    const response = await apiRequest<Record<string, unknown>>('/api/assets', {
       method: 'POST',
       body: JSON.stringify({
-        ...data,
-        purchaseDate: data.purchaseDate.toISOString().split('T')[0],
         id: existingId,
+        name: data.name,
+        description: data.description,
+        purchase_date: data.purchaseDate.toISOString().split('T')[0],
+        vendor: data.vendor,
+        purchase_price: data.purchasePrice,
+        vat_rate: data.vatRate,
+        afa_method: data.afaMethod,
+        afa_years: data.afaYears,
+        category: data.category,
+        inventory_number: data.inventoryNumber,
+        location: data.location,
+        bill_path: data.billPath,
       }),
     });
-    return {
-      ...response,
-      purchaseDate: new Date(response.purchaseDate),
-      afaStartDate: new Date(response.afaStartDate),
-      disposalDate: response.disposalDate ? new Date(response.disposalDate) : undefined,
-      createdAt: new Date(response.createdAt),
-    };
+    return rowToAsset(response);
   }
 
   // Tauri mode - use database
@@ -628,21 +603,26 @@ export async function updateAsset(
   // Use REST API in web mode
   if (!isTauri()) {
     try {
-      const updateData = { ...data };
-      if (data.purchaseDate) {
-        updateData.purchaseDate = data.purchaseDate.toISOString().split('T')[0] as any;
-      }
-      const response = await apiRequest<Asset>(`/api/assets/${id}`, {
+      // Convert camelCase to snake_case for API
+      const updateData: Record<string, unknown> = {};
+      if (data.name !== undefined) updateData.name = data.name;
+      if (data.description !== undefined) updateData.description = data.description;
+      if (data.purchaseDate) updateData.purchase_date = data.purchaseDate.toISOString().split('T')[0];
+      if (data.vendor !== undefined) updateData.vendor = data.vendor;
+      if (data.purchasePrice !== undefined) updateData.purchase_price = data.purchasePrice;
+      if (data.vatRate !== undefined) updateData.vat_rate = data.vatRate;
+      if (data.afaMethod !== undefined) updateData.afa_method = data.afaMethod;
+      if (data.afaYears !== undefined) updateData.afa_years = data.afaYears;
+      if (data.category !== undefined) updateData.category = data.category;
+      if (data.inventoryNumber !== undefined) updateData.inventory_number = data.inventoryNumber;
+      if (data.location !== undefined) updateData.location = data.location;
+      if (data.billPath !== undefined) updateData.bill_path = data.billPath;
+      
+      const response = await apiRequest<Record<string, unknown>>(`/api/assets/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(updateData),
       });
-      return {
-        ...response,
-        purchaseDate: new Date(response.purchaseDate),
-        afaStartDate: new Date(response.afaStartDate),
-        disposalDate: response.disposalDate ? new Date(response.disposalDate) : undefined,
-        createdAt: new Date(response.createdAt),
-      };
+      return rowToAsset(response);
     } catch {
       return null;
     }
@@ -813,21 +793,15 @@ export async function disposeAsset(
 ): Promise<Asset | null> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const response = await apiRequest<Asset>(`/api/assets/${id}/dispose`, {
+    const response = await apiRequest<Record<string, unknown>>(`/api/assets/${id}/dispose`, {
       method: 'POST',
       body: JSON.stringify({
-        disposalDate: disposalDate.toISOString().split('T')[0],
+        disposal_date: disposalDate.toISOString().split('T')[0],
         status,
-        disposalPrice,
+        disposal_price: disposalPrice,
       }),
     });
-    return {
-      ...response,
-      purchaseDate: new Date(response.purchaseDate),
-      afaStartDate: new Date(response.afaStartDate),
-      disposalDate: response.disposalDate ? new Date(response.disposalDate) : undefined,
-      createdAt: new Date(response.createdAt),
-    };
+    return rowToAsset(response);
   }
 
   // Tauri mode - use database

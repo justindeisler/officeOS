@@ -12,10 +12,21 @@ class CaptureService extends BaseService<Capture> {
     const rows = await db.select<Record<string, unknown>[]>(
       "SELECT * FROM captures ORDER BY created_at DESC"
     );
-    return rows.map((row) => ({
-      ...fromDbFormat<Capture>(row),
-      processed: Boolean(row.processed),
-    }));
+    return rows.map((row) => {
+      const capture = {
+        ...fromDbFormat<Capture>(row),
+        processed: Boolean(row.processed),
+      };
+      // Parse metadata JSON if present
+      if (row.metadata && typeof row.metadata === 'string') {
+        try {
+          capture.metadata = JSON.parse(row.metadata);
+        } catch (e) {
+          console.warn('Failed to parse capture metadata:', e);
+        }
+      }
+      return capture;
+    });
   }
 
   async getUnprocessed(): Promise<Capture[]> {
@@ -23,10 +34,21 @@ class CaptureService extends BaseService<Capture> {
     const rows = await db.select<Record<string, unknown>[]>(
       "SELECT * FROM captures WHERE processed = 0 ORDER BY created_at DESC"
     );
-    return rows.map((row) => ({
-      ...fromDbFormat<Capture>(row),
-      processed: false,
-    }));
+    return rows.map((row) => {
+      const capture = {
+        ...fromDbFormat<Capture>(row),
+        processed: false,
+      };
+      // Parse metadata JSON if present
+      if (row.metadata && typeof row.metadata === 'string') {
+        try {
+          capture.metadata = JSON.parse(row.metadata);
+        } catch (e) {
+          console.warn('Failed to parse capture metadata:', e);
+        }
+      }
+      return capture;
+    });
   }
 
   async getByType(type: CaptureType): Promise<Capture[]> {
@@ -35,10 +57,21 @@ class CaptureService extends BaseService<Capture> {
       "SELECT * FROM captures WHERE type = ? ORDER BY created_at DESC",
       [type]
     );
-    return rows.map((row) => ({
-      ...fromDbFormat<Capture>(row),
-      processed: Boolean(row.processed),
-    }));
+    return rows.map((row) => {
+      const capture = {
+        ...fromDbFormat<Capture>(row),
+        processed: Boolean(row.processed),
+      };
+      // Parse metadata JSON if present
+      if (row.metadata && typeof row.metadata === 'string') {
+        try {
+          capture.metadata = JSON.parse(row.metadata);
+        } catch (e) {
+          console.warn('Failed to parse capture metadata:', e);
+        }
+      }
+      return capture;
+    });
   }
 
   async create(

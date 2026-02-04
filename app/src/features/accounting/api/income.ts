@@ -105,17 +105,37 @@ function calculateVat(netAmount: number, vatRate: VatRate): number {
 }
 
 /**
+ * Map API response (snake_case) to Income type (camelCase)
+ */
+function mapApiToIncome(row: Record<string, unknown>): Income {
+  return {
+    id: row.id as string,
+    date: new Date(row.date as string),
+    clientId: row.client_id as string | undefined,
+    invoiceId: row.invoice_id as string | undefined,
+    description: row.description as string,
+    netAmount: row.net_amount as number,
+    vatRate: row.vat_rate as VatRate,
+    vatAmount: row.vat_amount as number,
+    grossAmount: row.gross_amount as number,
+    euerLine: (row.euer_line as number) ?? 14,
+    euerCategory: (row.euer_category as string) ?? 'services',
+    paymentMethod: row.payment_method as Income['paymentMethod'],
+    bankReference: row.bank_reference as string | undefined,
+    ustPeriod: row.ust_period as string | undefined,
+    ustReported: row.ust_reported === 1,
+    createdAt: new Date(row.created_at as string ?? Date.now()),
+  };
+}
+
+/**
  * Get all income records, ordered by date descending
  */
 export async function getAllIncome(): Promise<Income[]> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const data = await apiRequest<Income[]>('/api/income');
-    return data.map(item => ({
-      ...item,
-      date: new Date(item.date),
-      createdAt: new Date(item.createdAt),
-    }));
+    const data = await apiRequest<Record<string, unknown>[]>('/api/income');
+    return data.map(mapApiToIncome);
   }
 
   // Tauri mode - use database
@@ -133,12 +153,8 @@ export async function getIncomeById(id: string): Promise<Income | null> {
   // Use REST API in web mode
   if (!isTauri()) {
     try {
-      const data = await apiRequest<Income>(`/api/income/${id}`);
-      return {
-        ...data,
-        date: new Date(data.date),
-        createdAt: new Date(data.createdAt),
-      };
+      const data = await apiRequest<Record<string, unknown>>(`/api/income/${id}`);
+      return mapApiToIncome(data);
     } catch {
       return null;
     }
@@ -165,12 +181,8 @@ export async function getIncomeByDateRange(
   if (!isTauri()) {
     const start = startDate.toISOString().split('T')[0];
     const end = endDate.toISOString().split('T')[0];
-    const data = await apiRequest<Income[]>(`/api/income?startDate=${start}&endDate=${end}`);
-    return data.map(item => ({
-      ...item,
-      date: new Date(item.date),
-      createdAt: new Date(item.createdAt),
-    }));
+    const data = await apiRequest<Record<string, unknown>[]>(`/api/income?startDate=${start}&endDate=${end}`);
+    return data.map(mapApiToIncome);
   }
 
   // Tauri mode - use database
@@ -188,12 +200,8 @@ export async function getIncomeByDateRange(
 export async function getIncomeByUstPeriod(period: string): Promise<Income[]> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const data = await apiRequest<Income[]>(`/api/income?ustPeriod=${period}`);
-    return data.map(item => ({
-      ...item,
-      date: new Date(item.date),
-      createdAt: new Date(item.createdAt),
-    }));
+    const data = await apiRequest<Record<string, unknown>[]>(`/api/income?ustPeriod=${period}`);
+    return data.map(mapApiToIncome);
   }
 
   // Tauri mode - use database
@@ -211,12 +219,8 @@ export async function getIncomeByUstPeriod(period: string): Promise<Income[]> {
 export async function getUnreportedIncome(): Promise<Income[]> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const data = await apiRequest<Income[]>('/api/income?ustReported=false');
-    return data.map(item => ({
-      ...item,
-      date: new Date(item.date),
-      createdAt: new Date(item.createdAt),
-    }));
+    const data = await apiRequest<Record<string, unknown>[]>('/api/income?ustReported=false');
+    return data.map(mapApiToIncome);
   }
 
   // Tauri mode - use database
@@ -233,18 +237,23 @@ export async function getUnreportedIncome(): Promise<Income[]> {
 export async function createIncome(data: NewIncome): Promise<Income> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const response = await apiRequest<Income>('/api/income', {
+    const response = await apiRequest<Record<string, unknown>>('/api/income', {
       method: 'POST',
       body: JSON.stringify({
-        ...data,
         date: data.date.toISOString().split('T')[0],
+        client_id: data.clientId,
+        invoice_id: data.invoiceId,
+        description: data.description,
+        net_amount: data.netAmount,
+        vat_rate: data.vatRate,
+        euer_line: data.euerLine,
+        euer_category: data.euerCategory,
+        payment_method: data.paymentMethod,
+        bank_reference: data.bankReference,
+        ust_period: data.ustPeriod,
       }),
     });
-    return {
-      ...response,
-      date: new Date(response.date),
-      createdAt: new Date(response.createdAt),
-    };
+    return mapApiToIncome(response);
   }
 
   // Tauri mode - use database
@@ -314,19 +323,25 @@ export async function updateIncome(
   // Use REST API in web mode
   if (!isTauri()) {
     try {
-      const updateData = { ...data };
-      if (data.date) {
-        updateData.date = data.date.toISOString().split('T')[0] as any;
-      }
-      const response = await apiRequest<Income>(`/api/income/${id}`, {
+      // Convert camelCase to snake_case for API
+      const updateData: Record<string, unknown> = {};
+      if (data.date) updateData.date = data.date.toISOString().split('T')[0];
+      if (data.clientId !== undefined) updateData.client_id = data.clientId;
+      if (data.invoiceId !== undefined) updateData.invoice_id = data.invoiceId;
+      if (data.description !== undefined) updateData.description = data.description;
+      if (data.netAmount !== undefined) updateData.net_amount = data.netAmount;
+      if (data.vatRate !== undefined) updateData.vat_rate = data.vatRate;
+      if (data.euerLine !== undefined) updateData.euer_line = data.euerLine;
+      if (data.euerCategory !== undefined) updateData.euer_category = data.euerCategory;
+      if (data.paymentMethod !== undefined) updateData.payment_method = data.paymentMethod;
+      if (data.bankReference !== undefined) updateData.bank_reference = data.bankReference;
+      if (data.ustPeriod !== undefined) updateData.ust_period = data.ustPeriod;
+      
+      const response = await apiRequest<Record<string, unknown>>(`/api/income/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(updateData),
       });
-      return {
-        ...response,
-        date: new Date(response.date),
-        createdAt: new Date(response.createdAt),
-      };
+      return mapApiToIncome(response);
     } catch {
       return null;
     }

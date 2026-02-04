@@ -1,7 +1,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { format } from "date-fns";
-import { Bot, Calendar, FileText, FolderOpen, GripVertical, MoreHorizontal, Users } from "lucide-react";
+import { Bot, Calendar, FileText, FolderOpen, GripVertical, MessageSquare, MoreHorizontal, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useProjectStore } from "@/stores/projectStore";
@@ -157,6 +157,17 @@ export function TaskCard({ task, onEdit, onAssignToJames, isDragging }: TaskCard
               >
                 <Bot className="h-3 w-3 shrink-0" />
                 James
+              </span>
+            )}
+
+            {/* Client request badge */}
+            {!!task.quickCapture && task.createdBy?.includes('@') && (
+              <span
+                className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium bg-pink-500/20 text-pink-700 dark:text-pink-400"
+                title={`Client request from ${task.createdBy}`}
+              >
+                <MessageSquare className="h-3 w-3 shrink-0" />
+                Request
               </span>
             )}
 

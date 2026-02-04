@@ -40,6 +40,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Trust proxy (needed for rate limiting behind nginx/reverse proxy)
+app.set('trust proxy', 1);
+
 // Static files path (web build)
 const STATIC_PATH = process.env.STATIC_PATH || join(__dirname, "../../app/dist-web");
 
@@ -57,6 +60,8 @@ const limiter = rateLimit({
   legacyHeaders: false,
   message: { error: "Too many requests, please try again later" },
   skip: (req) => req.path === "/health", // Skip health checks
+  // Disable X-Forwarded-For validation since we're behind nginx proxy
+  validate: { xForwardedForHeader: false },
 });
 app.use("/api/", limiter);
 
