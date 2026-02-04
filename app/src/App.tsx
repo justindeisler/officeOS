@@ -40,6 +40,7 @@ import {
 import { ClientLayout } from "./features/client/components/ClientLayout";
 import { ClientLoginPage } from "./features/client/pages/ClientLoginPage";
 import { ClientDashboard } from "./features/client/pages/ClientDashboard";
+import { ClientArchitecturePage } from "./features/client/pages/ClientArchitecturePage";
 
 function App() {
   console.log("[App] Rendering App component...");
@@ -166,6 +167,7 @@ function App() {
         <Route path="/client/login" element={<ClientLoginPage />} />
         <Route path="/client" element={<ClientLayout />}>
           <Route path="dashboard" element={<ClientDashboard />} />
+          <Route path="architecture" element={<ClientArchitecturePage />} />
         </Route>
         
         <Route element={<AppLayout onQuickCapture={() => setCaptureDialogOpen(true)} />}>

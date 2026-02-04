@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Outlet, useNavigate, Link, useLocation } from 'react-router-dom';
 import { useClientAuthStore } from '../stores/clientAuthStore';
 import { Button } from '@/components/ui/button';
-import { CheckSquare, LogOut, Menu, X } from 'lucide-react';
+import { CheckSquare, Database, LogOut, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -37,6 +37,7 @@ export function ClientLayout() {
 
   const navItems = [
     { label: 'Tasks', icon: CheckSquare, href: '/client/dashboard' },
+    { label: 'Architecture', icon: Database, href: '/client/architecture' },
   ];
 
   const isActive = (href: string) => location.pathname === href;
