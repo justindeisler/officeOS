@@ -1,10 +1,20 @@
 import { getDb, getSchemaVersion } from "@/lib/db";
 
+// Check if running in Tauri environment
+function isTauri(): boolean {
+  return typeof window !== 'undefined' &&
+         '__TAURI__' in window &&
+         !!(window as unknown as { __TAURI__?: unknown }).__TAURI__;
+}
+
 // Lazy-loaded Tauri modules to avoid blocking React mount
 let tauriDialog: typeof import("@tauri-apps/plugin-dialog") | null = null;
 let tauriFs: typeof import("@tauri-apps/plugin-fs") | null = null;
 
 async function getTauriModules() {
+  if (!isTauri()) {
+    throw new Error("Tauri modules not available in web environment");
+  }
   if (!tauriDialog || !tauriFs) {
     const [dialog, fs] = await Promise.all([
       import("@tauri-apps/plugin-dialog"),
@@ -19,6 +29,39 @@ async function getTauriModules() {
     writeTextFile: tauriFs.writeTextFile,
     readTextFile: tauriFs.readTextFile,
   };
+}
+
+// Web-based file download
+function downloadJsonFile(content: string, filename: string): void {
+  const blob = new Blob([content], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+// Web-based file picker for import
+function pickJsonFile(): Promise<string | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json";
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) {
+        resolve(null);
+        return;
+      }
+      const content = await file.text();
+      resolve(content);
+    };
+    input.oncancel = () => resolve(null);
+    input.click();
+  });
 }
 
 // Backup file format
@@ -54,7 +97,6 @@ class BackupService {
 
   async exportBackup(): Promise<{ success: boolean; filePath?: string; error?: string }> {
     try {
-      const { save, writeTextFile } = await getTauriModules();
       const db = await getDb();
       const schemaVersion = await getSchemaVersion();
 
@@ -95,20 +137,28 @@ class BackupService {
         checksum,
       };
 
-      // Get save path from user
-      const filePath = await save({
-        defaultPath: `personal-assistant-backup-${new Date().toISOString().split("T")[0]}.json`,
-        filters: [{ name: "JSON", extensions: ["json"] }],
-      });
+      const filename = `personal-assistant-backup-${new Date().toISOString().split("T")[0]}.json`;
+      const jsonContent = JSON.stringify(backup, null, 2);
 
-      if (!filePath) {
-        return { success: false, error: "Export cancelled" };
+      if (isTauri()) {
+        // Use Tauri file dialog and fs
+        const { save, writeTextFile } = await getTauriModules();
+        const filePath = await save({
+          defaultPath: filename,
+          filters: [{ name: "JSON", extensions: ["json"] }],
+        });
+
+        if (!filePath) {
+          return { success: false, error: "Export cancelled" };
+        }
+
+        await writeTextFile(filePath, jsonContent);
+        return { success: true, filePath };
+      } else {
+        // Use browser download API
+        downloadJsonFile(jsonContent, filename);
+        return { success: true, filePath: filename };
       }
-
-      // Write to file
-      await writeTextFile(filePath, JSON.stringify(backup, null, 2));
-
-      return { success: true, filePath };
     } catch (error) {
       console.error("Backup export failed:", error);
       return {
@@ -124,19 +174,30 @@ class BackupService {
     stats?: { tables: number; records: number };
   }> {
     try {
-      const { open, readTextFile } = await getTauriModules();
-      // Get file path from user
-      const filePath = await open({
-        filters: [{ name: "JSON", extensions: ["json"] }],
-        multiple: false,
-      });
+      let content: string | null;
 
-      if (!filePath || Array.isArray(filePath)) {
+      if (isTauri()) {
+        // Use Tauri file dialog
+        const { open, readTextFile } = await getTauriModules();
+        const filePath = await open({
+          filters: [{ name: "JSON", extensions: ["json"] }],
+          multiple: false,
+        });
+
+        if (!filePath || Array.isArray(filePath)) {
+          return { success: false, error: "Import cancelled" };
+        }
+
+        content = await readTextFile(filePath);
+      } else {
+        // Use browser file picker
+        content = await pickJsonFile();
+      }
+
+      if (!content) {
         return { success: false, error: "Import cancelled" };
       }
 
-      // Read file
-      const content = await readTextFile(filePath);
       const backup = JSON.parse(content) as BackupData;
 
       // Validate backup structure
@@ -294,28 +355,52 @@ class BackupService {
     invoices: number;
     captures: number;
   }> {
-    const db = await getDb();
+    if (isTauri()) {
+      // Tauri mode - use direct database queries
+      const db = await getDb();
 
-    const [clients, projects, tasks, timeEntries, invoices, captures] =
-      await Promise.all([
-        db.select<{ count: number }[]>("SELECT COUNT(*) as count FROM clients"),
-        db.select<{ count: number }[]>("SELECT COUNT(*) as count FROM projects"),
-        db.select<{ count: number }[]>("SELECT COUNT(*) as count FROM tasks"),
-        db.select<{ count: number }[]>(
-          "SELECT COUNT(*) as count FROM time_entries"
-        ),
-        db.select<{ count: number }[]>("SELECT COUNT(*) as count FROM invoices"),
-        db.select<{ count: number }[]>("SELECT COUNT(*) as count FROM captures"),
-      ]);
+      const [clients, projects, tasks, timeEntries, invoices, captures] =
+        await Promise.all([
+          db.select<{ count: number }[]>("SELECT COUNT(*) as count FROM clients"),
+          db.select<{ count: number }[]>("SELECT COUNT(*) as count FROM projects"),
+          db.select<{ count: number }[]>("SELECT COUNT(*) as count FROM tasks"),
+          db.select<{ count: number }[]>(
+            "SELECT COUNT(*) as count FROM time_entries"
+          ),
+          db.select<{ count: number }[]>("SELECT COUNT(*) as count FROM invoices"),
+          db.select<{ count: number }[]>("SELECT COUNT(*) as count FROM captures"),
+        ]);
 
-    return {
-      clients: clients[0]?.count || 0,
-      projects: projects[0]?.count || 0,
-      tasks: tasks[0]?.count || 0,
-      timeEntries: timeEntries[0]?.count || 0,
-      invoices: invoices[0]?.count || 0,
-      captures: captures[0]?.count || 0,
-    };
+      return {
+        clients: clients[0]?.count || 0,
+        projects: projects[0]?.count || 0,
+        tasks: tasks[0]?.count || 0,
+        timeEntries: timeEntries[0]?.count || 0,
+        invoices: invoices[0]?.count || 0,
+        captures: captures[0]?.count || 0,
+      };
+    } else {
+      // Web mode - use REST API
+      const { api } = await import("@/lib/api");
+      const [clients, projects, tasks, timeEntries, invoices, captures] =
+        await Promise.all([
+          api.getClients(),
+          api.getProjects(),
+          api.getTasks(),
+          api.getTimeEntries(),
+          api.getInvoices(),
+          api.getCaptures(),
+        ]);
+
+      return {
+        clients: clients.length,
+        projects: projects.length,
+        tasks: tasks.length,
+        timeEntries: timeEntries.length,
+        invoices: invoices.length,
+        captures: captures.length,
+      };
+    }
   }
 }
 

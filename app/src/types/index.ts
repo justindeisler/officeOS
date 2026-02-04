@@ -280,3 +280,18 @@ export interface Income {
   category?: string;
   createdAt: string;
 }
+
+// Subtask for checklist items within a task
+export interface Subtask {
+  id: string;
+  taskId: string;
+  title: string;
+  completed: boolean;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface SubtaskCounts {
+  total: number;
+  completed: number;
+}

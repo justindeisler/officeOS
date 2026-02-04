@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -19,7 +19,7 @@ import { useTaskStore, useFilteredTasks } from "@/stores/taskStore";
 import { useConfettiStore } from "@/stores/confettiStore";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import type { Task, TaskStatus } from "@/types";
+import type { Task, TaskStatus, SubtaskCounts } from "@/types";
 
 const columns: { id: TaskStatus; title: string }[] = [
   { id: "backlog", title: "Backlog" },
@@ -37,9 +37,29 @@ export function KanbanBoard() {
   // Track original status for confetti trigger
   const originalStatusRef = useRef<TaskStatus | null>(null);
 
+  // Subtask counts for all tasks
+  const [subtaskCounts, setSubtaskCounts] = useState<Record<string, SubtaskCounts>>({});
+
   const { moveTask } = useTaskStore();
   const filteredTasks = useFilteredTasks();
   const triggerConfetti = useConfettiStore((state) => state.trigger);
+
+  // Fetch subtask counts for all visible tasks
+  useEffect(() => {
+    const taskIds = filteredTasks.map((t) => t.id);
+    if (taskIds.length === 0) return;
+
+    const fetchCounts = async () => {
+      try {
+        const counts = await api.getSubtaskCounts(taskIds);
+        setSubtaskCounts(counts);
+      } catch (err) {
+        console.error("Failed to fetch subtask counts:", err);
+      }
+    };
+
+    fetchCounts();
+  }, [filteredTasks.map((t) => t.id).join(",")]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -216,6 +236,7 @@ export function KanbanBoard() {
                 onAddTask={handleAddTask}
                 onEditTask={handleEditTask}
                 onAssignToJames={handleAssignToJames}
+                subtaskCounts={subtaskCounts}
               />
             </div>
           ))}
@@ -223,7 +244,12 @@ export function KanbanBoard() {
 
         <DragOverlay>
           {activeTask ? (
-            <TaskCard task={activeTask} onEdit={() => {}} isDragging />
+            <TaskCard 
+              task={activeTask} 
+              onEdit={() => {}} 
+              isDragging 
+              subtaskCounts={subtaskCounts[activeTask.id]}
+            />
           ) : null}
         </DragOverlay>
       </DndContext>

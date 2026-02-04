@@ -6,13 +6,15 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useProjectStore } from "@/stores/projectStore";
 import { usePRDStore } from "@/stores/prdStore";
-import type { Task } from "@/types";
+import { SubtaskList } from "./SubtaskList";
+import type { Task, SubtaskCounts } from "@/types";
 
 interface TaskCardProps {
   task: Task;
   onEdit: (task: Task) => void;
   onAssignToJames?: (task: Task) => void;
   isDragging?: boolean;
+  subtaskCounts?: SubtaskCounts;
 }
 
 const priorityColors = {
@@ -49,7 +51,7 @@ function getProjectColorIndex(projectName: string): number {
   return hash % projectColors.length;
 }
 
-export function TaskCard({ task, onEdit, onAssignToJames, isDragging }: TaskCardProps) {
+export function TaskCard({ task, onEdit, onAssignToJames, isDragging, subtaskCounts }: TaskCardProps) {
   const { projects } = useProjectStore();
   const { prds } = usePRDStore();
   const project = task.projectId
@@ -112,6 +114,9 @@ export function TaskCard({ task, onEdit, onAssignToJames, isDragging }: TaskCard
               {task.description}
             </p>
           )}
+
+          {/* Subtasks section */}
+          <SubtaskList taskId={task.id} counts={subtaskCounts} />
 
           {/* Meta info */}
           <div className="flex flex-wrap items-center gap-2 mt-2">

@@ -602,6 +602,43 @@ class ApiClient {
       done: number;
     }>('/james-tasks/stats/summary');
   }
+
+  // Subtasks
+  async getSubtasks(taskId: string) {
+    return this.request<unknown[]>(`/tasks/${taskId}/subtasks`);
+  }
+
+  async createSubtask(taskId: string, title: string) {
+    return this.request<unknown>(`/tasks/${taskId}/subtasks`, {
+      method: 'POST',
+      body: JSON.stringify({ title }),
+    });
+  }
+
+  async updateSubtask(id: string, updates: { title?: string; completed?: number; sort_order?: number }) {
+    return this.request<unknown>(`/subtasks/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteSubtask(id: string) {
+    return this.request<unknown>(`/subtasks/${id}`, { method: 'DELETE' });
+  }
+
+  async reorderSubtasks(taskId: string, subtaskIds: string[]) {
+    return this.request<unknown[]>(`/tasks/${taskId}/subtasks/reorder`, {
+      method: 'POST',
+      body: JSON.stringify({ subtaskIds }),
+    });
+  }
+
+  async getSubtaskCounts(taskIds: string[]) {
+    return this.request<Record<string, { total: number; completed: number }>>('/subtasks/counts', {
+      method: 'POST',
+      body: JSON.stringify({ taskIds }),
+    });
+  }
 }
 
 export const api = new ApiClient();
