@@ -163,13 +163,16 @@ function App() {
   return (
     <>
       <Routes>
+        {/* Redirect /login to / when authenticated */}
+        <Route path="/login" element={<Navigate to="/" replace />} />
+
         {/* Client portal routes (separate from main app) */}
         <Route path="/client/login" element={<ClientLoginPage />} />
         <Route path="/client" element={<ClientLayout />}>
           <Route path="dashboard" element={<ClientDashboard />} />
           <Route path="architecture" element={<ClientArchitecturePage />} />
         </Route>
-        
+
         <Route element={<AppLayout onQuickCapture={() => setCaptureDialogOpen(true)} />}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/tasks" element={<TasksPage />} />

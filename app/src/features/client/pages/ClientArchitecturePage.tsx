@@ -61,6 +61,7 @@ const wellifySchema: { tables: Table[]; relationships: Relationship[] } = {
         { name: 'title', type: 'varchar' },
         { name: 'type', type: 'enum' },
         { name: 'order', type: 'int' },
+        { name: 'releaseAfterDays', type: 'int?' },
       ],
       x: 650,
       y: 50,

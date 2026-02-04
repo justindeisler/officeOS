@@ -411,7 +411,7 @@ export function getTrendDirection(change: number): TrendDirection {
 /**
  * Sum a numeric field across an array of objects
  */
-export function sumByField<T extends Record<string, unknown>>(
+export function sumByField<T>(
   items: T[],
   field: keyof T
 ): number {

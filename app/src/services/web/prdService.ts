@@ -28,7 +28,7 @@ function getAuthHeaders(): Record<string, string> {
 
 class PRDService {
   async getAll(): Promise<PRD[]> {
-    const response = await fetch(`${API_BASE}/api/prds`, {
+    const response = await fetch(`${API_BASE}/prds`, {
       headers: getAuthHeaders(),
     });
     if (!response.ok) {
@@ -38,7 +38,7 @@ class PRDService {
   }
 
   async getById(id: string): Promise<PRD | null> {
-    const response = await fetch(`${API_BASE}/api/prds/${id}`, {
+    const response = await fetch(`${API_BASE}/prds/${id}`, {
       headers: getAuthHeaders(),
     });
     if (response.status === 404) {
@@ -51,7 +51,7 @@ class PRDService {
   }
 
   async getByProject(projectId: string): Promise<PRD[]> {
-    const response = await fetch(`${API_BASE}/api/prds?projectId=${projectId}`, {
+    const response = await fetch(`${API_BASE}/prds?projectId=${projectId}`, {
       headers: getAuthHeaders(),
     });
     if (!response.ok) {
@@ -61,7 +61,7 @@ class PRDService {
   }
 
   async create(item: Omit<PRD, "id" | "createdAt" | "updatedAt">): Promise<PRD> {
-    const response = await fetch(`${API_BASE}/api/prds`, {
+    const response = await fetch(`${API_BASE}/prds`, {
       method: "POST",
       headers: {
         ...getAuthHeaders(),
@@ -76,7 +76,7 @@ class PRDService {
   }
 
   async update(id: string, updates: Partial<PRD>): Promise<PRD | null> {
-    const response = await fetch(`${API_BASE}/api/prds/${id}`, {
+    const response = await fetch(`${API_BASE}/prds/${id}`, {
       method: "PUT",
       headers: {
         ...getAuthHeaders(),
@@ -94,7 +94,7 @@ class PRDService {
   }
 
   async delete(id: string): Promise<void> {
-    const response = await fetch(`${API_BASE}/api/prds/${id}`, {
+    const response = await fetch(`${API_BASE}/prds/${id}`, {
       method: "DELETE",
       headers: getAuthHeaders(),
     });

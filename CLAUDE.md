@@ -8,6 +8,33 @@ This is a **personal productivity workspace** for Justin Deisler (CTO at wellfy 
 
 This is NOT a code repository - it's a markdown-based workspace with templates, task management, and AI skills.
 
+## Deployment & Access
+
+The Personal Assistant web app is accessed via **https://pa.justin-deisler.com** through a Cloudflare Tunnel.
+
+**Architecture:**
+- **Cloudflare Tunnel** routes `pa.justin-deisler.com` → `localhost:3005` on the server
+- **API server** (port 3005, PM2 name: `personal-assistant-api`) serves both:
+  - REST API endpoints (`/api/*`)
+  - Static frontend from `app/dist-web/`
+- **Frontend build** must use relative API URL (`/api`) - NOT absolute URLs like `localhost:3005`
+
+**Port Configuration:**
+- `api/.env`: `PORT=3005`
+- `app/.env`: `VITE_API_URL=/api`
+
+**Build & Deploy Commands:**
+```bash
+cd app
+npm run build:web                    # Builds frontend to dist-web/
+pm2 restart personal-assistant-api   # Restart to serve new build
+```
+
+**Common Gotcha:** If login fails with "<!DOCTYPE" JSON parse error, the frontend is calling the wrong API URL. Check:
+1. `app/.env` has `VITE_API_URL=/api` (relative, not absolute)
+2. Rebuild with `npm run build:web`
+3. API services in `app/src/services/web/` should use paths like `/tasks` not `/api/tasks` (the `/api` prefix comes from `VITE_API_URL`)
+
 ## Directory Purpose
 
 - `Tasks/` - Kanban board (Backlog → Queue → InProgress → Done)
@@ -155,4 +182,3 @@ Each task is a markdown file with context, links, and acceptance criteria.
 5. **Maintain architecture documentation** - Keep a documentation file (e.g., `docs/ARCHITECTURE.md`) that describes how the app architecture works inside and out.
 
 6. **Never speculate about unread code** - Never make claims about code without first investigating. If a specific file is referenced, read it before answering. Always give grounded, hallucination-free answers based on actual code inspection.
-```

@@ -110,10 +110,26 @@ app.use("/api", authMiddleware, subtasksRouter);
 // Serve static files from the web build
 if (existsSync(STATIC_PATH)) {
   logger.info({ path: STATIC_PATH }, "Serving static files");
-  app.use(express.static(STATIC_PATH));
-  
-  // SPA fallback - serve index.html for all non-API routes
+
+  // Static assets (JS/CSS with hashes) - cache for 1 year
+  app.use("/assets", express.static(join(STATIC_PATH, "assets"), {
+    maxAge: "1y",
+    immutable: true,
+  }));
+
+  // Other static files (icons, etc.) - cache for 1 day
+  app.use(express.static(STATIC_PATH, {
+    maxAge: "1d",
+    index: false, // Don't serve index.html automatically
+  }));
+
+  // SPA fallback - serve index.html with no-cache for all non-API routes
   app.get("*", (_req, res) => {
+    res.set({
+      "Cache-Control": "no-cache, no-store, must-revalidate",
+      "Pragma": "no-cache",
+      "Expires": "0",
+    });
     res.sendFile(join(STATIC_PATH, "index.html"));
   });
 } else {
