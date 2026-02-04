@@ -33,6 +33,8 @@ import jamesActionsRouter from "./routes/james-actions.js";
 import jamesAutomationsRouter from "./routes/james-automations.js";
 import jamesTasksRouter from "./routes/james-tasks.js";
 import reportsRouter from "./routes/reports.js";
+import clientAuthRouter from "./routes/clientAuth.js";
+import clientDashboardRouter from "./routes/clientDashboard.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -69,6 +71,12 @@ app.get("/health", (_req, res) => {
 
 // Auth routes (public)
 app.use("/api/auth", authRouter);
+
+// Client auth routes (public)
+app.use("/api/auth/client", clientAuthRouter);
+
+// Client dashboard routes (protected by client auth)
+app.use("/api/client", clientDashboardRouter);
 
 // James trigger (public - called from webapp)
 app.use("/api/james", jamesRouter);

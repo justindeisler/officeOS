@@ -36,6 +36,11 @@ import {
   AutomationsPage as JamesBrainAutomationsPage,
 } from "./pages/james-brain";
 
+// Client portal imports
+import { ClientLayout } from "./features/client/components/ClientLayout";
+import { ClientLoginPage } from "./features/client/pages/ClientLoginPage";
+import { ClientDashboard } from "./features/client/pages/ClientDashboard";
+
 function App() {
   console.log("[App] Rendering App component...");
   const [captureDialogOpen, setCaptureDialogOpen] = useState(false);
@@ -153,6 +158,12 @@ function App() {
   return (
     <>
       <Routes>
+        {/* Client portal routes (separate from main app) */}
+        <Route path="/client/login" element={<ClientLoginPage />} />
+        <Route path="/client" element={<ClientLayout />}>
+          <Route path="dashboard" element={<ClientDashboard />} />
+        </Route>
+        
         <Route element={<AppLayout onQuickCapture={() => setCaptureDialogOpen(true)} />}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/tasks" element={<TasksPage />} />
