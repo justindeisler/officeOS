@@ -162,15 +162,37 @@ const wellifySchema: { tables: Table[]; relationships: Relationship[] } = {
   ],
 };
 
-// Table card component
-function TableCard({ table }: { table: Table }) {
+// Table card component with hover support
+function TableCard({ 
+  table, 
+  isHighlighted,
+  isDimmed,
+  onHover,
+  onLeave,
+}: { 
+  table: Table;
+  isHighlighted: boolean;
+  isDimmed: boolean;
+  onHover: () => void;
+  onLeave: () => void;
+}) {
   return (
     <div
-      className="absolute bg-white rounded-lg shadow-md border border-gray-200 min-w-[200px]"
+      className={`absolute bg-white rounded-lg shadow-md border-2 min-w-[200px] transition-all duration-200 cursor-pointer ${
+        isHighlighted 
+          ? 'border-amber-400 shadow-lg shadow-amber-100 scale-105 z-20' 
+          : isDimmed 
+            ? 'border-gray-200 opacity-40' 
+            : 'border-gray-200 hover:border-blue-300 hover:shadow-lg z-10'
+      }`}
       style={{ left: table.x, top: table.y }}
+      onMouseEnter={onHover}
+      onMouseLeave={onLeave}
     >
       {/* Table header */}
-      <div className="bg-slate-800 text-white px-4 py-2 rounded-t-lg font-semibold text-sm">
+      <div className={`px-4 py-2 rounded-t-lg font-semibold text-sm text-white ${
+        isHighlighted ? 'bg-amber-500' : 'bg-slate-800'
+      }`}>
         {table.name}
       </div>
       {/* Fields */}
@@ -201,13 +223,15 @@ function TableCard({ table }: { table: Table }) {
   );
 }
 
-// SVG relationship lines
+// SVG relationship lines with improved visibility
 function RelationshipLines({
   tables,
   relationships,
+  highlightedTable,
 }: {
   tables: Table[];
   relationships: Relationship[];
+  highlightedTable: string | null;
 }) {
   const getTablePosition = (tableName: string) => {
     const table = tables.find((t) => t.name === tableName);
@@ -222,7 +246,7 @@ function RelationshipLines({
   };
 
   return (
-    <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 0 }}>
+    <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 5 }}>
       <defs>
         <marker
           id="arrowhead"
@@ -232,12 +256,26 @@ function RelationshipLines({
           refY="3.5"
           orient="auto"
         >
-          <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
+          <polygon points="0 0, 10 3.5, 0 7" fill="#3b82f6" />
+        </marker>
+        <marker
+          id="arrowhead-highlight"
+          markerWidth="10"
+          markerHeight="7"
+          refX="9"
+          refY="3.5"
+          orient="auto"
+        >
+          <polygon points="0 0, 10 3.5, 0 7" fill="#f59e0b" />
         </marker>
       </defs>
       {relationships.map((rel, idx) => {
         const fromPos = getTablePosition(rel.from);
         const toPos = getTablePosition(rel.to);
+        
+        // Check if this relationship should be highlighted
+        const isHighlighted = highlightedTable && (rel.from === highlightedTable || rel.to === highlightedTable);
+        const isDimmed = highlightedTable && !isHighlighted;
 
         // Calculate center points
         const fromCenterX = fromPos.x + fromPos.width / 2;
@@ -290,14 +328,25 @@ function RelationshipLines({
         }
 
         return (
-          <path
-            key={idx}
-            d={path}
-            fill="none"
-            stroke="#cbd5e1"
-            strokeWidth="2"
-            markerEnd="url(#arrowhead)"
-          />
+          <g key={idx}>
+            {/* White outline for contrast */}
+            <path
+              d={path}
+              fill="none"
+              stroke="white"
+              strokeWidth="5"
+              opacity={isDimmed ? 0.3 : 1}
+            />
+            {/* Colored line */}
+            <path
+              d={path}
+              fill="none"
+              stroke={isHighlighted ? "#f59e0b" : "#3b82f6"}
+              strokeWidth={isHighlighted ? "3" : "2"}
+              opacity={isDimmed ? 0.2 : 1}
+              markerEnd={isHighlighted ? "url(#arrowhead-highlight)" : "url(#arrowhead)"}
+            />
+          </g>
         );
       })}
     </svg>
@@ -310,6 +359,7 @@ export function ClientArchitecturePage() {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [startPan, setStartPan] = useState({ x: 0, y: 0 });
+  const [highlightedTable, setHighlightedTable] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Check if this client should see the Wellfy schema
@@ -429,9 +479,24 @@ export function ClientArchitecturePage() {
             height: '800px',
           }}
         >
-          <RelationshipLines tables={wellifySchema.tables} relationships={wellifySchema.relationships} />
+          <RelationshipLines 
+            tables={wellifySchema.tables} 
+            relationships={wellifySchema.relationships}
+            highlightedTable={highlightedTable}
+          />
           {wellifySchema.tables.map((table) => (
-            <TableCard key={table.name} table={table} />
+            <TableCard 
+              key={table.name} 
+              table={table}
+              isHighlighted={highlightedTable === table.name}
+              isDimmed={highlightedTable !== null && highlightedTable !== table.name && 
+                !wellifySchema.relationships.some(r => 
+                  (r.from === highlightedTable && r.to === table.name) ||
+                  (r.to === highlightedTable && r.from === table.name)
+                )}
+              onHover={() => setHighlightedTable(table.name)}
+              onLeave={() => setHighlightedTable(null)}
+            />
           ))}
         </div>
       </div>
