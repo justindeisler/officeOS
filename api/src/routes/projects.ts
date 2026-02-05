@@ -84,7 +84,7 @@ router.patch("/:id", (req, res) => {
     return res.status(404).json({ error: "Project not found" });
   }
 
-  const fields = ["name", "area", "client_id", "description", "status", "budget_amount", "budget_currency", "start_date", "target_end_date", "actual_end_date"];
+  const fields = ["name", "area", "client_id", "description", "status", "budget_amount", "budget_currency", "start_date", "target_end_date", "actual_end_date", "codebase_path", "github_repo"];
   const updates: string[] = [];
   const params: unknown[] = [];
 
