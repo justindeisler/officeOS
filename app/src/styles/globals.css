@@ -237,3 +237,74 @@
 .animate-shimmer {
   animation: shimmer 3s linear infinite;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Usage Dashboard — Observatory Theme
+   Scoped styles for the premium token usage dashboard.
+   Design intelligence (ui-ux-pro-max):
+     Style:  Financial Dashboard + Glassmorphism + Bento Grid
+     Color:  Dark bg (#020617 / #0F172A) with violet accent system
+     Type:   Rajdhani (headings) + JetBrains Mono (data) + Inter (body)
+     Motion: Count-up counters, hover scale 1.02, OLED-style glow effects
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.usage-dashboard {
+  --usage-surface: rgba(15, 18, 40, 0.55);
+  --usage-border: rgba(139, 92, 246, 0.1);
+  --usage-grid: rgba(139, 92, 246, 0.06);
+  --usage-glow: rgba(139, 92, 246, 0.04);
+}
+
+/* Recharts: themed grid lines */
+.usage-dashboard .recharts-cartesian-grid-horizontal line,
+.usage-dashboard .recharts-cartesian-grid-vertical line {
+  stroke: var(--usage-grid);
+}
+
+/* Recharts: Rajdhani legend text */
+.usage-dashboard .recharts-legend-item-text {
+  font-family: 'Rajdhani', sans-serif !important;
+  font-size: 12px !important;
+  letter-spacing: 0.03em;
+}
+
+/* Glow on active chart data points */
+.usage-dashboard .recharts-active-dot circle {
+  filter: drop-shadow(0 0 4px currentColor);
+}
+
+/* Pie slice hover glow */
+.usage-dashboard .recharts-sector:hover {
+  filter: brightness(1.15) drop-shadow(0 0 8px rgba(139, 92, 246, 0.3));
+  transition: filter 0.2s ease-out;
+}
+
+/* Custom scrollbar */
+.usage-dashboard ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.usage-dashboard ::-webkit-scrollbar-track {
+  background: transparent;
+}
+.usage-dashboard ::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 246, 0.15);
+  border-radius: 3px;
+}
+.usage-dashboard ::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 92, 246, 0.3);
+}
+
+/* Tabular nums for mono text */
+.usage-dashboard .font-mono {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Reduced motion: respect user preference */
+@media (prefers-reduced-motion: reduce) {
+  .usage-dashboard * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
