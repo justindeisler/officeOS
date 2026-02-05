@@ -274,7 +274,7 @@ export function SuggestionsPage() {
           description: "Click to view the generated PRD",
           action: {
             label: "View PRD",
-            onClick: () => navigate(`/prds/${result.prdId}`),
+            onClick: () => navigate(`/prd/${result.prdId}`),
           },
           duration: 8000,
         });
@@ -611,7 +611,7 @@ export function SuggestionsPage() {
                       className="text-blue-600 hover:text-blue-700 dark:text-blue-400"
                       onClick={() => {
                         setDetailOpen(false);
-                        navigate(`/prds/${selectedSuggestion.prd_id}`);
+                        navigate(`/prd/${selectedSuggestion.prd_id}`);
                       }}
                     >
                       <ExternalLink className="h-3.5 w-3.5 mr-1" />
