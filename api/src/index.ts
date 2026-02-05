@@ -37,6 +37,36 @@ import subtasksRouter from "./routes/subtasks.js";
 import clientAuthRouter from "./routes/clientAuth.js";
 import clientDashboardRouter from "./routes/clientDashboard.js";
 
+// Environment validation — fail fast if critical vars are missing
+function validateEnvironment() {
+  const required = ['JWT_SECRET'];
+  const missing = required.filter(key => !process.env[key]);
+
+  if (missing.length > 0) {
+    console.error('❌ Missing required environment variables:', missing.join(', '));
+    console.error('Server cannot start without these. Check your .env file.');
+    process.exit(1);
+  }
+
+  // Warn if JWT_SECRET looks like a default/example value
+  const jwtSecret = process.env.JWT_SECRET!;
+  const suspiciousDefaults = [
+    'your-secret-key',
+    'change-in-production',
+    'secret',
+    'password',
+    'example',
+  ];
+  if (jwtSecret.length < 32 || suspiciousDefaults.some(d => jwtSecret.toLowerCase().includes(d))) {
+    console.warn('⚠️  JWT_SECRET appears weak or default-like. Use a strong random value (32+ chars).');
+    console.warn('   Generate one with: openssl rand -base64 32');
+  }
+
+  console.log('✅ Environment validation passed');
+}
+
+validateEnvironment();
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3001;
