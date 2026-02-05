@@ -1,15 +1,10 @@
-const API_URL = import.meta.env.VITE_API_URL || '';
+/**
+ * Client Portal API
+ *
+ * Uses the centralized client portal HTTP client for auth and error handling.
+ */
 
-function getClientToken(): string | null {
-  const stored = localStorage.getItem('client-auth');
-  if (!stored) return null;
-  try {
-    const parsed = JSON.parse(stored);
-    return parsed.token;
-  } catch {
-    return null;
-  }
-}
+import { clientPortalClient, getClientToken } from '@/api';
 
 export interface ClientInfo {
   id: string;
@@ -59,81 +54,29 @@ export interface KanbanData {
 }
 
 export async function clientLogin(email: string, password: string): Promise<LoginResponse> {
-  const response = await fetch(`${API_URL}/api/auth/client/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password })
-  });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Login failed');
-  }
-
-  const data = await response.json();
+  const data = await clientPortalClient.post<LoginResponse>(
+    '/api/auth/client/login',
+    { email, password },
+  );
   // Store token
   localStorage.setItem('client-auth', JSON.stringify({ token: data.token, client: data.client }));
   return data;
 }
 
 export async function getClientInfo(): Promise<ClientInfo> {
-  const token = getClientToken();
-  if (!token) throw new Error('Not authenticated');
-
-  const response = await fetch(`${API_URL}/api/auth/client/me`, {
-    headers: { 'Authorization': `Bearer ${token}` }
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to get client info');
-  }
-
-  return response.json();
+  return clientPortalClient.get<ClientInfo>('/api/auth/client/me');
 }
 
 export async function getDashboard(): Promise<{ projects: ProjectSummary[] }> {
-  const token = getClientToken();
-  if (!token) throw new Error('Not authenticated');
-
-  const response = await fetch(`${API_URL}/api/client/dashboard`, {
-    headers: { 'Authorization': `Bearer ${token}` }
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to get dashboard');
-  }
-
-  return response.json();
+  return clientPortalClient.get<{ projects: ProjectSummary[] }>('/api/client/dashboard');
 }
 
 export async function getProjectTasks(projectId: string): Promise<KanbanData> {
-  const token = getClientToken();
-  if (!token) throw new Error('Not authenticated');
-
-  const response = await fetch(`${API_URL}/api/client/projects/${projectId}/tasks`, {
-    headers: { 'Authorization': `Bearer ${token}` }
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to get tasks');
-  }
-
-  return response.json();
+  return clientPortalClient.get<KanbanData>(`/api/client/projects/${projectId}/tasks`);
 }
 
 export async function getTask(taskId: string): Promise<Task> {
-  const token = getClientToken();
-  if (!token) throw new Error('Not authenticated');
-
-  const response = await fetch(`${API_URL}/api/client/tasks/${taskId}`, {
-    headers: { 'Authorization': `Bearer ${token}` }
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to get task');
-  }
-
-  return response.json();
+  return clientPortalClient.get<Task>(`/api/client/tasks/${taskId}`);
 }
 
 export async function createTask(
@@ -143,54 +86,20 @@ export async function createTask(
   quickCapture = false,
   originalCapture?: string
 ): Promise<Task> {
-  const token = getClientToken();
-  if (!token) throw new Error('Not authenticated');
-
-  const response = await fetch(`${API_URL}/api/client/tasks`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      project_id: projectId,
-      title,
-      description,
-      quick_capture: quickCapture,
-      original_capture: originalCapture
-    })
+  return clientPortalClient.post<Task>('/api/client/tasks', {
+    project_id: projectId,
+    title,
+    description,
+    quick_capture: quickCapture,
+    original_capture: originalCapture,
   });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to create task');
-  }
-
-  return response.json();
 }
 
 export async function updateTask(
   taskId: string,
   updates: { title?: string; description?: string }
 ): Promise<Task> {
-  const token = getClientToken();
-  if (!token) throw new Error('Not authenticated');
-
-  const response = await fetch(`${API_URL}/api/client/tasks/${taskId}`, {
-    method: 'PATCH',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(updates)
-  });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to update task');
-  }
-
-  return response.json();
+  return clientPortalClient.patch<Task>(`/api/client/tasks/${taskId}`, updates);
 }
 
 export interface PendingRequest {
@@ -205,15 +114,7 @@ export interface PendingRequest {
 }
 
 export async function getPendingRequests(): Promise<{ requests: PendingRequest[] }> {
-  const token = getClientToken();
-  if (!token) throw new Error('Not authenticated');
-
-  const response = await fetch(`${API_URL}/api/client/pending-requests`, {
-    headers: { 'Authorization': `Bearer ${token}` }
-  });
-
-  if (!response.ok) throw new Error('Failed to get pending requests');
-  return response.json();
+  return clientPortalClient.get<{ requests: PendingRequest[] }>('/api/client/pending-requests');
 }
 
 export function clientLogout() {

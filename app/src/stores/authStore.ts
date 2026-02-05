@@ -1,9 +1,12 @@
 /**
  * Authentication store
+ *
+ * Uses the centralized admin HTTP client for login/verify requests.
  */
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { adminClient, ApiError } from "@/api";
 
 interface User {
   username: string;
@@ -23,8 +26,6 @@ interface AuthState {
   setLoading: (loading: boolean) => void;
 }
 
-const API_BASE = import.meta.env.VITE_API_URL || "/api";
-
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
@@ -35,18 +36,11 @@ export const useAuthStore = create<AuthState>()(
 
       login: async (username: string, password: string, rememberMe: boolean) => {
         try {
-          const response = await fetch(`${API_BASE}/auth/login`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username, password, rememberMe }),
-          });
+          const data = await adminClient.post<{ token: string; user: User }>(
+            "/auth/login",
+            { username, password, rememberMe },
+          );
 
-          if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || "Login failed");
-          }
-
-          const data = await response.json();
           set({
             token: data.token,
             user: data.user,
@@ -80,16 +74,8 @@ export const useAuthStore = create<AuthState>()(
         }
 
         try {
-          const response = await fetch(`${API_BASE}/auth/verify`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
+          const data = await adminClient.get<{ user: User }>("/auth/verify");
 
-          if (!response.ok) {
-            set({ token: null, user: null, isAuthenticated: false, isLoading: false });
-            return false;
-          }
-
-          const data = await response.json();
           set({
             user: data.user,
             isAuthenticated: true,
@@ -97,8 +83,14 @@ export const useAuthStore = create<AuthState>()(
           });
 
           return true;
-        } catch {
-          set({ token: null, user: null, isAuthenticated: false, isLoading: false });
+        } catch (error) {
+          // ApiError (401/403) or NetworkError — clear auth state
+          if (error instanceof ApiError) {
+            set({ token: null, user: null, isAuthenticated: false, isLoading: false });
+          } else {
+            // Network error — keep token but mark as not loading
+            set({ isLoading: false });
+          }
           return false;
         }
       },

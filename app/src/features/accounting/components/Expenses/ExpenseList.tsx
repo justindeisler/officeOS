@@ -7,22 +7,7 @@
 
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useExpenses } from '../../hooks/useExpenses'
-
-/**
- * Get auth token from localStorage (same as api.ts)
- */
-function getAuthToken(): string | null {
-  try {
-    const stored = localStorage.getItem('pa-auth');
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return parsed.state?.token || null;
-    }
-  } catch {
-    // Ignore parse errors
-  }
-  return null;
-}
+import { adminClient } from '@/api'
 import type { Expense } from '../../types'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -264,20 +249,9 @@ export function ExpenseList({
                             onClick={(e) => {
                               e.stopPropagation()
                               e.preventDefault()
-                              const token = getAuthToken()
-                              if (!token) {
-                                alert('Not authenticated')
-                                return
-                              }
                               // Open window immediately (iOS requires this)
                               const newWindow = window.open('about:blank', '_blank')
-                              fetch(`/api/expenses/${item.id}/receipt`, {
-                                headers: { Authorization: `Bearer ${token}` }
-                              })
-                                .then(res => {
-                                  if (!res.ok) throw new Error('Failed')
-                                  return res.blob()
-                                })
+                              adminClient.requestBlob(`/expenses/${item.id}/receipt`)
                                 .then(blob => {
                                   const url = URL.createObjectURL(blob)
                                   if (newWindow) {
@@ -306,20 +280,9 @@ export function ExpenseList({
                             onClick={(e) => {
                               e.stopPropagation()
                               e.preventDefault()
-                              const token = getAuthToken()
-                              if (!token) {
-                                alert('Not authenticated')
-                                return
-                              }
                               // For iOS: open in new tab which will trigger download
                               const newWindow = window.open('about:blank', '_blank')
-                              fetch(`/api/expenses/${item.id}/receipt?download=true`, {
-                                headers: { Authorization: `Bearer ${token}` }
-                              })
-                                .then(res => {
-                                  if (!res.ok) throw new Error('Failed')
-                                  return res.blob()
-                                })
+                              adminClient.requestBlob(`/expenses/${item.id}/receipt?download=true`)
                                 .then(blob => {
                                   const url = URL.createObjectURL(blob)
                                   if (newWindow) {

@@ -5,6 +5,7 @@ import { KanbanBoard } from "@/components/tasks/KanbanBoard";
 import { TaskFilters } from "@/components/tasks/TaskFilters";
 import { TaskDialog } from "@/components/tasks/TaskDialog";
 import { toast } from "sonner";
+import { api } from "@/lib/api";
 
 export function TasksPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -21,15 +22,11 @@ export function TasksPage() {
   const handleJamesCheck = async () => {
     setJamesLoading(true);
     try {
-      const response = await fetch("/api/james/check", { method: "POST" });
-      if (response.ok) {
-        toast.success("James is checking for new tasks...", {
-          description: "He'll start working on any assigned tasks.",
-          icon: "🤖",
-        });
-      } else {
-        toast.error("Failed to ping James");
-      }
+      await api.triggerJames();
+      toast.success("James is checking for new tasks...", {
+        description: "He'll start working on any assigned tasks.",
+        icon: "🤖",
+      });
     } catch {
       toast.error("Failed to ping James");
     } finally {

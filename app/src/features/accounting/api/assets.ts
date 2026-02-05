@@ -7,68 +7,14 @@
  */
 
 import { getDb } from './db'
+import { isTauri, accountingClient } from '@/api'
 import type { Asset, NewAsset, AssetCategory, VatRate, DepreciationEntry, AssetStatus, AfaMethod } from '../types'
 import { AFA_YEARS, GWG_THRESHOLDS } from '../types'
 import { attachmentService } from '@/services/attachmentService'
 
-/**
- * Check if running in Tauri environment
- */
-function isTauri(): boolean {
-  return typeof window !== 'undefined' &&
-         '__TAURI__' in window &&
-         !!(window as unknown as { __TAURI__?: unknown }).__TAURI__;
-}
-
-/**
- * Get API base URL
- */
-function getApiUrl(): string {
-  return import.meta.env.VITE_API_URL || '';
-}
-
-/**
- * Get auth token from localStorage
- */
-function getAuthToken(): string | null {
-  try {
-    const stored = localStorage.getItem('pa-auth');
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return parsed.state?.token || null;
-    }
-  } catch {
-    // Ignore parse errors
-  }
-  return null;
-}
-
-/**
- * Make authenticated API request
- */
-async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = getAuthToken();
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    ...(options?.headers || {}),
-  };
-
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
-  const response = await fetch(`${getApiUrl()}${path}`, {
-    ...options,
-    headers,
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-    throw new Error(error.error || `Request failed: ${response.statusText}`);
-  }
-
-  return response.json();
-}
+/** Make authenticated API request via centralized client */
+const apiRequest = <T>(path: string, options?: RequestInit) =>
+  accountingClient.request<T>(path, options);
 
 /**
  * Database row type for assets

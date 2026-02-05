@@ -3,6 +3,8 @@
  * Syncs settings with the REST API and uses localStorage as cache
  */
 
+import { adminClient } from '@/api';
+
 interface Settings {
   theme: 'light' | 'dark' | 'system';
   defaultArea: string;
@@ -29,42 +31,10 @@ interface Settings {
 }
 
 const STORAGE_KEY = 'pa-settings';
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
-// Get auth token from localStorage (zustand persist)
-function getAuthToken(): string | null {
-  try {
-    const stored = localStorage.getItem('pa-auth');
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return parsed.state?.token || null;
-    }
-  } catch {
-    // Ignore parse errors
-  }
-  return null;
-}
-
-async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = getAuthToken();
-  const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...authHeaders,
-      ...options?.headers,
-    },
-    ...options,
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error(error.error || 'Request failed');
-  }
-
-  return response.json();
-}
+/** Make authenticated API request via centralized client */
+const apiRequest = <T>(path: string, options?: RequestInit) =>
+  adminClient.request<T>(path, options);
 
 function getStoredSettings(): Settings {
   try {

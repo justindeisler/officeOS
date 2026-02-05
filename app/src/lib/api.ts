@@ -1,44 +1,15 @@
 /**
  * REST API client for web builds
- * Mirrors the database interface but uses fetch
+ * Mirrors the database interface but uses fetch.
+ *
+ * Backed by the centralized HttpClient from @/api.
  */
 
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
-
-// Get auth token from localStorage (zustand persist)
-function getAuthToken(): string | null {
-  try {
-    const stored = localStorage.getItem('pa-auth');
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return parsed.state?.token || null;
-    }
-  } catch {
-    // Ignore parse errors
-  }
-  return null;
-}
+import { adminClient, API_BASE } from '@/api';
 
 class ApiClient {
   private async request<T>(path: string, options?: RequestInit): Promise<T> {
-    const token = getAuthToken();
-    const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-
-    const response = await fetch(`${API_BASE}${path}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...authHeaders,
-        ...options?.headers,
-      },
-      ...options,
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: response.statusText }));
-      throw new Error(error.error || 'Request failed');
-    }
-
-    return response.json();
+    return adminClient.request<T>(path, options);
   }
 
   // Tasks
@@ -330,16 +301,7 @@ class ApiClient {
    * Returns a Blob for download
    */
   async downloadInvoicePdf(id: string): Promise<Blob> {
-    const token = getAuthToken();
-    const response = await fetch(`${API_BASE}/invoices/${id}/pdf`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to download PDF');
-    }
-
-    return response.blob();
+    return adminClient.requestBlob(`/invoices/${id}/pdf`);
   }
 
   /**
@@ -643,7 +605,5 @@ class ApiClient {
 
 export const api = new ApiClient();
 
-// Helper to check if we're in a web environment (not Tauri)
-export function isWebBuild(): boolean {
-  return typeof window !== 'undefined' && !('__TAURI__' in window);
-}
+// Re-export isWebBuild from centralized module
+export { isWebBuild } from '@/api';
