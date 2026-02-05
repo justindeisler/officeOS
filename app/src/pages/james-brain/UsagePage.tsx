@@ -209,14 +209,14 @@ const stagger = {
       opacity: 1,
       y: 0,
       filter: "blur(0px)",
-      transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] },
+      transition: { duration: 0.5, ease: "easeOut" },
     },
   },
 };
 
 const cardHover = {
-  rest: { scale: 1, transition: { duration: 0.25, ease: [0.22, 1, 0.36, 1] } },
-  hover: { scale: 1.01, transition: { duration: 0.25, ease: [0.22, 1, 0.36, 1] } },
+  rest: { scale: 1, transition: { duration: 0.25, ease: "easeOut" } },
+  hover: { scale: 1.01, transition: { duration: 0.25, ease: "easeOut" } },
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -771,7 +771,7 @@ function TokenUsageSection({ data, groupBy, setGroupBy, modelFilter, setModelFil
                       className="h-full rounded-full"
                       initial={{ width: 0 }}
                       animate={{ width: `${pct}%` }}
-                      transition={{ duration: 1, ease: [0.22, 1, 0.36, 1], delay: 0.3 }}
+                      transition={{ duration: 1, ease: "easeOut", delay: 0.3 }}
                       style={{ background: `linear-gradient(90deg, ${color}, ${color}90)`, boxShadow: `0 0 8px ${color}30` }}
                     />
                   </div>
@@ -1146,7 +1146,7 @@ function ExternalApiSection({ data, groupBy, setGroupBy, serviceFilter, setServi
                       className="h-full rounded-full"
                       initial={{ width: 0 }}
                       animate={{ width: `${pct}%` }}
-                      transition={{ duration: 1, ease: [0.22, 1, 0.36, 1], delay: 0.3 }}
+                      transition={{ duration: 1, ease: "easeOut", delay: 0.3 }}
                       style={{ background: `linear-gradient(90deg, ${color}, ${color}90)`, boxShadow: `0 0 8px ${color}30` }}
                     />
                   </div>
@@ -1325,7 +1325,7 @@ export function UsagePage() {
       try {
         const startDate = subDays(new Date(), 30).toISOString().slice(0, 10);
         const endDate = new Date().toISOString().slice(0, 10);
-        const result = await api.getUsageDashboard({
+        const result = await api.getTokenUsage({
           startDate,
           endDate,
           groupBy,
@@ -1388,7 +1388,7 @@ export function UsagePage() {
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
         className="relative"
       >
         {/* Ambient glow behind header */}
@@ -1479,7 +1479,7 @@ export function UsagePage() {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+        transition={{ delay: 0.3, duration: 0.5, ease: "easeOut" }}
       >
         <div
           className="inline-flex gap-1 rounded-xl p-1"
@@ -1526,7 +1526,7 @@ export function UsagePage() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
-            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
           >
             <TokenUsageSection
               data={tokenData}
@@ -1542,7 +1542,7 @@ export function UsagePage() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
-            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
           >
             <ExternalApiSection
               data={apiData}
