@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Sparkles,
   Loader2,
@@ -51,10 +50,19 @@ interface GitHubRepo {
   updatedAt: string;
 }
 
+export interface GenerateParams {
+  source: "pa-project" | "github";
+  projectId: string;
+  projectName: string;
+  projectPath?: string;
+  deepMode: boolean;
+  count: number;
+}
+
 interface NewSuggestionsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onGenerate: (params: GenerateParams) => void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -77,13 +85,11 @@ const PROJECT_PATHS: Record<string, string> = {
 export function NewSuggestionsModal({
   isOpen,
   onClose,
-  onSuccess,
+  onGenerate,
 }: NewSuggestionsModalProps) {
   const [activeTab, setActiveTab] = useState<string>("pa-projects");
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [deepMode, setDeepMode] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [progress, setProgress] = useState<string | null>(null);
 
   const [paProjects, setPaProjects] = useState<PAProject[]>([]);
   const [githubRepos, setGithubRepos] = useState<GitHubRepo[]>([]);
@@ -131,7 +137,6 @@ export function NewSuggestionsModal({
       fetchGitHubRepos();
       setSelectedProject(null);
       setDeepMode(false);
-      setProgress(null);
     }
   }, [isOpen, fetchPAProjects, fetchGitHubRepos]);
 
@@ -158,50 +163,18 @@ export function NewSuggestionsModal({
 
   /* ---- Generate ---- */
 
-  const handleGenerate = async () => {
+  const handleGenerate = () => {
     if (!selectedProject) return;
 
-    setIsGenerating(true);
-    setProgress("Analyzing project...");
-
-    try {
-      // Update progress after a short delay
-      const progressTimer = setTimeout(() => {
-        setProgress("Generating suggestions with AI...");
-      }, 3000);
-
-      const result = await api.generateSuggestions({
-        source: activeTab === "pa-projects" ? "pa-project" : "github",
-        projectId: selectedProject,
-        projectName: getProjectName(),
-        projectPath: getProjectPath(),
-        deepMode,
-        count: 3,
-      });
-
-      clearTimeout(progressTimer);
-
-      if (result.success) {
-        const duration = result.duration
-          ? ` in ${(result.duration / 1000).toFixed(1)}s`
-          : "";
-        toast.success(`Generated 3 suggestions for ${getProjectName()}${duration}`);
-        onSuccess();
-        onClose();
-      } else {
-        toast.error("Generation failed. Try again.");
-      }
-    } catch (error: unknown) {
-      const errMsg = error instanceof Error ? error.message : "Unknown error";
-      if (errMsg.includes("504") || errMsg.includes("timed out")) {
-        toast.error("Generation took too long. Try without Deep Mode.");
-      } else {
-        toast.error(`Failed to generate suggestions: ${errMsg}`);
-      }
-    } finally {
-      setIsGenerating(false);
-      setProgress(null);
-    }
+    // Build params and delegate to parent — modal closes immediately
+    onGenerate({
+      source: activeTab === "pa-projects" ? "pa-project" : "github",
+      projectId: selectedProject,
+      projectName: getProjectName(),
+      projectPath: getProjectPath(),
+      deepMode,
+      count: 3,
+    });
   };
 
   /* ---- Render ---- */
@@ -250,7 +223,7 @@ export function NewSuggestionsModal({
   );
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && !isGenerating && onClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -338,7 +311,6 @@ export function NewSuggestionsModal({
             type="checkbox"
             checked={deepMode}
             onChange={(e) => setDeepMode(e.target.checked)}
-            disabled={isGenerating}
             className="h-4 w-4 rounded accent-primary"
           />
           <span className="text-sm text-muted-foreground">
@@ -349,37 +321,16 @@ export function NewSuggestionsModal({
           </span>
         </label>
 
-        {/* Progress Indicator */}
-        {isGenerating && (
-          <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
-            <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />
-            <span className="text-sm text-primary">{progress}</span>
-          </div>
-        )}
-
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button
-            variant="outline"
-            onClick={onClose}
-            disabled={isGenerating}
-          >
+          <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
           <Button
             onClick={handleGenerate}
-            disabled={!selectedProject || isGenerating}
+            disabled={!selectedProject}
           >
-            {isGenerating ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Generating…
-              </>
-            ) : (
-              <>
-                <Sparkles className="mr-2 h-4 w-4" />
-                Generate (3)
-              </>
-            )}
+            <Sparkles className="mr-2 h-4 w-4" />
+            Generate (3)
           </Button>
         </DialogFooter>
       </DialogContent>

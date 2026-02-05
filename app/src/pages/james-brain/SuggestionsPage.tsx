@@ -13,6 +13,7 @@ import {
   Trash2,
   Send,
   Sparkles,
+  Loader2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +29,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { NewSuggestionsModal } from "@/components/suggestions/NewSuggestionsModal";
+import { NewSuggestionsModal, GenerateParams } from "@/components/suggestions/NewSuggestionsModal";
 
 interface Suggestion {
   id: string;
@@ -83,6 +84,21 @@ function isNewSuggestion(suggestion: Suggestion): boolean {
   return hoursSince < 24;
 }
 
+/** Animated dots: "" → "." → ".." → "..." → repeat */
+function AnimatedDots() {
+  const [dots, setDots] = useState("");
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setDots((prev) => (prev.length >= 3 ? "" : prev + "."));
+    }, 500);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Fixed-width span to prevent layout shift
+  return <span className="inline-block w-[1.2em] text-left">{dots}</span>;
+}
+
 export function SuggestionsPage() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -90,6 +106,7 @@ export function SuggestionsPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("active");
   const [generateModalOpen, setGenerateModalOpen] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // Comments state
   const [comments, setComments] = useState<SuggestionComment[]>([]);
@@ -122,6 +139,37 @@ export function SuggestionsPage() {
       setCommentsLoading(false);
     }
   }, []);
+
+  const handleGenerate = async (params: GenerateParams) => {
+    // Close modal immediately
+    setGenerateModalOpen(false);
+    setIsGenerating(true);
+
+    try {
+      const result = await api.generateSuggestions(params);
+
+      if (result.success) {
+        const duration = result.duration
+          ? ` in ${(result.duration / 1000).toFixed(1)}s`
+          : "";
+        toast.success(
+          `Generated 3 suggestions for ${params.projectName}${duration}`
+        );
+        await fetchSuggestions();
+      } else {
+        toast.error("Generation failed. Try again.");
+      }
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : "Unknown error";
+      if (errMsg.includes("504") || errMsg.includes("timed out")) {
+        toast.error("Generation took too long. Try without Deep Mode.");
+      } else {
+        toast.error(`Failed to generate suggestions: ${errMsg}`);
+      }
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   const handleAddComment = async () => {
     if (!selectedSuggestion || !newComment.trim()) return;
@@ -324,9 +372,23 @@ export function SuggestionsPage() {
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
-          <Button size="sm" onClick={() => setGenerateModalOpen(true)}>
-            <Sparkles className="h-4 w-4 mr-2" />
-            New Suggestions
+          <Button
+            size="sm"
+            onClick={() => setGenerateModalOpen(true)}
+            disabled={isGenerating}
+            className="min-w-[160px]"
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Analyzing<AnimatedDots />
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4 mr-2" />
+                New Suggestions
+              </>
+            )}
           </Button>
         </div>
       </div>
@@ -418,12 +480,15 @@ export function SuggestionsPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Detail Dialog */}
+      {/* Detail Dialog — uses inner scroll wrapper for iOS Safari compatibility */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden p-0 sm:p-0 gap-0 flex flex-col">
           {selectedSuggestion && (
-            <>
-              <DialogHeader>
+            <div
+              className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 overscroll-contain"
+              style={{ WebkitOverflowScrolling: "touch" }}
+            >
+              <DialogHeader className="mb-4 pr-8">
                 <DialogTitle className="flex items-center gap-2 flex-wrap">
                   {selectedSuggestion.title}
                   <Badge variant="outline" className={typeColors[selectedSuggestion.type] || ""}>
@@ -454,7 +519,7 @@ export function SuggestionsPage() {
                 {selectedSuggestion.description && (
                   <div>
                     <h4 className="font-medium text-sm mb-1">Description</h4>
-                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap max-h-48 sm:max-h-none overflow-y-auto">
                       {selectedSuggestion.description}
                     </p>
                   </div>
@@ -483,7 +548,7 @@ export function SuggestionsPage() {
                       No comments yet
                     </p>
                   ) : (
-                    <div className="space-y-3 mb-4">
+                    <div className="space-y-3 mb-4 max-h-64 overflow-y-auto overscroll-contain">
                       {comments.map((comment) => (
                         <div
                           key={comment.id}
@@ -496,7 +561,7 @@ export function SuggestionsPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
+                              className="h-7 w-7 p-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
                               onClick={() => handleDeleteComment(comment.id)}
                               title="Delete comment"
                             >
@@ -516,13 +581,13 @@ export function SuggestionsPage() {
                     </div>
                   )}
 
-                  {/* Add Comment Form */}
-                  <div className="flex gap-2">
+                  {/* Add Comment Form — stacks vertically on mobile */}
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <Textarea
                       placeholder="Add implementation notes or requirements..."
                       value={newComment}
                       onChange={(e) => setNewComment(e.target.value)}
-                      className="min-h-[72px] resize-none text-sm"
+                      className="min-h-[60px] sm:min-h-[72px] resize-none text-sm flex-1"
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                           e.preventDefault();
@@ -533,7 +598,7 @@ export function SuggestionsPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="shrink-0 self-end"
+                      className="shrink-0 sm:self-end self-stretch"
                       disabled={!newComment.trim() || addingComment}
                       onClick={handleAddComment}
                       title="Add comment (⌘+Enter)"
@@ -541,7 +606,10 @@ export function SuggestionsPage() {
                       {addingComment ? (
                         <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                       ) : (
-                        <Send className="h-4 w-4" />
+                        <>
+                          <Send className="h-4 w-4 sm:mr-0 mr-2" />
+                          <span className="sm:hidden">Add Comment</span>
+                        </>
                       )}
                     </Button>
                   </div>
@@ -597,7 +665,7 @@ export function SuggestionsPage() {
                   </div>
                 )}
               </div>
-            </>
+            </div>
           )}
         </DialogContent>
       </Dialog>
@@ -606,7 +674,7 @@ export function SuggestionsPage() {
       <NewSuggestionsModal
         isOpen={generateModalOpen}
         onClose={() => setGenerateModalOpen(false)}
-        onSuccess={fetchSuggestions}
+        onGenerate={handleGenerate}
       />
     </div>
   );
