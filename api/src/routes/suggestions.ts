@@ -3,41 +3,76 @@
  */
 
 import { Router } from "express";
+import { execFile } from "child_process";
+import { promisify } from "util";
 import { getDb, generateId, getCurrentTimestamp } from "../database.js";
 import { createLogger } from "../logger.js";
 
 const router = Router();
 const log = createLogger("suggestions");
+const execFileAsync = promisify(execFile);
 
-// Clawdbot Gateway config
-const CLAWDBOT_GATEWAY_URL = process.env.CLAWDBOT_GATEWAY_URL || "http://localhost:18789";
-const CLAWDBOT_GATEWAY_TOKEN = process.env.CLAWDBOT_GATEWAY_TOKEN || "bbcf416eb09a9808d8f09e80eebbfe6e83dae0c5aa5f6e15";
+// Path to clawdbot CLI
+const CLAWDBOT_CLI = process.env.CLAWDBOT_CLI || "/home/jd-server-admin/.npm-global/bin/clawdbot";
 
 /**
- * Trigger James to implement a suggestion via Clawdbot wake event
+ * Trigger James to implement a suggestion via Clawdbot system event.
+ * Uses the CLI since the gateway exposes system events over WebSocket, not HTTP.
  */
-async function triggerJamesImplementation(suggestion: { id: string; title: string; description: string | null; project_name: string | null }) {
-  const message = `Implement approved suggestion: "${suggestion.title}" (ID: ${suggestion.id})${suggestion.project_name ? ` for project ${suggestion.project_name}` : ''}. Description: ${suggestion.description || 'No description'}. Use the coding-agent skill if needed. Mark as implemented when done.`;
+async function triggerJamesImplementation(suggestion: {
+  id: string;
+  title: string;
+  description: string | null;
+  type: string;
+  priority: number;
+  project_name: string | null;
+}) {
+  const message = [
+    `🔔 Approved Suggestion: "${suggestion.title}" (ID: ${suggestion.id})`,
+    suggestion.project_name ? `Project: ${suggestion.project_name}` : null,
+    `Type: ${suggestion.type} | Priority: ${suggestion.priority}`,
+    suggestion.description ? `Description: ${suggestion.description}` : null,
+    '',
+    'Please spawn a sub-agent to implement this suggestion.',
+    `When complete, mark it as implemented via POST /api/suggestions/${suggestion.id}/implement.`,
+  ].filter(Boolean).join('\n');
   
   try {
-    // Use Clawdbot Gateway HTTP API to send wake event
-    const response = await fetch(`${CLAWDBOT_GATEWAY_URL}/api/cron/wake`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${CLAWDBOT_GATEWAY_TOKEN}`
-      },
-      body: JSON.stringify({ text: message })
+    const { stdout } = await execFileAsync(CLAWDBOT_CLI, [
+      'system', 'event',
+      '--text', message,
+      '--mode', 'now',
+      '--json',
+      '--timeout', '10000',
+    ], {
+      timeout: 15000,
+      env: { ...process.env, HOME: '/home/jd-server-admin' },
     });
     
-    if (response.ok) {
-      log.info({ suggestionId: suggestion.id }, "Triggered James to implement suggestion");
-    } else {
-      const error = await response.text();
-      log.error({ suggestionId: suggestion.id, status: response.status, error }, "Failed to trigger James");
-    }
+    log.info({ suggestionId: suggestion.id, result: stdout.trim() }, "Triggered James via system event");
   } catch (error) {
-    log.error({ err: error, suggestionId: suggestion.id }, "Failed to trigger James");
+    log.error({ err: error, suggestionId: suggestion.id }, "Failed to trigger James via CLI");
+    
+    // Fallback: write to notification file so James can pick it up on next heartbeat
+    try {
+      const { appendFile } = await import("fs/promises");
+      const notification = JSON.stringify({
+        type: 'suggestion-approved',
+        timestamp: new Date().toISOString(),
+        suggestion: {
+          id: suggestion.id,
+          title: suggestion.title,
+          description: suggestion.description,
+          type: suggestion.type,
+          priority: suggestion.priority,
+          project_name: suggestion.project_name,
+        },
+      });
+      await appendFile('/tmp/james-notifications.jsonl', notification + '\n');
+      log.info({ suggestionId: suggestion.id }, "Wrote fallback notification to /tmp/james-notifications.jsonl");
+    } catch (fallbackError) {
+      log.error({ err: fallbackError, suggestionId: suggestion.id }, "Fallback notification also failed");
+    }
   }
 }
 
@@ -113,7 +148,10 @@ router.post("/:id/approve", (req, res) => {
   const { id } = req.params;
   const now = getCurrentTimestamp();
 
-  const existing = db.prepare("SELECT * FROM suggestions WHERE id = ?").get(id) as { id: string; title: string; description: string | null; project_name: string | null } | undefined;
+  const existing = db.prepare("SELECT * FROM suggestions WHERE id = ?").get(id) as {
+    id: string; title: string; description: string | null;
+    type: string; priority: number; project_name: string | null;
+  } | undefined;
   if (!existing) {
     return res.status(404).json({ error: "Suggestion not found" });
   }
@@ -121,8 +159,10 @@ router.post("/:id/approve", (req, res) => {
   db.prepare("UPDATE suggestions SET status = 'approved', decided_at = ?, updated_at = ? WHERE id = ?")
     .run(now, now, id);
 
-  // Trigger James to implement the suggestion
-  triggerJamesImplementation(existing);
+  // Trigger James to implement the suggestion (fire-and-forget, don't block response)
+  triggerJamesImplementation(existing).catch((err) => {
+    log.error({ err, suggestionId: id }, "Background trigger failed");
+  });
   log.info({ suggestionId: id, title: existing.title }, "Suggestion approved, James notified");
 
   const suggestion = db.prepare("SELECT * FROM suggestions WHERE id = ?").get(id);
