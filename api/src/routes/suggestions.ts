@@ -27,11 +27,26 @@ async function triggerJamesImplementation(suggestion: {
   priority: number;
   project_name: string | null;
 }) {
+  // Fetch all comments for this suggestion to include in the notification
+  const db = getDb();
+  const comments = db.prepare(
+    "SELECT * FROM suggestion_comments WHERE suggestion_id = ? ORDER BY created_at ASC"
+  ).all(suggestion.id) as Array<{ comment_text: string; created_at: string }>;
+
+  const commentSection = comments.length > 0
+    ? [
+        '',
+        'Implementation Notes:',
+        ...comments.map(c => `- ${c.comment_text} (${c.created_at})`),
+      ].join('\n')
+    : '';
+
   const message = [
     `🔔 Approved Suggestion: "${suggestion.title}" (ID: ${suggestion.id})`,
     suggestion.project_name ? `Project: ${suggestion.project_name}` : null,
     `Type: ${suggestion.type} | Priority: ${suggestion.priority}`,
     suggestion.description ? `Description: ${suggestion.description}` : null,
+    commentSection || null,
     '',
     'Please spawn a sub-agent to implement this suggestion.',
     `When complete, mark it as implemented via POST /api/suggestions/${suggestion.id}/implement.`,
@@ -75,6 +90,71 @@ async function triggerJamesImplementation(suggestion: {
     }
   }
 }
+
+// ─── Suggestion Comments ───────────────────────────────────────────
+
+// List comments for a suggestion
+router.get("/:id/comments", (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+
+  // Verify suggestion exists
+  const suggestion = db.prepare("SELECT id FROM suggestions WHERE id = ?").get(id);
+  if (!suggestion) {
+    return res.status(404).json({ error: "Suggestion not found" });
+  }
+
+  const comments = db.prepare(
+    "SELECT * FROM suggestion_comments WHERE suggestion_id = ? ORDER BY created_at ASC"
+  ).all(id);
+
+  res.json(comments);
+});
+
+// Add a comment to a suggestion
+router.post("/:id/comments", (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+  const { comment_text } = req.body;
+
+  if (!comment_text || !comment_text.trim()) {
+    return res.status(400).json({ error: "Comment text is required" });
+  }
+
+  // Verify suggestion exists
+  const suggestion = db.prepare("SELECT id FROM suggestions WHERE id = ?").get(id);
+  if (!suggestion) {
+    return res.status(404).json({ error: "Suggestion not found" });
+  }
+
+  const commentId = generateId();
+  const now = getCurrentTimestamp();
+
+  db.prepare(
+    "INSERT INTO suggestion_comments (id, suggestion_id, author, comment_text, created_at) VALUES (?, ?, 'Justin Deisler', ?, ?)"
+  ).run(commentId, id, comment_text.trim(), now);
+
+  const comment = db.prepare("SELECT * FROM suggestion_comments WHERE id = ?").get(commentId);
+  log.info({ commentId, suggestionId: id }, "Comment added to suggestion");
+  res.status(201).json(comment);
+});
+
+// Delete a specific comment
+router.delete("/comments/:commentId", (req, res) => {
+  const db = getDb();
+  const { commentId } = req.params;
+
+  const existing = db.prepare("SELECT * FROM suggestion_comments WHERE id = ?").get(commentId);
+  if (!existing) {
+    return res.status(404).json({ error: "Comment not found" });
+  }
+
+  db.prepare("DELETE FROM suggestion_comments WHERE id = ?").run(commentId);
+  log.info({ commentId }, "Suggestion comment deleted");
+  res.json({ success: true });
+});
+
+// ─── Suggestions CRUD ─────────────────────────────────────────────
 
 // List suggestions
 router.get("/", (req, res) => {

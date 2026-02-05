@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { format } from "date-fns";
+import { useEffect, useState, useCallback } from "react";
+import { format, formatDistanceToNow } from "date-fns";
 import {
   Lightbulb,
   Check,
@@ -9,6 +9,9 @@ import {
   RotateCcw,
   Archive,
   CheckCircle2,
+  MessageSquare,
+  Trash2,
+  Send,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -36,6 +40,14 @@ interface Suggestion {
   task_id: string | null;
   created_at: string;
   decided_at: string | null;
+}
+
+interface SuggestionComment {
+  id: string;
+  suggestion_id: string;
+  author: string;
+  comment_text: string;
+  created_at: string;
 }
 
 const statusColors: Record<string, string> = {
@@ -68,6 +80,12 @@ export function SuggestionsPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("active");
 
+  // Comments state
+  const [comments, setComments] = useState<SuggestionComment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [newComment, setNewComment] = useState("");
+  const [addingComment, setAddingComment] = useState(false);
+
   const fetchSuggestions = async () => {
     setIsLoading(true);
     try {
@@ -78,6 +96,46 @@ export function SuggestionsPage() {
       toast.error("Failed to load suggestions");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchComments = useCallback(async (suggestionId: string) => {
+    setCommentsLoading(true);
+    try {
+      const data = await api.getSuggestionComments(suggestionId);
+      setComments(data);
+    } catch (error) {
+      console.error("Failed to fetch comments:", error);
+      setComments([]);
+    } finally {
+      setCommentsLoading(false);
+    }
+  }, []);
+
+  const handleAddComment = async () => {
+    if (!selectedSuggestion || !newComment.trim()) return;
+
+    setAddingComment(true);
+    try {
+      await api.addSuggestionComment(selectedSuggestion.id, newComment.trim());
+      setNewComment("");
+      await fetchComments(selectedSuggestion.id);
+      toast.success("Comment added");
+    } catch (error) {
+      toast.error("Failed to add comment");
+    } finally {
+      setAddingComment(false);
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!selectedSuggestion) return;
+    try {
+      await api.deleteSuggestionComment(commentId);
+      setComments((prev) => prev.filter((c) => c.id !== commentId));
+      toast.success("Comment deleted");
+    } catch (error) {
+      toast.error("Failed to delete comment");
     }
   };
 
@@ -142,7 +200,10 @@ export function SuggestionsPage() {
 
   const openDetail = (suggestion: Suggestion) => {
     setSelectedSuggestion(suggestion);
+    setComments([]);
+    setNewComment("");
     setDetailOpen(true);
+    fetchComments(suggestion.id);
   };
 
   if (isLoading) {
@@ -337,7 +398,7 @@ export function SuggestionsPage() {
 
       {/* Detail Dialog */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           {selectedSuggestion && (
             <>
               <DialogHeader>
@@ -377,6 +438,86 @@ export function SuggestionsPage() {
                   {selectedSuggestion.decided_at && (
                     <p>Decided: {format(new Date(selectedSuggestion.decided_at), "PPpp")}</p>
                   )}
+                </div>
+
+                {/* Comments Section */}
+                <div className="border-t pt-4">
+                  <h4 className="font-medium text-sm mb-3 flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4" />
+                    Comments {!commentsLoading && `(${comments.length})`}
+                  </h4>
+
+                  {commentsLoading ? (
+                    <div className="flex items-center justify-center py-4">
+                      <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                    </div>
+                  ) : comments.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-3">
+                      No comments yet
+                    </p>
+                  ) : (
+                    <div className="space-y-3 mb-4">
+                      {comments.map((comment) => (
+                        <div
+                          key={comment.id}
+                          className="group rounded-lg border bg-muted/30 p-3"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-sm whitespace-pre-wrap flex-1">
+                              {comment.comment_text}
+                            </p>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
+                              onClick={() => handleDeleteComment(comment.id)}
+                              title="Delete comment"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                          <div className="flex items-center gap-2 mt-1.5">
+                            <span className="text-xs text-muted-foreground font-medium">
+                              {comment.author}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              · {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Add Comment Form */}
+                  <div className="flex gap-2">
+                    <Textarea
+                      placeholder="Add implementation notes or requirements..."
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      className="min-h-[72px] resize-none text-sm"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                          e.preventDefault();
+                          handleAddComment();
+                        }
+                      }}
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0 self-end"
+                      disabled={!newComment.trim() || addingComment}
+                      onClick={handleAddComment}
+                      title="Add comment (⌘+Enter)"
+                    >
+                      {addingComment ? (
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
 
                 {selectedSuggestion.status === "pending" && (

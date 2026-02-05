@@ -523,6 +523,36 @@ class ApiClient {
     });
   }
 
+  // Suggestion Comments
+  async getSuggestionComments(suggestionId: string) {
+    return this.request<Array<{
+      id: string;
+      suggestion_id: string;
+      author: string;
+      comment_text: string;
+      created_at: string;
+    }>>(`/suggestions/${suggestionId}/comments`);
+  }
+
+  async addSuggestionComment(suggestionId: string, commentText: string) {
+    return this.request<{
+      id: string;
+      suggestion_id: string;
+      author: string;
+      comment_text: string;
+      created_at: string;
+    }>(`/suggestions/${suggestionId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ comment_text: commentText }),
+    });
+  }
+
+  async deleteSuggestionComment(commentId: string) {
+    return this.request<{ success: boolean }>(`/suggestions/comments/${commentId}`, {
+      method: 'DELETE',
+    });
+  }
+
   // James Tasks
   async getJamesTasks(filters?: { status?: string; source?: string; limit?: number }) {
     const params = new URLSearchParams();
