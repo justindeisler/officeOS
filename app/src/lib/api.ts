@@ -523,6 +523,12 @@ class ApiClient {
     });
   }
 
+  async createPrdFromSuggestion(id: string): Promise<{ success: boolean; prdId: string; message: string }> {
+    return this.request(`/suggestions/${id}/create-prd`, {
+      method: 'POST',
+    });
+  }
+
   // Suggestion Comments
   async getSuggestionComments(suggestionId: string) {
     return this.request<Array<{

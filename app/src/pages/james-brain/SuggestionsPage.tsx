@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { format, formatDistanceToNow } from "date-fns";
 import {
   Lightbulb,
@@ -13,7 +14,9 @@ import {
   Trash2,
   Send,
   Sparkles,
+  FileText,
   Loader2,
+  ExternalLink,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +37,7 @@ import { NewSuggestionsModal, GenerateParams } from "@/components/suggestions/Ne
 interface Suggestion {
   id: string;
   project_name: string | null;
+  project_id: string | null;
   type: string;
   title: string;
   description: string | null;
@@ -43,6 +47,8 @@ interface Suggestion {
   task_id: string | null;
   created_at: string;
   decided_at: string | null;
+  canImplement: boolean;
+  accessType: string;
 }
 
 interface SuggestionComment {
@@ -100,6 +106,7 @@ function AnimatedDots() {
 }
 
 export function SuggestionsPage() {
+  const navigate = useNavigate();
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedSuggestion, setSelectedSuggestion] = useState<Suggestion | null>(null);
@@ -107,6 +114,7 @@ export function SuggestionsPage() {
   const [activeTab, setActiveTab] = useState("active");
   const [generateModalOpen, setGenerateModalOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [creatingPrd, setCreatingPrd] = useState(false);
 
   // Comments state
   const [comments, setComments] = useState<SuggestionComment[]>([]);
@@ -257,6 +265,36 @@ export function SuggestionsPage() {
     }
   };
 
+  const handleCreatePrd = async (id: string) => {
+    setCreatingPrd(true);
+    try {
+      const result = await api.createPrdFromSuggestion(id);
+      if (result.success) {
+        toast.success("PRD created successfully!", {
+          description: "Click to view the generated PRD",
+          action: {
+            label: "View PRD",
+            onClick: () => navigate(`/prds/${result.prdId}`),
+          },
+          duration: 8000,
+        });
+        fetchSuggestions();
+        setDetailOpen(false);
+      }
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : "Unknown error";
+      if (errMsg.includes("409") || errMsg.includes("already exists")) {
+        toast.error("A PRD already exists for this suggestion");
+      } else if (errMsg.includes("504") || errMsg.includes("timed out")) {
+        toast.error("PRD generation timed out. Please try again.");
+      } else {
+        toast.error(`Failed to create PRD: ${errMsg}`);
+      }
+    } finally {
+      setCreatingPrd(false);
+    }
+  };
+
   const openDetail = (suggestion: Suggestion) => {
     setSelectedSuggestion(suggestion);
     setComments([]);
@@ -309,7 +347,7 @@ export function SuggestionsPage() {
         </div>
       </div>
       <div className="flex gap-2 shrink-0">
-        {suggestion.status === "pending" && (
+        {suggestion.status === "pending" && suggestion.canImplement && (
           <>
             <Button
               size="sm"
@@ -319,9 +357,38 @@ export function SuggestionsPage() {
                 e.stopPropagation();
                 handleApprove(suggestion.id);
               }}
-              title="Confirm"
+              title="Approve (auto-implement)"
             >
               <Check className="h-4 w-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleReject(suggestion.id);
+              }}
+              title="Decline"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </>
+        )}
+        {suggestion.status === "pending" && !suggestion.canImplement && (
+          <>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleCreatePrd(suggestion.id);
+              }}
+              title="Create PRD"
+              disabled={creatingPrd}
+            >
+              <FileText className="h-4 w-4" />
             </Button>
             <Button
               size="sm"
@@ -532,6 +599,27 @@ export function SuggestionsPage() {
                   )}
                 </div>
 
+                {selectedSuggestion.prd_id && (
+                  <div className="flex items-center gap-2 rounded-lg border bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 p-3">
+                    <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                    <span className="text-sm text-blue-700 dark:text-blue-300 flex-1">
+                      A PRD has been generated for this suggestion.
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                      onClick={() => {
+                        setDetailOpen(false);
+                        navigate(`/prds/${selectedSuggestion.prd_id}`);
+                      }}
+                    >
+                      <ExternalLink className="h-3.5 w-3.5 mr-1" />
+                      View PRD
+                    </Button>
+                  </div>
+                )}
+
                 {/* Comments Section */}
                 <div className="border-t pt-4">
                   <h4 className="font-medium text-sm mb-3 flex items-center gap-2">
@@ -615,7 +703,7 @@ export function SuggestionsPage() {
                   </div>
                 </div>
 
-                {selectedSuggestion.status === "pending" && (
+                {selectedSuggestion.status === "pending" && selectedSuggestion.canImplement && (
                   <div className="flex gap-2 pt-4 border-t">
                     <Button
                       variant="outline"
@@ -623,12 +711,44 @@ export function SuggestionsPage() {
                       onClick={() => handleApprove(selectedSuggestion.id)}
                     >
                       <Check className="h-4 w-4 mr-2" />
-                      Confirm
+                      Approve
                     </Button>
                     <Button
                       variant="outline"
                       className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
                       onClick={() => handleReject(selectedSuggestion.id)}
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      Decline
+                    </Button>
+                  </div>
+                )}
+
+                {selectedSuggestion.status === "pending" && !selectedSuggestion.canImplement && (
+                  <div className="flex gap-2 pt-4 border-t">
+                    <Button
+                      variant="default"
+                      className="flex-1"
+                      onClick={() => handleCreatePrd(selectedSuggestion.id)}
+                      disabled={creatingPrd}
+                    >
+                      {creatingPrd ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Generating PRD…
+                        </>
+                      ) : (
+                        <>
+                          <FileText className="h-4 w-4 mr-2" />
+                          Create PRD
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
+                      onClick={() => handleReject(selectedSuggestion.id)}
+                      disabled={creatingPrd}
                     >
                       <X className="h-4 w-4 mr-2" />
                       Decline
