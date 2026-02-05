@@ -352,31 +352,55 @@ Be specific, actionable, and comprehensive. Assume the reader is a developer who
   log.info({ suggestionId: id, title: suggestion.title }, "Generating PRD from suggestion");
 
   try {
-    // Call LLM via clawdbot CLI (uses Opus for quality)
-    const { stdout } = await execFileAsync(CLAWDBOT_CLI, [
-      "ask",
-      "--text", prompt,
-      "--model", "anthropic/claude-opus-4-5",
-      "--json",
-      "--timeout", "60000",
-    ], {
-      timeout: 90000,
-      env: { ...process.env, HOME: "/home/jd-server-admin" },
-    });
-
-    // Parse the clawdbot response
-    let clawdResponse;
+    // Get Groq API key from credential manager
+    let groqApiKey: string;
     try {
-      clawdResponse = JSON.parse(stdout);
+      const { stdout: keyOut } = await execFileAsync("python3", [
+        "/home/jd-server-admin/clawd/scripts/credential_manager.py",
+        "get",
+        "/home/jd-server-admin/.config/james/groq.conf",
+        "GROQ_API_KEY",
+      ], { timeout: 5000 });
+      groqApiKey = keyOut.trim();
     } catch {
-      log.error({ stdout: stdout.substring(0, 500) }, "Failed to parse clawdbot response");
-      return res.status(500).json({ error: "Failed to parse LLM response" });
+      log.error("Failed to retrieve Groq API key");
+      return res.status(500).json({ error: "LLM API key not available" });
     }
 
-    // Extract the text content from clawdbot response
-    const responseText = clawdResponse.text || clawdResponse.response || clawdResponse.content || stdout;
+    // Call Groq API directly for fast, high-quality PRD generation
+    const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${groqApiKey}`,
+      },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          {
+            role: "system",
+            content: "You are a senior product manager creating detailed PRDs. Always respond with valid JSON only - no markdown fencing, no extra text before or after the JSON.",
+          },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.7,
+        max_tokens: 4096,
+        response_format: { type: "json_object" },
+      }),
+    });
 
-    // Parse the JSON from the LLM response (may be wrapped in markdown code fences)
+    if (!groqResponse.ok) {
+      const errText = await groqResponse.text();
+      log.error({ status: groqResponse.status, body: errText.substring(0, 500) }, "Groq API error");
+      return res.status(502).json({ error: "LLM API returned an error" });
+    }
+
+    const groqResult = await groqResponse.json() as {
+      choices: Array<{ message: { content: string } }>;
+    };
+    const responseText = groqResult.choices?.[0]?.message?.content || "";
+
+    // Parse the JSON from the LLM response
     let prdData;
     try {
       // Try to extract JSON from markdown code fences if present
@@ -384,7 +408,7 @@ Be specific, actionable, and comprehensive. Assume the reader is a developer who
       const jsonStr = jsonMatch ? jsonMatch[1] : responseText;
       prdData = JSON.parse(jsonStr.trim());
     } catch {
-      log.error({ responseText: String(responseText).substring(0, 500) }, "Failed to parse PRD JSON from LLM");
+      log.error({ responseText: responseText.substring(0, 500) }, "Failed to parse PRD JSON from LLM");
       return res.status(500).json({ error: "LLM returned invalid PRD format" });
     }
 
