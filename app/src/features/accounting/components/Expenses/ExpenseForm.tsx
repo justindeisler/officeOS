@@ -2,11 +2,11 @@
  * ExpenseForm Component
  *
  * Form for creating and editing expense records.
- * Features automatic VAT calculation, GWG detection,
- * recurring expense support, and validation.
+ * Features automatic VAT calculation, net/gross toggle,
+ * GWG detection, recurring expense support, and validation.
  */
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -18,6 +18,42 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Loader2, AlertTriangle } from 'lucide-react'
+
+// ============================================================================
+// VAT Calculation Utilities
+// ============================================================================
+
+export interface VatCalculation {
+  net: number
+  vat: number
+  gross: number
+}
+
+/**
+ * Calculate VAT and gross from a net amount.
+ */
+export function calculateFromNet(netAmount: number, vatRate: number): VatCalculation {
+  const net = Math.round(netAmount * 100) / 100
+  const vat = Math.round(net * (vatRate / 100) * 100) / 100
+  const gross = Math.round((net + vat) * 100) / 100
+  return { net, vat, gross }
+}
+
+/**
+ * Reverse-calculate net and VAT from a gross amount.
+ */
+export function calculateFromGross(grossAmount: number, vatRate: number): VatCalculation {
+  const gross = Math.round(grossAmount * 100) / 100
+  if (vatRate === 0) {
+    return { net: gross, vat: 0, gross }
+  }
+  const net = Math.round((gross / (1 + vatRate / 100)) * 100) / 100
+  const vat = Math.round((gross - net) * 100) / 100
+  return { net, vat, gross }
+}
+
+/** Input mode for the amount field */
+type AmountInputMode = 'net' | 'gross'
 
 // Form validation schema
 const expenseFormSchema = z.object({
@@ -91,6 +127,7 @@ export function ExpenseForm({
   className,
 }: ExpenseFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [inputMode, setInputMode] = useState<AmountInputMode>('net')
 
   const isEditing = !!expense
 
@@ -113,6 +150,7 @@ export function ExpenseForm({
     register,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<ExpenseFormData>({
     resolver: zodResolver(expenseFormSchema),
@@ -124,17 +162,45 @@ export function ExpenseForm({
   const watchIsRecurring = watch('isRecurring')
   const watchEuerCategory = watch('euerCategory')
 
-  // Calculate VAT and gross amounts
+  // Calculate VAT and gross amounts based on input mode
   const calculations = useMemo(() => {
-    const net = Number(watchNetAmount) || 0
-    const rate = Number(watchVatRate) || 19
-    const vat = Math.round(net * (rate / 100) * 100) / 100
-    const gross = Math.round((net + vat) * 100) / 100
+    const amount = Number(watchNetAmount) || 0
+    const rate = watchVatRate != null ? Number(watchVatRate) : 19
 
-    return { net, vat, gross, rate }
-  }, [watchNetAmount, watchVatRate])
+    if (inputMode === 'gross') {
+      // In gross mode, the form field holds the gross value;
+      // reverse-calculate net and vat
+      const result = calculateFromGross(amount, rate)
+      return { ...result, rate }
+    }
 
-  // GWG status detection
+    // In net mode, calculate forward
+    const result = calculateFromNet(amount, rate)
+    return { ...result, rate }
+  }, [watchNetAmount, watchVatRate, inputMode])
+
+  // Handle toggling between net and gross input mode
+  const handleModeSwitch = useCallback(
+    (newMode: AmountInputMode) => {
+      if (newMode === inputMode) return
+      const currentAmount = Number(watchNetAmount) || 0
+      const rate = Number(watchVatRate) || 19
+
+      if (newMode === 'gross') {
+        // Switching net → gross: convert current net to gross
+        const result = calculateFromNet(currentAmount, rate)
+        setValue('netAmount', result.gross)
+      } else {
+        // Switching gross → net: convert current gross to net
+        const result = calculateFromGross(currentAmount, rate)
+        setValue('netAmount', result.net)
+      }
+      setInputMode(newMode)
+    },
+    [inputMode, watchNetAmount, watchVatRate, setValue],
+  )
+
+  // GWG status detection (always based on net amount)
   const gwgStatus = useMemo(() => {
     return detectGwgStatus(calculations.net)
   }, [calculations.net])
@@ -142,16 +208,23 @@ export function ExpenseForm({
   // Get EÜR line for selected category
   const selectedCategory = CATEGORY_OPTIONS.find(c => c.value === watchEuerCategory)
 
-  // Handle form submission
+  // Handle form submission - always submit net amount
   const handleFormSubmit = async (data: ExpenseFormData) => {
     setIsSubmitting(true)
 
     try {
+      // If in gross mode, reverse-calculate the net amount for storage
+      let netAmount = data.netAmount
+      if (inputMode === 'gross') {
+        const result = calculateFromGross(data.netAmount, Number(data.vatRate))
+        netAmount = result.net
+      }
+
       const newExpense: NewExpense = {
         date: new Date(data.date),
         vendor: data.vendor,
         description: data.description,
-        netAmount: data.netAmount,
+        netAmount,
         vatRate: Number(data.vatRate) as VatRate,
         euerLine: selectedCategory?.line ?? 34,
         euerCategory: data.euerCategory,
@@ -226,11 +299,47 @@ export function ExpenseForm({
         )}
       </div>
 
+      {/* Net/Gross Toggle */}
+      <div className="flex items-center gap-1 rounded-lg bg-muted p-1 w-fit" role="radiogroup" aria-label="Amount input mode">
+        <button
+          type="button"
+          role="radio"
+          aria-checked={inputMode === 'net'}
+          aria-label="Net Amount"
+          className={cn(
+            'px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
+            inputMode === 'net'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+          onClick={() => handleModeSwitch('net')}
+        >
+          Net
+        </button>
+        <button
+          type="button"
+          role="radio"
+          aria-checked={inputMode === 'gross'}
+          aria-label="Gross Amount"
+          className={cn(
+            'px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
+            inputMode === 'gross'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+          onClick={() => handleModeSwitch('gross')}
+        >
+          Gross
+        </button>
+      </div>
+
       {/* Amount and VAT */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* Net Amount */}
+        {/* Amount Input (label changes based on mode) */}
         <div className="space-y-2">
-          <Label htmlFor="netAmount">Net Amount (€)</Label>
+          <Label htmlFor="netAmount">
+            {inputMode === 'gross' ? 'Gross Amount (€)' : 'Net Amount (€)'}
+          </Label>
           <Input
             id="netAmount"
             type="number"
