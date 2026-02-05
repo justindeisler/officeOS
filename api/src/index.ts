@@ -37,6 +37,7 @@ import reportsRouter from "./routes/reports.js";
 import subtasksRouter from "./routes/subtasks.js";
 import clientAuthRouter from "./routes/clientAuth.js";
 import clientDashboardRouter from "./routes/clientDashboard.js";
+import usageRouter from "./routes/usage.js";
 
 // Environment validation — fail fast if critical vars are missing
 function validateEnvironment() {
@@ -117,6 +118,9 @@ app.use("/api/client", clientDashboardRouter);
 
 // James trigger (public - called from webapp)
 app.use("/api/james", jamesRouter);
+
+// James usage/cost tracking (protected)
+app.use("/api/james", authMiddleware, usageRouter);
 
 // Protected API Routes
 app.use("/api/tasks", authMiddleware, tasksRouter);

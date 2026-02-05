@@ -621,6 +621,56 @@ class ApiClient {
     }>('/james-tasks/stats/summary');
   }
 
+  // Token Usage
+  async getTokenUsage(filters?: {
+    startDate?: string;
+    endDate?: string;
+    model?: string;
+    groupBy?: string;
+  }) {
+    const params = new URLSearchParams();
+    if (filters?.startDate) params.set('startDate', filters.startDate);
+    if (filters?.endDate) params.set('endDate', filters.endDate);
+    if (filters?.model) params.set('model', filters.model);
+    if (filters?.groupBy) params.set('groupBy', filters.groupBy);
+    const query = params.toString();
+    return this.request<{
+      _mock: boolean;
+      _note: string;
+      overview: {
+        total: number;
+        totalInput: number;
+        totalOutput: number;
+        today: number;
+        todayInput: number;
+        todayOutput: number;
+        week: number;
+        weekInput: number;
+        weekOutput: number;
+        month: number;
+        monthInput: number;
+        monthOutput: number;
+      };
+      byModel: Record<string, { total: number; input: number; output: number }>;
+      trend: Array<{
+        date: string;
+        inputTokens: number;
+        outputTokens: number;
+        tokens: number;
+        model: string;
+      }>;
+      sessions: Array<{
+        id: string;
+        timestamp: string;
+        activity: string;
+        model: string;
+        inputTokens: number;
+        outputTokens: number;
+        total: number;
+      }>;
+    }>(`/james/usage${query ? `?${query}` : ''}`);
+  }
+
   // Subtasks
   async getSubtasks(taskId: string) {
     return this.request<unknown[]>(`/tasks/${taskId}/subtasks`);
