@@ -553,6 +553,26 @@ class ApiClient {
     });
   }
 
+  // Generate Suggestions
+  async generateSuggestions(params: {
+    source: 'pa-project' | 'github';
+    projectId: string;
+    projectName: string;
+    projectPath?: string;
+    deepMode: boolean;
+    count: number;
+  }): Promise<{ success: boolean; suggestions: unknown[]; message: string; duration?: number }> {
+    return this.request('/suggestions/generate', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+  }
+
+  // GitHub Repos
+  async getGitHubRepos(): Promise<{ repos: Array<{ name: string; description: string; url: string; updatedAt: string }>; message?: string; authenticated?: boolean }> {
+    return this.request('/github/repos');
+  }
+
   // James Tasks
   async getJamesTasks(filters?: { status?: string; source?: string; limit?: number }) {
     const params = new URLSearchParams();

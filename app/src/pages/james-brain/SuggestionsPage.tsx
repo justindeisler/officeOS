@@ -12,6 +12,7 @@ import {
   MessageSquare,
   Trash2,
   Send,
+  Sparkles,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +28,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { NewSuggestionsModal } from "@/components/suggestions/NewSuggestionsModal";
 
 interface Suggestion {
   id: string;
@@ -73,12 +75,21 @@ const priorityLabels: Record<number, string> = {
   5: "Minimal",
 };
 
+/** Check if a suggestion was created within the last 24 hours */
+function isNewSuggestion(suggestion: Suggestion): boolean {
+  const createdAt = new Date(suggestion.created_at);
+  const now = new Date();
+  const hoursSince = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+  return hoursSince < 24;
+}
+
 export function SuggestionsPage() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedSuggestion, setSelectedSuggestion] = useState<Suggestion | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("active");
+  const [generateModalOpen, setGenerateModalOpen] = useState(false);
 
   // Comments state
   const [comments, setComments] = useState<SuggestionComment[]>([]);
@@ -222,6 +233,11 @@ export function SuggestionsPage() {
       <div className="space-y-1 flex-1 min-w-0 mr-4">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-medium">{suggestion.title}</span>
+          {isNewSuggestion(suggestion) && (
+            <Badge className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0">
+              New
+            </Badge>
+          )}
           <Badge variant="outline" className={typeColors[suggestion.type] || ""}>
             {suggestion.type}
           </Badge>
@@ -303,10 +319,16 @@ export function SuggestionsPage() {
             Review and manage James's improvement suggestions
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchSuggestions}>
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={fetchSuggestions}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+          <Button size="sm" onClick={() => setGenerateModalOpen(true)}>
+            <Sparkles className="h-4 w-4 mr-2" />
+            New Suggestions
+          </Button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -416,6 +438,11 @@ export function SuggestionsPage() {
               </DialogHeader>
               <div className="space-y-4">
                 <div className="flex items-center gap-2 flex-wrap">
+                  {isNewSuggestion(selectedSuggestion) && (
+                    <Badge className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0">
+                      New
+                    </Badge>
+                  )}
                   <Badge variant="outline" className={statusColors[selectedSuggestion.status] || ""}>
                     {selectedSuggestion.status}
                   </Badge>
@@ -574,6 +601,13 @@ export function SuggestionsPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Generate New Suggestions Modal */}
+      <NewSuggestionsModal
+        isOpen={generateModalOpen}
+        onClose={() => setGenerateModalOpen(false)}
+        onSuccess={fetchSuggestions}
+      />
     </div>
   );
 }
