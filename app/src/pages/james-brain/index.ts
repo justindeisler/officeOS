@@ -4,3 +4,4 @@ export { TasksPage } from "./TasksPage";
 export { ActivityPage } from "./ActivityPage";
 export { AutomationsPage } from "./AutomationsPage";
 export { UsagePage } from "./UsagePage";
+export { ApiUsagePage } from "./ApiUsagePage";

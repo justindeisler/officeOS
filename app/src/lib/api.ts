@@ -671,6 +671,77 @@ class ApiClient {
     }>(`/james/usage${query ? `?${query}` : ''}`);
   }
 
+  // API Usage & Costs
+  async getApiUsage(filters?: {
+    startDate?: string;
+    endDate?: string;
+  }) {
+    const params = new URLSearchParams();
+    if (filters?.startDate) params.set('startDate', filters.startDate);
+    if (filters?.endDate) params.set('endDate', filters.endDate);
+    const query = params.toString();
+    return this.request<{
+      _mock: boolean;
+      _note: string;
+      overview: {
+        monthCost: number;
+        monthCalls: number;
+        todayCost: number;
+        todayCalls: number;
+        projectedMonthlyCost: number;
+        topApiId: string;
+        topApiName: string;
+        topApiCost: number;
+      };
+      providers: Array<{
+        id: string;
+        name: string;
+        category: string;
+        icon: string;
+        color: string;
+        pricingModel: string;
+        freeTier: boolean;
+      }>;
+      summaries: Array<{
+        apiId: string;
+        name: string;
+        category: string;
+        calls: number;
+        units: number;
+        unitType: string;
+        cost: number;
+        trend: number;
+        avgDailyCost: number;
+        inputUnits?: number;
+        outputUnits?: number;
+      }>;
+      costTrend: Array<{
+        date: string;
+        anthropic: number;
+        groq: number;
+        'google-drive': number;
+        'google-sheets': number;
+        'google-calendar': number;
+        total: number;
+      }>;
+      dailyUsage: Array<{
+        date: string;
+        apiId: string;
+        calls: number;
+        units: number;
+        unitType: string;
+        cost: number;
+        inputUnits?: number;
+        outputUnits?: number;
+      }>;
+      pricing: {
+        anthropic: Record<string, { input: number; output: number }>;
+        groq: { whisper: number };
+        googleQuota: Record<string, { daily: number; description: string }>;
+      };
+    }>(`/james/api-usage${query ? `?${query}` : ''}`);
+  }
+
   // Subtasks
   async getSubtasks(taskId: string) {
     return this.request<unknown[]>(`/tasks/${taskId}/subtasks`);

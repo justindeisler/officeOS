@@ -35,6 +35,7 @@ import {
   ActivityPage as JamesBrainActivityPage,
   AutomationsPage as JamesBrainAutomationsPage,
   UsagePage as JamesBrainUsagePage,
+  ApiUsagePage as JamesBrainApiUsagePage,
 } from "./pages/james-brain";
 
 // Client portal imports
@@ -200,6 +201,7 @@ function App() {
           <Route path="/james-brain/activity" element={<JamesBrainActivityPage />} />
           <Route path="/james-brain/automations" element={<JamesBrainAutomationsPage />} />
           <Route path="/james-brain/usage" element={<JamesBrainUsagePage />} />
+          <Route path="/james-brain/api-costs" element={<JamesBrainApiUsagePage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>
       </Routes>

@@ -23,6 +23,7 @@ import {
   Bot,
   Lightbulb,
   BarChart3,
+  DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -75,6 +76,7 @@ const baseNavigation: NavItem[] = [
       { name: "Automations", href: "/james-brain/automations", icon: Clock },
       { name: "Activity Log", href: "/james-brain/activity", icon: Zap },
       { name: "Token Usage", href: "/james-brain/usage", icon: BarChart3 },
+      { name: "API Costs", href: "/james-brain/api-costs", icon: DollarSign },
       { name: "Second Brain", href: "/second-brain", icon: Brain },
     ],
   },
