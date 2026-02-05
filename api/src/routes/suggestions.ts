@@ -7,6 +7,7 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import { getDb, generateId, getCurrentTimestamp } from "../database.js";
 import { createLogger } from "../logger.js";
+import { detectAccess } from "../services/accessDetection.js";
 
 const router = Router();
 const log = createLogger("suggestions");
@@ -89,6 +90,30 @@ async function triggerJamesImplementation(suggestion: {
       log.error({ err: fallbackError, suggestionId: suggestion.id }, "Fallback notification also failed");
     }
   }
+}
+
+/**
+ * Look up a suggestion's project and determine implementation access.
+ */
+async function getAccessForSuggestion(projectId: string | null): Promise<{
+  canImplement: boolean;
+  accessType: string;
+}> {
+  if (!projectId) {
+    return { canImplement: false, accessType: "none" };
+  }
+
+  const db = getDb();
+  const project = db.prepare(
+    "SELECT codebase_path, github_repo FROM projects WHERE id = ?"
+  ).get(projectId) as { codebase_path: string | null; github_repo: string | null } | undefined;
+
+  if (!project) {
+    return { canImplement: false, accessType: "none" };
+  }
+
+  const result = await detectAccess(project.codebase_path, project.github_repo);
+  return { canImplement: result.hasAccess, accessType: result.accessType };
 }
 
 // Path to generate_suggestions.py script
@@ -232,6 +257,224 @@ router.post("/generate", async (req, res) => {
   }
 });
 
+// ─── Create PRD from Suggestion ────────────────────────────────────
+
+/**
+ * POST /api/suggestions/:id/create-prd
+ * Generate a comprehensive PRD from a suggestion using LLM.
+ */
+router.post("/:id/create-prd", async (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+
+  const suggestion = db.prepare("SELECT * FROM suggestions WHERE id = ?").get(id) as {
+    id: string;
+    title: string;
+    description: string | null;
+    type: string;
+    priority: number;
+    project_id: string | null;
+    project_name: string | null;
+  } | undefined;
+
+  if (!suggestion) {
+    return res.status(404).json({ error: "Suggestion not found" });
+  }
+
+  // Check if a PRD already exists for this suggestion
+  const existingPrd = db.prepare("SELECT id FROM prds WHERE suggestion_id = ?").get(id) as { id: string } | undefined;
+  if (existingPrd) {
+    return res.status(409).json({
+      error: "A PRD already exists for this suggestion",
+      prdId: existingPrd.id,
+    });
+  }
+
+  // Get project info
+  let projectName = suggestion.project_name || "Unknown Project";
+  if (suggestion.project_id) {
+    const project = db.prepare("SELECT name FROM projects WHERE id = ?").get(suggestion.project_id) as { name: string } | undefined;
+    if (project) {
+      projectName = project.name;
+    }
+  }
+
+  // Fetch comments for additional context
+  const comments = db.prepare(
+    "SELECT comment_text FROM suggestion_comments WHERE suggestion_id = ? ORDER BY created_at ASC"
+  ).all(id) as Array<{ comment_text: string }>;
+
+  const commentContext = comments.length > 0
+    ? `\n\nAdditional context from discussion:\n${comments.map(c => `- ${c.comment_text}`).join("\n")}`
+    : "";
+
+  const priorityLabels: Record<number, string> = {
+    1: "Critical",
+    2: "High",
+    3: "Medium",
+    4: "Low",
+    5: "Minimal",
+  };
+
+  // Build the LLM prompt
+  const prompt = `You are creating a comprehensive Product Requirements Document (PRD) for the following feature suggestion:
+
+**Title:** ${suggestion.title}
+**Description:** ${suggestion.description || "No description provided"}
+**Type:** ${suggestion.type}
+**Priority:** ${priorityLabels[suggestion.priority] || "Medium"}
+**Project:** ${projectName}${commentContext}
+
+Generate a detailed PRD. Return ONLY a valid JSON object (no markdown fencing, no extra text) with these fields:
+
+{
+  "problemStatement": "What problem does this solve? Why is it important? (2-3 paragraphs)",
+  "goals": ["Goal 1", "Goal 2", "Goal 3"],
+  "nonGoals": ["Non-goal 1", "Non-goal 2"],
+  "targetUsers": "Who are the target users? (1-2 sentences)",
+  "technicalApproach": "Specific technical implementation details, architecture decisions, tech stack (2-3 paragraphs)",
+  "requirements": [
+    {"type": "functional", "description": "Requirement 1", "priority": "high"},
+    {"type": "functional", "description": "Requirement 2", "priority": "medium"}
+  ],
+  "successMetrics": ["Metric 1", "Metric 2"],
+  "estimatedEffort": "Rough time estimate (e.g., '2-3 days' or '8-12 hours')",
+  "risks": ["Risk 1", "Risk 2"],
+  "assumptions": ["Assumption 1", "Assumption 2"],
+  "milestones": [
+    {"title": "Phase 1: Setup", "description": "Initial setup and scaffolding"},
+    {"title": "Phase 2: Implementation", "description": "Core feature development"}
+  ]
+}
+
+Be specific, actionable, and comprehensive. Assume the reader is a developer who will implement this.`;
+
+  log.info({ suggestionId: id, title: suggestion.title }, "Generating PRD from suggestion");
+
+  try {
+    // Call LLM via clawdbot CLI (uses Opus for quality)
+    const { stdout } = await execFileAsync(CLAWDBOT_CLI, [
+      "ask",
+      "--text", prompt,
+      "--model", "anthropic/claude-opus-4-5",
+      "--json",
+      "--timeout", "60000",
+    ], {
+      timeout: 90000,
+      env: { ...process.env, HOME: "/home/jd-server-admin" },
+    });
+
+    // Parse the clawdbot response
+    let clawdResponse;
+    try {
+      clawdResponse = JSON.parse(stdout);
+    } catch {
+      log.error({ stdout: stdout.substring(0, 500) }, "Failed to parse clawdbot response");
+      return res.status(500).json({ error: "Failed to parse LLM response" });
+    }
+
+    // Extract the text content from clawdbot response
+    const responseText = clawdResponse.text || clawdResponse.response || clawdResponse.content || stdout;
+
+    // Parse the JSON from the LLM response (may be wrapped in markdown code fences)
+    let prdData;
+    try {
+      // Try to extract JSON from markdown code fences if present
+      const jsonMatch = responseText.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+      const jsonStr = jsonMatch ? jsonMatch[1] : responseText;
+      prdData = JSON.parse(jsonStr.trim());
+    } catch {
+      log.error({ responseText: String(responseText).substring(0, 500) }, "Failed to parse PRD JSON from LLM");
+      return res.status(500).json({ error: "LLM returned invalid PRD format" });
+    }
+
+    // Create the PRD in the database
+    const prdId = generateId();
+    const now = getCurrentTimestamp();
+
+    // Map requirements to the PRD format (add IDs)
+    const requirements = (prdData.requirements || []).map((r: { type?: string; description: string; priority?: string }, i: number) => ({
+      id: `req-${i + 1}`,
+      type: r.type || "functional",
+      description: r.description,
+      priority: r.priority || "medium",
+    }));
+
+    // Map milestones
+    const milestones = (prdData.milestones || []).map((m: { title: string; description?: string }, i: number) => ({
+      id: `ms-${i + 1}`,
+      title: m.title,
+      description: m.description || "",
+    }));
+
+    // Map user stories (generate from requirements if not provided)
+    const userStories = (prdData.userStories || []).map((s: { persona?: string; action?: string; benefit?: string; acceptanceCriteria?: string[] }, i: number) => ({
+      id: `us-${i + 1}`,
+      persona: s.persona || "User",
+      action: s.action || "",
+      benefit: s.benefit || "",
+      acceptanceCriteria: s.acceptanceCriteria || [],
+    }));
+
+    db.prepare(`
+      INSERT INTO prds (
+        id, project_id, suggestion_id, feature_name, version, author, assignee, area, status,
+        problem_statement, goals, non_goals, target_users, user_stories, requirements,
+        technical_approach, dependencies, risks, assumptions, constraints,
+        success_metrics, milestones, estimated_effort,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      prdId,
+      suggestion.project_id || null,
+      suggestion.id,
+      suggestion.title,
+      "1.0",
+      "James (AI)",
+      null,
+      "personal",
+      "draft",
+      prdData.problemStatement || null,
+      JSON.stringify(prdData.goals || []),
+      JSON.stringify(prdData.nonGoals || []),
+      prdData.targetUsers || null,
+      JSON.stringify(userStories),
+      JSON.stringify(requirements),
+      prdData.technicalApproach || null,
+      JSON.stringify(prdData.dependencies || []),
+      JSON.stringify(prdData.risks || []),
+      JSON.stringify(prdData.assumptions || []),
+      JSON.stringify(prdData.constraints || []),
+      JSON.stringify(prdData.successMetrics || []),
+      JSON.stringify(milestones),
+      prdData.estimatedEffort || null,
+      now,
+      now
+    );
+
+    // Link the PRD back to the suggestion
+    db.prepare("UPDATE suggestions SET prd_id = ?, updated_at = ? WHERE id = ?")
+      .run(prdId, now, suggestion.id);
+
+    log.info({ prdId, suggestionId: id }, "PRD generated and saved");
+
+    res.status(201).json({
+      success: true,
+      prdId,
+      message: `PRD "${suggestion.title}" created successfully`,
+    });
+  } catch (error: unknown) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    log.error({ err: error, suggestionId: id }, "PRD generation failed");
+
+    if (errMsg.includes("TIMEOUT") || errMsg.includes("timed out")) {
+      return res.status(504).json({ error: "PRD generation timed out. Please try again." });
+    }
+
+    res.status(500).json({ error: `PRD generation failed: ${errMsg}` });
+  }
+});
+
 // ─── Suggestion Comments ───────────────────────────────────────────
 
 // List comments for a suggestion
@@ -297,8 +540,8 @@ router.delete("/comments/:commentId", (req, res) => {
 
 // ─── Suggestions CRUD ─────────────────────────────────────────────
 
-// List suggestions
-router.get("/", (req, res) => {
+// List suggestions (with access detection)
+router.get("/", async (req, res) => {
   const db = getDb();
   const { status, project_id, type, limit = 50 } = req.query;
 
@@ -321,18 +564,46 @@ router.get("/", (req, res) => {
   sql += " ORDER BY priority ASC, created_at DESC LIMIT ?";
   params.push(Number(limit));
 
-  const suggestions = db.prepare(sql).all(...params);
-  res.json(suggestions);
+  const suggestions = db.prepare(sql).all(...params) as Array<Record<string, unknown>>;
+
+  // Batch access detection by unique project IDs
+  const projectIds = [...new Set(suggestions.map(s => s.project_id as string | null).filter(Boolean))];
+  const accessCache = new Map<string, { canImplement: boolean; accessType: string }>();
+
+  await Promise.all(
+    projectIds.map(async (pid) => {
+      if (pid) {
+        const result = await getAccessForSuggestion(pid);
+        accessCache.set(pid, result);
+      }
+    })
+  );
+
+  // Annotate suggestions with access info
+  const annotated = suggestions.map(s => {
+    const access = s.project_id
+      ? accessCache.get(s.project_id as string) || { canImplement: false, accessType: "none" }
+      : { canImplement: false, accessType: "none" };
+    return { ...s, canImplement: access.canImplement, accessType: access.accessType };
+  });
+
+  res.json(annotated);
 });
 
-// Get single suggestion
-router.get("/:id", (req, res) => {
+// Get single suggestion (with access detection)
+router.get("/:id", async (req, res) => {
   const db = getDb();
-  const suggestion = db.prepare("SELECT * FROM suggestions WHERE id = ?").get(req.params.id);
+  const suggestion = db.prepare("SELECT * FROM suggestions WHERE id = ?").get(req.params.id) as Record<string, unknown> | undefined;
   if (!suggestion) {
     return res.status(404).json({ error: "Suggestion not found" });
   }
-  res.json(suggestion);
+
+  // Detect implementation access for this suggestion's project
+  const { canImplement, accessType } = await getAccessForSuggestion(
+    suggestion.project_id as string | null
+  );
+
+  res.json({ ...suggestion, canImplement, accessType });
 });
 
 // Create suggestion (James creates these)
