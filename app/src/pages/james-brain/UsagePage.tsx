@@ -458,10 +458,10 @@ export function UsagePage() {
       </div>
 
       {/* Charts Row */}
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
         {/* ── Area Chart: Usage Trend ────────────────────────────────────── */}
         <Card className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 space-y-0 pb-2">
             <div>
               <CardTitle className="text-lg flex items-center gap-2">
                 <TrendingUp className="h-5 w-5" />
@@ -489,11 +489,11 @@ export function UsagePage() {
           </CardHeader>
           <CardContent>
             {trendChartData.length === 0 ? (
-              <div className="flex items-center justify-center h-[300px]">
+              <div className="flex items-center justify-center h-[200px] sm:h-[300px]">
                 <p className="text-muted-foreground text-sm">No data for this period</p>
               </div>
             ) : modelFilter !== "all" ? (
-              <ChartContainer config={inputOutputChartConfig} className="h-[300px] w-full">
+              <ChartContainer config={inputOutputChartConfig} className="h-[200px] sm:h-[300px] w-full">
                 <AreaChart
                   data={trendChartData}
                   margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
@@ -561,7 +561,7 @@ export function UsagePage() {
                 </AreaChart>
               </ChartContainer>
             ) : (
-              <ChartContainer config={modelChartConfig} className="h-[300px] w-full">
+              <ChartContainer config={modelChartConfig} className="h-[200px] sm:h-[300px] w-full">
                 <AreaChart
                   data={trendChartData}
                   margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
@@ -652,7 +652,7 @@ export function UsagePage() {
           <CardContent className="flex-1 pb-0">
             <ChartContainer
               config={pieChartConfig}
-              className="mx-auto aspect-square max-h-[220px]"
+              className="mx-auto aspect-square max-h-[180px] sm:max-h-[220px]"
             >
               <RadialBarChart
                 data={radialChartData}
@@ -718,7 +718,7 @@ export function UsagePage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ChartContainer config={barChartConfig} className="h-[250px] w-full">
+          <ChartContainer config={barChartConfig} className="h-[200px] sm:h-[250px] w-full">
             <BarChart
               data={modelBarData}
               margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
