@@ -13,6 +13,7 @@ import {
   Trash2,
   Send,
   Sparkles,
+  Loader2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +29,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { NewSuggestionsModal } from "@/components/suggestions/NewSuggestionsModal";
+import { NewSuggestionsModal, GenerateParams } from "@/components/suggestions/NewSuggestionsModal";
 
 interface Suggestion {
   id: string;
@@ -83,6 +84,21 @@ function isNewSuggestion(suggestion: Suggestion): boolean {
   return hoursSince < 24;
 }
 
+/** Animated dots: "" → "." → ".." → "..." → repeat */
+function AnimatedDots() {
+  const [dots, setDots] = useState("");
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setDots((prev) => (prev.length >= 3 ? "" : prev + "."));
+    }, 500);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Fixed-width span to prevent layout shift
+  return <span className="inline-block w-[1.2em] text-left">{dots}</span>;
+}
+
 export function SuggestionsPage() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -90,6 +106,7 @@ export function SuggestionsPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("active");
   const [generateModalOpen, setGenerateModalOpen] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // Comments state
   const [comments, setComments] = useState<SuggestionComment[]>([]);
@@ -122,6 +139,37 @@ export function SuggestionsPage() {
       setCommentsLoading(false);
     }
   }, []);
+
+  const handleGenerate = async (params: GenerateParams) => {
+    // Close modal immediately
+    setGenerateModalOpen(false);
+    setIsGenerating(true);
+
+    try {
+      const result = await api.generateSuggestions(params);
+
+      if (result.success) {
+        const duration = result.duration
+          ? ` in ${(result.duration / 1000).toFixed(1)}s`
+          : "";
+        toast.success(
+          `Generated 3 suggestions for ${params.projectName}${duration}`
+        );
+        await fetchSuggestions();
+      } else {
+        toast.error("Generation failed. Try again.");
+      }
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : "Unknown error";
+      if (errMsg.includes("504") || errMsg.includes("timed out")) {
+        toast.error("Generation took too long. Try without Deep Mode.");
+      } else {
+        toast.error(`Failed to generate suggestions: ${errMsg}`);
+      }
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   const handleAddComment = async () => {
     if (!selectedSuggestion || !newComment.trim()) return;
@@ -324,9 +372,23 @@ export function SuggestionsPage() {
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
-          <Button size="sm" onClick={() => setGenerateModalOpen(true)}>
-            <Sparkles className="h-4 w-4 mr-2" />
-            New Suggestions
+          <Button
+            size="sm"
+            onClick={() => setGenerateModalOpen(true)}
+            disabled={isGenerating}
+            className="min-w-[160px]"
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Analyzing<AnimatedDots />
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4 mr-2" />
+                New Suggestions
+              </>
+            )}
           </Button>
         </div>
       </div>
@@ -606,7 +668,7 @@ export function SuggestionsPage() {
       <NewSuggestionsModal
         isOpen={generateModalOpen}
         onClose={() => setGenerateModalOpen(false)}
-        onSuccess={fetchSuggestions}
+        onGenerate={handleGenerate}
       />
     </div>
   );
