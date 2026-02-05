@@ -16,23 +16,20 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import {
-  BarChart,
   Bar,
+  BarChart,
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip as RechartsTooltip,
-  Legend,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
+  RadialBarChart,
+  RadialBar,
+  PolarRadiusAxis,
   AreaChart,
   Area,
 } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -40,6 +37,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
 import { api } from "@/lib/api";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -83,18 +88,75 @@ interface UsageData {
 type SortField = "timestamp" | "model" | "inputTokens" | "outputTokens" | "total";
 type SortDirection = "asc" | "desc";
 
-// ─── Constants ──────────────────────────────────────────────────────────────
+// ─── Chart Configs ──────────────────────────────────────────────────────────
 
-const MODEL_COLORS: Record<string, string> = {
-  "opus-4-5": "#8b5cf6",    // violet
-  "sonnet-4-5": "#3b82f6",  // blue
-  "haiku-4-5": "#10b981",   // emerald
-};
+const modelChartConfig = {
+  "opus-4-5": {
+    label: "Opus 4.5",
+    color: "hsl(var(--chart-1))",
+  },
+  "sonnet-4-5": {
+    label: "Sonnet 4.5",
+    color: "hsl(var(--chart-2))",
+  },
+  "haiku-4-5": {
+    label: "Haiku 4.5",
+    color: "hsl(var(--chart-3))",
+  },
+} satisfies ChartConfig;
+
+const inputOutputChartConfig = {
+  input: {
+    label: "Input Tokens",
+    color: "hsl(var(--chart-2))",
+  },
+  output: {
+    label: "Output Tokens",
+    color: "hsl(var(--chart-3))",
+  },
+} satisfies ChartConfig;
+
+const barChartConfig = {
+  input: {
+    label: "Input",
+    color: "hsl(var(--chart-2))",
+  },
+  output: {
+    label: "Output",
+    color: "hsl(var(--chart-3))",
+  },
+} satisfies ChartConfig;
+
+const pieChartConfig = {
+  tokens: {
+    label: "Tokens",
+  },
+  "opus-4-5": {
+    label: "Opus 4.5",
+    color: "hsl(var(--chart-1))",
+  },
+  "sonnet-4-5": {
+    label: "Sonnet 4.5",
+    color: "hsl(var(--chart-2))",
+  },
+  "haiku-4-5": {
+    label: "Haiku 4.5",
+    color: "hsl(var(--chart-3))",
+  },
+} satisfies ChartConfig;
+
+// ─── Constants ──────────────────────────────────────────────────────────────
 
 const MODEL_LABELS: Record<string, string> = {
   "opus-4-5": "Opus 4.5",
   "sonnet-4-5": "Sonnet 4.5",
   "haiku-4-5": "Haiku 4.5",
+};
+
+const MODEL_CHART_COLORS: Record<string, string> = {
+  "opus-4-5": "hsl(var(--chart-1))",
+  "sonnet-4-5": "hsl(var(--chart-2))",
+  "haiku-4-5": "hsl(var(--chart-3))",
 };
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -103,63 +165,6 @@ function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return n.toLocaleString();
-}
-
-function formatTokensFull(n: number): string {
-  return n.toLocaleString();
-}
-
-// ─── Custom Tooltip ─────────────────────────────────────────────────────────
-
-function ChartTooltip({
-  active,
-  payload,
-  label,
-}: {
-  active?: boolean;
-  payload?: Array<{ value: number; name: string; color: string; dataKey: string }>;
-  label?: string;
-}) {
-  if (!active || !payload || payload.length === 0) return null;
-
-  return (
-    <div className="rounded-lg border bg-background/95 backdrop-blur-sm p-3 shadow-lg">
-      <p className="font-medium text-sm mb-2 text-foreground">{label}</p>
-      {payload.map((entry, index) => (
-        <p
-          key={index}
-          className="text-sm flex items-center gap-2"
-        >
-          <span
-            className="w-2.5 h-2.5 rounded-full inline-block"
-            style={{ backgroundColor: entry.color }}
-          />
-          <span className="text-muted-foreground">{entry.name}:</span>
-          <span className="font-medium text-foreground">{formatTokensFull(entry.value)}</span>
-        </p>
-      ))}
-    </div>
-  );
-}
-
-function PieTooltip({
-  active,
-  payload,
-}: {
-  active?: boolean;
-  payload?: Array<{ payload: { name: string; value: number; percentage: number; fill: string } }>;
-}) {
-  if (!active || !payload || payload.length === 0) return null;
-  const data = payload[0].payload;
-
-  return (
-    <div className="rounded-lg border bg-background/95 backdrop-blur-sm p-3 shadow-lg">
-      <p className="font-medium text-sm mb-1 text-foreground">{data.name}</p>
-      <p className="text-sm text-muted-foreground">
-        {formatTokensFull(data.value)} tokens ({data.percentage.toFixed(1)}%)
-      </p>
-    </div>
-  );
 }
 
 // ─── Overview Card ──────────────────────────────────────────────────────────
@@ -188,11 +193,11 @@ function OverviewCard({
             <p className="text-2xl font-bold tracking-tight">{formatTokens(total)}</p>
             <div className="flex items-center gap-3 pt-1">
               <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                <ArrowUpRight className="h-3 w-3 text-blue-500" />
+                <ArrowUpRight className="h-3 w-3 text-chart-2" />
                 {formatTokens(input)} in
               </span>
               <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                <ArrowDownRight className="h-3 w-3 text-emerald-500" />
+                <ArrowDownRight className="h-3 w-3 text-chart-3" />
                 {formatTokens(output)} out
               </span>
             </div>
@@ -249,22 +254,26 @@ export function UsagePage() {
     if (!data) return [];
 
     if (modelFilter !== "all") {
-      // Single model - show input vs output
       return data.trend.map((entry) => ({
-        date: groupBy === "day" ? format(new Date(entry.date), "MMM d") : 
-              groupBy === "week" ? `W${format(new Date(entry.date), "w")}` :
-              format(new Date(entry.date), "MMM yyyy"),
+        date:
+          groupBy === "day"
+            ? format(new Date(entry.date), "MMM d")
+            : groupBy === "week"
+              ? `W${format(new Date(entry.date), "w")}`
+              : format(new Date(entry.date), "MMM yyyy"),
         input: entry.inputTokens,
         output: entry.outputTokens,
       }));
     }
 
-    // All models - aggregate by date, show per-model
     const dateMap = new Map<string, Record<string, number>>();
     for (const entry of data.trend) {
-      const dateLabel = groupBy === "day" ? format(new Date(entry.date), "MMM d") :
-                        groupBy === "week" ? `W${format(new Date(entry.date), "w")}` :
-                        format(new Date(entry.date), "MMM yyyy");
+      const dateLabel =
+        groupBy === "day"
+          ? format(new Date(entry.date), "MMM d")
+          : groupBy === "week"
+            ? `W${format(new Date(entry.date), "w")}`
+            : format(new Date(entry.date), "MMM yyyy");
       if (!dateMap.has(dateLabel)) {
         dateMap.set(dateLabel, {});
       }
@@ -278,17 +287,20 @@ export function UsagePage() {
     }));
   }, [data, groupBy, modelFilter]);
 
-  // Prepare pie chart data
-  const pieChartData = useMemo(() => {
+  // Prepare radial chart data (percentage-based for concentric rings)
+  const radialChartData = useMemo(() => {
     if (!data) return [];
 
     const totalAll = Object.values(data.byModel).reduce((s, m) => s + m.total, 0);
-    return Object.entries(data.byModel).map(([model, stats]) => ({
-      name: MODEL_LABELS[model] || model,
-      value: stats.total,
-      percentage: totalAll > 0 ? (stats.total / totalAll) * 100 : 0,
-      fill: MODEL_COLORS[model] || "#94a3b8",
-    }));
+    return Object.entries(data.byModel)
+      .map(([model, stats]) => ({
+        model,
+        name: MODEL_LABELS[model] || model,
+        tokens: stats.total,
+        value: totalAll > 0 ? Math.round((stats.total / totalAll) * 100) : 0,
+        fill: MODEL_CHART_COLORS[model] || "hsl(var(--chart-4))",
+      }))
+      .sort((a, b) => b.value - a.value); // Largest ring on outside
   }, [data]);
 
   // Prepare bar chart data for input/output by model
@@ -299,7 +311,6 @@ export function UsagePage() {
       name: MODEL_LABELS[model] || model,
       input: stats.input,
       output: stats.output,
-      fill: MODEL_COLORS[model] || "#94a3b8",
     }));
   }, [data]);
 
@@ -404,7 +415,8 @@ export function UsagePage() {
         <div className="flex items-start gap-2 p-3 rounded-lg border border-amber-500/20 bg-amber-500/5">
           <Info className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
           <p className="text-xs text-amber-600 dark:text-amber-400">
-            <span className="font-medium">Sample data.</span> Real token tracking will be integrated when Clawdbot gateway exposes per-session usage metrics.
+            <span className="font-medium">Sample data.</span> Real token tracking will be
+            integrated when Clawdbot gateway exposes per-session usage metrics.
           </p>
         </div>
       )}
@@ -417,7 +429,7 @@ export function UsagePage() {
           total={data.overview.total}
           input={data.overview.totalInput}
           output={data.overview.totalOutput}
-          accent="bg-violet-500/10 text-violet-600 dark:text-violet-400"
+          accent="bg-chart-1/10 text-chart-1"
         />
         <OverviewCard
           title="This Month"
@@ -425,7 +437,7 @@ export function UsagePage() {
           total={data.overview.month}
           input={data.overview.monthInput}
           output={data.overview.monthOutput}
-          accent="bg-blue-500/10 text-blue-600 dark:text-blue-400"
+          accent="bg-chart-2/10 text-chart-2"
         />
         <OverviewCard
           title="This Week"
@@ -433,7 +445,7 @@ export function UsagePage() {
           total={data.overview.week}
           input={data.overview.weekInput}
           output={data.overview.weekOutput}
-          accent="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+          accent="bg-chart-3/10 text-chart-3"
         />
         <OverviewCard
           title="Today"
@@ -441,24 +453,37 @@ export function UsagePage() {
           total={data.overview.today}
           input={data.overview.todayInput}
           output={data.overview.todayOutput}
-          accent="bg-amber-500/10 text-amber-600 dark:text-amber-400"
+          accent="bg-chart-4/10 text-chart-4"
         />
       </div>
 
       {/* Charts Row */}
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Trend Chart */}
+        {/* ── Area Chart: Usage Trend ────────────────────────────────────── */}
         <Card className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Usage Trend
-            </CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
+                Usage Trend
+              </CardTitle>
+              <CardDescription className="mt-1">
+                {modelFilter !== "all"
+                  ? `${MODEL_LABELS[modelFilter]} — input vs output tokens`
+                  : "Token usage stacked by model"}
+              </CardDescription>
+            </div>
             <Tabs value={groupBy} onValueChange={setGroupBy}>
               <TabsList className="h-8">
-                <TabsTrigger value="day" className="text-xs px-2.5 h-6">Daily</TabsTrigger>
-                <TabsTrigger value="week" className="text-xs px-2.5 h-6">Weekly</TabsTrigger>
-                <TabsTrigger value="month" className="text-xs px-2.5 h-6">Monthly</TabsTrigger>
+                <TabsTrigger value="day" className="text-xs px-2.5 h-6">
+                  Daily
+                </TabsTrigger>
+                <TabsTrigger value="week" className="text-xs px-2.5 h-6">
+                  Weekly
+                </TabsTrigger>
+                <TabsTrigger value="month" className="text-xs px-2.5 h-6">
+                  Monthly
+                </TabsTrigger>
               </TabsList>
             </Tabs>
           </CardHeader>
@@ -468,129 +493,186 @@ export function UsagePage() {
                 <p className="text-muted-foreground text-sm">No data for this period</p>
               </div>
             ) : modelFilter !== "all" ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={trendChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+              <ChartContainer config={inputOutputChartConfig} className="h-[300px] w-full">
+                <AreaChart
+                  data={trendChartData}
+                  margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                >
                   <defs>
-                    <linearGradient id="inputGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                    <linearGradient id="fillInput" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--color-input)" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="var(--color-input)" stopOpacity={0.05} />
                     </linearGradient>
-                    <linearGradient id="outputGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                    <linearGradient id="fillOutput" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--color-output)" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="var(--color-output)" stopOpacity={0.05} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11 }} className="text-muted-foreground" />
-                  <YAxis
-                    tick={{ fontSize: 11 }}
-                    tickFormatter={(v) => formatTokens(v)}
-                    className="text-muted-foreground"
+                  <CartesianGrid vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
                   />
-                  <RechartsTooltip content={<ChartTooltip />} />
-                  <Legend
-                    wrapperStyle={{ paddingTop: "10px" }}
-                    formatter={(value) => <span className="text-sm text-foreground">{value}</span>}
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                    tickFormatter={(v) => formatTokens(v)}
+                  />
+                  <ChartTooltip
+                    cursor={false}
+                    content={
+                      <ChartTooltipContent
+                        indicator="dot"
+                        formatter={(value, name) => (
+                          <>
+                            <span className="text-muted-foreground">
+                              {inputOutputChartConfig[name as keyof typeof inputOutputChartConfig]
+                                ?.label || name}
+                              :
+                            </span>{" "}
+                            <span className="font-mono font-medium tabular-nums text-foreground">
+                              {(value as number).toLocaleString()}
+                            </span>
+                          </>
+                        )}
+                      />
+                    }
                   />
                   <Area
                     type="monotone"
                     dataKey="input"
-                    name="Input Tokens"
-                    stroke="#3b82f6"
-                    fill="url(#inputGrad)"
+                    stroke="var(--color-input)"
+                    fill="url(#fillInput)"
                     strokeWidth={2}
+                    stackId="a"
                   />
                   <Area
                     type="monotone"
                     dataKey="output"
-                    name="Output Tokens"
-                    stroke="#10b981"
-                    fill="url(#outputGrad)"
+                    stroke="var(--color-output)"
+                    fill="url(#fillOutput)"
                     strokeWidth={2}
+                    stackId="a"
                   />
+                  <ChartLegend content={<ChartLegendContent />} />
                 </AreaChart>
-              </ResponsiveContainer>
+              </ChartContainer>
             ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={trendChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+              <ChartContainer config={modelChartConfig} className="h-[300px] w-full">
+                <AreaChart
+                  data={trendChartData}
+                  margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                >
                   <defs>
-                    {Object.entries(MODEL_COLORS).map(([model, color]) => (
-                      <linearGradient key={model} id={`grad-${model}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={color} stopOpacity={0.25} />
-                        <stop offset="95%" stopColor={color} stopOpacity={0} />
+                    {Object.keys(modelChartConfig).map((model) => (
+                      <linearGradient
+                        key={model}
+                        id={`fill-${model}`}
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop
+                          offset="5%"
+                          stopColor={`var(--color-${model})`}
+                          stopOpacity={0.4}
+                        />
+                        <stop
+                          offset="95%"
+                          stopColor={`var(--color-${model})`}
+                          stopOpacity={0.05}
+                        />
                       </linearGradient>
                     ))}
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11 }} className="text-muted-foreground" />
+                  <CartesianGrid vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                  />
                   <YAxis
-                    tick={{ fontSize: 11 }}
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
                     tickFormatter={(v) => formatTokens(v)}
-                    className="text-muted-foreground"
                   />
-                  <RechartsTooltip content={<ChartTooltip />} />
-                  <Legend
-                    wrapperStyle={{ paddingTop: "10px" }}
-                    formatter={(value) => <span className="text-sm text-foreground">{value}</span>}
+                  <ChartTooltip
+                    cursor={false}
+                    content={
+                      <ChartTooltipContent
+                        indicator="dot"
+                        formatter={(value, name) => (
+                          <>
+                            <span className="text-muted-foreground">
+                              {modelChartConfig[name as keyof typeof modelChartConfig]?.label ||
+                                name}
+                              :
+                            </span>{" "}
+                            <span className="font-mono font-medium tabular-nums text-foreground">
+                              {(value as number).toLocaleString()}
+                            </span>
+                          </>
+                        )}
+                      />
+                    }
                   />
-                  {Object.entries(MODEL_COLORS).map(([model, color]) => (
+                  {Object.keys(modelChartConfig).map((model) => (
                     <Area
                       key={model}
                       type="monotone"
                       dataKey={model}
-                      name={MODEL_LABELS[model]}
-                      stroke={color}
-                      fill={`url(#grad-${model})`}
+                      stroke={`var(--color-${model})`}
+                      fill={`url(#fill-${model})`}
                       strokeWidth={2}
                       stackId="1"
                     />
                   ))}
+                  <ChartLegend content={<ChartLegendContent />} />
                 </AreaChart>
-              </ResponsiveContainer>
+              </ChartContainer>
             )}
           </CardContent>
         </Card>
 
-        {/* Model Breakdown */}
-        <Card>
-          <CardHeader className="pb-2">
+        {/* ── Radial Chart: Model Distribution ────────────────────────────── */}
+        <Card className="flex flex-col">
+          <CardHeader className="pb-0">
             <CardTitle className="text-lg flex items-center gap-2">
               <Zap className="h-5 w-5" />
               By Model
             </CardTitle>
+            <CardDescription>Token distribution across models</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="relative">
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie
-                    data={pieChartData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={75}
-                    paddingAngle={3}
-                    dataKey="value"
-                    nameKey="name"
-                  >
-                    {pieChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                  </Pie>
-                  <RechartsTooltip content={<PieTooltip />} />
-                </PieChart>
-              </ResponsiveContainer>
-              {/* Center total */}
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="text-center">
-                  <p className="text-lg font-bold">{formatTokens(data.overview.total)}</p>
-                  <p className="text-[10px] text-muted-foreground">Total</p>
-                </div>
-              </div>
-            </div>
+          <CardContent className="flex-1 pb-0">
+            <ChartContainer
+              config={pieChartConfig}
+              className="mx-auto aspect-square max-h-[220px]"
+            >
+              <RadialBarChart
+                data={radialChartData}
+                innerRadius={30}
+                outerRadius={110}
+                startAngle={180}
+                endAngle={0}
+              >
+                <PolarRadiusAxis tick={false} tickLine={false} axisLine={false}>
+                </PolarRadiusAxis>
+                <RadialBar
+                  dataKey="value"
+                  background
+                  cornerRadius={10}
+                />
+              </RadialBarChart>
+            </ChartContainer>
 
             {/* Legend with details */}
-            <div className="space-y-3 mt-2">
+            <div className="space-y-3 px-2 pb-4">
               {Object.entries(data.byModel).map(([model, stats]) => {
                 const totalAll = Object.values(data.byModel).reduce(
                   (s, m) => s + m.total,
@@ -600,15 +682,15 @@ export function UsagePage() {
                 return (
                   <div key={model} className="flex items-center gap-3">
                     <span
-                      className="w-3 h-3 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: MODEL_COLORS[model] }}
+                      className="w-3 h-3 rounded-[2px] flex-shrink-0"
+                      style={{ backgroundColor: MODEL_CHART_COLORS[model] }}
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium">
                           {MODEL_LABELS[model]}
                         </span>
-                        <span className="text-sm text-muted-foreground">{pct}%</span>
+                        <span className="text-sm text-muted-foreground tabular-nums">{pct}%</span>
                       </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <span>{formatTokens(stats.input)} in</span>
@@ -624,46 +706,82 @@ export function UsagePage() {
         </Card>
       </div>
 
-      {/* Input vs Output by Model */}
+      {/* ── Bar Chart: Input vs Output by Model ────────────────────────────── */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-lg flex items-center gap-2">
             <BarChart3 className="h-5 w-5" />
             Input vs Output by Model
           </CardTitle>
+          <CardDescription>
+            Compare input and output token usage across each model
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={250}>
+          <ChartContainer config={barChartConfig} className="h-[250px] w-full">
             <BarChart
               data={modelBarData}
               margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
             >
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis dataKey="name" tick={{ fontSize: 12 }} className="text-muted-foreground" />
+              <CartesianGrid vertical={false} />
+              <XAxis
+                dataKey="name"
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+              />
               <YAxis
-                tick={{ fontSize: 11 }}
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
                 tickFormatter={(v) => formatTokens(v)}
-                className="text-muted-foreground"
               />
-              <RechartsTooltip content={<ChartTooltip />} />
-              <Legend
-                wrapperStyle={{ paddingTop: "10px" }}
-                formatter={(value) => <span className="text-sm text-foreground">{value}</span>}
+              <ChartTooltip
+                cursor={false}
+                content={
+                  <ChartTooltipContent
+                    indicator="dot"
+                    formatter={(value, name) => (
+                      <>
+                        <span className="text-muted-foreground">
+                          {barChartConfig[name as keyof typeof barChartConfig]?.label || name}:
+                        </span>{" "}
+                        <span className="font-mono font-medium tabular-nums text-foreground">
+                          {(value as number).toLocaleString()}
+                        </span>
+                      </>
+                    )}
+                  />
+                }
               />
-              <Bar dataKey="input" name="Input Tokens" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="output" name="Output Tokens" fill="#10b981" radius={[4, 4, 0, 0]} />
+              <Bar
+                dataKey="input"
+                fill="var(--color-input)"
+                radius={[4, 4, 0, 0]}
+              />
+              <Bar
+                dataKey="output"
+                fill="var(--color-output)"
+                radius={[4, 4, 0, 0]}
+              />
+              <ChartLegend content={<ChartLegendContent />} />
             </BarChart>
-          </ResponsiveContainer>
+          </ChartContainer>
         </CardContent>
       </Card>
 
-      {/* Sessions Table */}
+      {/* ── Sessions Table ──────────────────────────────────────────────────── */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Zap className="h-5 w-5" />
-            Recent Sessions
-          </CardTitle>
+          <div>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Zap className="h-5 w-5" />
+              Recent Sessions
+            </CardTitle>
+            <CardDescription className="mt-1">
+              Detailed breakdown of individual sessions
+            </CardDescription>
+          </div>
           <Badge variant="outline" className="text-xs">
             {data.sessions.length} sessions
           </Badge>
@@ -735,9 +853,13 @@ export function UsagePage() {
                         variant="outline"
                         className="text-xs font-normal"
                         style={{
-                          borderColor: MODEL_COLORS[session.model] + "40",
-                          color: MODEL_COLORS[session.model],
-                          backgroundColor: MODEL_COLORS[session.model] + "10",
+                          borderColor: MODEL_CHART_COLORS[session.model]
+                            ? `color-mix(in srgb, ${MODEL_CHART_COLORS[session.model]} 40%, transparent)`
+                            : undefined,
+                          color: MODEL_CHART_COLORS[session.model],
+                          backgroundColor: MODEL_CHART_COLORS[session.model]
+                            ? `color-mix(in srgb, ${MODEL_CHART_COLORS[session.model]} 10%, transparent)`
+                            : undefined,
                         }}
                       >
                         {MODEL_LABELS[session.model] || session.model}
@@ -770,7 +892,8 @@ export function UsagePage() {
                 </>
               ) : (
                 <>
-                  Show All {sortedSessions.length} Sessions <ChevronDown className="h-4 w-4" />
+                  Show All {sortedSessions.length} Sessions{" "}
+                  <ChevronDown className="h-4 w-4" />
                 </>
               )}
             </button>
