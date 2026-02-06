@@ -9,24 +9,8 @@ import {
   TrendingUp,
   ArrowUpRight,
   ArrowDownRight,
-  Info,
-  ChevronDown,
-  ChevronUp,
-  ArrowUpDown,
   SlidersHorizontal,
 } from "lucide-react";
-import {
-  Bar,
-  BarChart,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  RadialBarChart,
-  RadialBar,
-  PolarRadiusAxis,
-  AreaChart,
-  Area,
-} from "recharts";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -37,15 +21,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
-  type ChartConfig,
-} from "@/components/ui/chart";
+import { type ChartConfig } from "@/components/ui/chart";
 import { api } from "@/lib/api";
+import { useSortableTable } from "@/hooks/useSortableTable";
+import {
+  formatCompactNumber,
+  DashboardLoading,
+  DashboardError,
+  MockDataNotice,
+  DashboardHeader,
+  OverviewCard,
+  StackedAreaTrendChart,
+  RadialDistributionChart,
+  StackedBarChartCard,
+  SortableColumnHeader,
+  ExpandButton,
+} from "@/components/charts";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -85,64 +76,31 @@ interface UsageData {
   }>;
 }
 
-type SortField = "timestamp" | "model" | "inputTokens" | "outputTokens" | "total";
-type SortDirection = "asc" | "desc";
+type SessionSortField = "timestamp" | "model" | "inputTokens" | "outputTokens" | "total";
 
 // ─── Chart Configs ──────────────────────────────────────────────────────────
 
 const modelChartConfig = {
-  "opus-4-5": {
-    label: "Opus 4.5",
-    color: "hsl(var(--chart-1))",
-  },
-  "sonnet-4-5": {
-    label: "Sonnet 4.5",
-    color: "hsl(var(--chart-2))",
-  },
-  "haiku-4-5": {
-    label: "Haiku 4.5",
-    color: "hsl(var(--chart-3))",
-  },
+  "opus-4-5": { label: "Opus 4.5", color: "hsl(var(--chart-1))" },
+  "sonnet-4-5": { label: "Sonnet 4.5", color: "hsl(var(--chart-2))" },
+  "haiku-4-5": { label: "Haiku 4.5", color: "hsl(var(--chart-3))" },
 } satisfies ChartConfig;
 
 const inputOutputChartConfig = {
-  input: {
-    label: "Input Tokens",
-    color: "hsl(var(--chart-2))",
-  },
-  output: {
-    label: "Output Tokens",
-    color: "hsl(var(--chart-3))",
-  },
+  input: { label: "Input Tokens", color: "hsl(var(--chart-2))" },
+  output: { label: "Output Tokens", color: "hsl(var(--chart-3))" },
 } satisfies ChartConfig;
 
 const barChartConfig = {
-  input: {
-    label: "Input",
-    color: "hsl(var(--chart-2))",
-  },
-  output: {
-    label: "Output",
-    color: "hsl(var(--chart-3))",
-  },
+  input: { label: "Input", color: "hsl(var(--chart-2))" },
+  output: { label: "Output", color: "hsl(var(--chart-3))" },
 } satisfies ChartConfig;
 
 const pieChartConfig = {
-  tokens: {
-    label: "Tokens",
-  },
-  "opus-4-5": {
-    label: "Opus 4.5",
-    color: "hsl(var(--chart-1))",
-  },
-  "sonnet-4-5": {
-    label: "Sonnet 4.5",
-    color: "hsl(var(--chart-2))",
-  },
-  "haiku-4-5": {
-    label: "Haiku 4.5",
-    color: "hsl(var(--chart-3))",
-  },
+  tokens: { label: "Tokens" },
+  "opus-4-5": { label: "Opus 4.5", color: "hsl(var(--chart-1))" },
+  "sonnet-4-5": { label: "Sonnet 4.5", color: "hsl(var(--chart-2))" },
+  "haiku-4-5": { label: "Haiku 4.5", color: "hsl(var(--chart-3))" },
 } satisfies ChartConfig;
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -159,55 +117,31 @@ const MODEL_CHART_COLORS: Record<string, string> = {
   "haiku-4-5": "hsl(var(--chart-3))",
 };
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// ─── Session Sort Comparators ───────────────────────────────────────────────
 
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return n.toLocaleString();
-}
+const sessionComparators: Record<
+  SessionSortField,
+  (a: UsageData["sessions"][number], b: UsageData["sessions"][number]) => number
+> = {
+  timestamp: (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+  model: (a, b) => a.model.localeCompare(b.model),
+  inputTokens: (a, b) => a.inputTokens - b.inputTokens,
+  outputTokens: (a, b) => a.outputTokens - b.outputTokens,
+  total: (a, b) => a.total - b.total,
+};
 
-// ─── Overview Card ──────────────────────────────────────────────────────────
+// ─── Tooltip Formatters ─────────────────────────────────────────────────────
 
-function OverviewCard({
-  title,
-  icon: Icon,
-  total,
-  input,
-  output,
-  accent,
-}: {
-  title: string;
-  icon: typeof Zap;
-  total: number;
-  input: number;
-  output: number;
-  accent: string;
-}) {
-  return (
-    <Card className="relative overflow-hidden">
-      <CardContent className="pt-6">
-        <div className="flex items-start justify-between">
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-muted-foreground">{title}</p>
-            <p className="text-2xl font-bold tracking-tight">{formatTokens(total)}</p>
-            <div className="flex items-center gap-3 pt-1">
-              <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                <ArrowUpRight className="h-3 w-3 text-chart-2" />
-                {formatTokens(input)} in
-              </span>
-              <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                <ArrowDownRight className="h-3 w-3 text-chart-3" />
-                {formatTokens(output)} out
-              </span>
-            </div>
-          </div>
-          <div className={`rounded-xl p-2.5 ${accent}`}>
-            <Icon className="h-5 w-5" />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+function tokenTooltipFormatter(config: ChartConfig) {
+  return (value: number, name: string) => (
+    <>
+      <span className="text-muted-foreground">
+        {config[name as keyof typeof config]?.label || name}:
+      </span>{" "}
+      <span className="font-mono font-medium tabular-nums text-foreground">
+        {value.toLocaleString()}
+      </span>
+    </>
   );
 }
 
@@ -219,9 +153,6 @@ export function UsagePage() {
   const [error, setError] = useState<string | null>(null);
   const [groupBy, setGroupBy] = useState("day");
   const [modelFilter, setModelFilter] = useState("all");
-  const [sortField, setSortField] = useState<SortField>("timestamp");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
-  const [tableExpanded, setTableExpanded] = useState(false);
 
   // Fetch data
   useEffect(() => {
@@ -249,18 +180,36 @@ export function UsagePage() {
     fetchData();
   }, [groupBy, modelFilter]);
 
-  // Prepare trend chart data (aggregate across models per date)
+  // Sortable sessions table
+  const {
+    sortField,
+    sortDirection,
+    toggleSort,
+    displayed: displayedSessions,
+    expanded: tableExpanded,
+    setExpanded: setTableExpanded,
+    canExpand,
+    totalCount: sessionCount,
+  } = useSortableTable<UsageData["sessions"][number], SessionSortField>({
+    data: data?.sessions ?? [],
+    defaultField: "timestamp",
+    comparators: sessionComparators,
+  });
+
+  // Prepare trend chart data
   const trendChartData = useMemo(() => {
     if (!data) return [];
 
+    const formatDate = (date: string) =>
+      groupBy === "day"
+        ? format(new Date(date), "MMM d")
+        : groupBy === "week"
+          ? `W${format(new Date(date), "w")}`
+          : format(new Date(date), "MMM yyyy");
+
     if (modelFilter !== "all") {
       return data.trend.map((entry) => ({
-        date:
-          groupBy === "day"
-            ? format(new Date(entry.date), "MMM d")
-            : groupBy === "week"
-              ? `W${format(new Date(entry.date), "w")}`
-              : format(new Date(entry.date), "MMM yyyy"),
+        date: formatDate(entry.date),
         input: entry.inputTokens,
         output: entry.outputTokens,
       }));
@@ -268,29 +217,18 @@ export function UsagePage() {
 
     const dateMap = new Map<string, Record<string, number>>();
     for (const entry of data.trend) {
-      const dateLabel =
-        groupBy === "day"
-          ? format(new Date(entry.date), "MMM d")
-          : groupBy === "week"
-            ? `W${format(new Date(entry.date), "w")}`
-            : format(new Date(entry.date), "MMM yyyy");
-      if (!dateMap.has(dateLabel)) {
-        dateMap.set(dateLabel, {});
-      }
+      const dateLabel = formatDate(entry.date);
+      if (!dateMap.has(dateLabel)) dateMap.set(dateLabel, {});
       const existing = dateMap.get(dateLabel)!;
       existing[entry.model] = (existing[entry.model] || 0) + entry.tokens;
     }
 
-    return Array.from(dateMap.entries()).map(([date, models]) => ({
-      date,
-      ...models,
-    }));
+    return Array.from(dateMap.entries()).map(([date, models]) => ({ date, ...models }));
   }, [data, groupBy, modelFilter]);
 
-  // Prepare radial chart data (percentage-based for concentric rings)
+  // Radial chart data
   const radialChartData = useMemo(() => {
     if (!data) return [];
-
     const totalAll = Object.values(data.byModel).reduce((s, m) => s + m.total, 0);
     return Object.entries(data.byModel)
       .map(([model, stats]) => ({
@@ -300,13 +238,12 @@ export function UsagePage() {
         value: totalAll > 0 ? Math.round((stats.total / totalAll) * 100) : 0,
         fill: MODEL_CHART_COLORS[model] || "hsl(var(--chart-4))",
       }))
-      .sort((a, b) => b.value - a.value); // Largest ring on outside
+      .sort((a, b) => b.value - a.value);
   }, [data]);
 
-  // Prepare bar chart data for input/output by model
+  // Bar chart data
   const modelBarData = useMemo(() => {
     if (!data) return [];
-
     return Object.entries(data.byModel).map(([model, stats]) => ({
       name: MODEL_LABELS[model] || model,
       input: stats.input,
@@ -314,87 +251,24 @@ export function UsagePage() {
     }));
   }, [data]);
 
-  // Sort sessions
-  const sortedSessions = useMemo(() => {
-    if (!data) return [];
+  // ─── Loading / Error ────────────────────────────────────────────────────
 
-    return [...data.sessions].sort((a, b) => {
-      const dir = sortDirection === "asc" ? 1 : -1;
-      switch (sortField) {
-        case "timestamp":
-          return dir * (new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-        case "model":
-          return dir * a.model.localeCompare(b.model);
-        case "inputTokens":
-          return dir * (a.inputTokens - b.inputTokens);
-        case "outputTokens":
-          return dir * (a.outputTokens - b.outputTokens);
-        case "total":
-          return dir * (a.total - b.total);
-        default:
-          return 0;
-      }
-    });
-  }, [data, sortField, sortDirection]);
-
-  const displayedSessions = tableExpanded ? sortedSessions : sortedSessions.slice(0, 10);
-
-  // Toggle sort
-  function toggleSort(field: SortField) {
-    if (sortField === field) {
-      setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortField(field);
-      setSortDirection("desc");
-    }
-  }
-
-  function SortIcon({ field }: { field: SortField }) {
-    if (sortField !== field) return <ArrowUpDown className="h-3 w-3 opacity-40" />;
-    return sortDirection === "asc" ? (
-      <ChevronUp className="h-3 w-3" />
-    ) : (
-      <ChevronDown className="h-3 w-3" />
-    );
-  }
-
-  // ─── Loading State ──────────────────────────────────────────────────────
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center p-12">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-      </div>
-    );
-  }
-
-  if (error || !data) {
-    return (
-      <div className="flex items-center justify-center p-12">
-        <div className="text-center space-y-2">
-          <p className="text-destructive text-lg">⚠️</p>
-          <p className="text-sm text-muted-foreground">{error || "No data available"}</p>
-        </div>
-      </div>
-    );
-  }
+  if (isLoading) return <DashboardLoading />;
+  if (error || !data) return <DashboardError message={error ?? undefined} />;
 
   // ─── Render ─────────────────────────────────────────────────────────────
+
+  const trendConfig = modelFilter !== "all" ? inputOutputChartConfig : modelChartConfig;
+  const trendKeys = Object.keys(trendConfig);
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight flex items-center gap-2">
-            <BarChart3 className="h-7 w-7" />
-            Token Usage
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Track AI token consumption across models
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+      <DashboardHeader
+        icon={BarChart3}
+        title="Token Usage"
+        description="Track AI token consumption across models"
+        actions={
           <Select value={modelFilter} onValueChange={setModelFilter}>
             <SelectTrigger className="w-[140px]">
               <SlidersHorizontal className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
@@ -407,59 +281,48 @@ export function UsagePage() {
               <SelectItem value="haiku-4-5">Haiku 4.5</SelectItem>
             </SelectContent>
           </Select>
-        </div>
-      </div>
+        }
+      />
 
       {/* Mock Data Notice */}
       {data._mock && (
-        <div className="flex items-start gap-2 p-3 rounded-lg border border-amber-500/20 bg-amber-500/5">
-          <Info className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
-          <p className="text-xs text-amber-600 dark:text-amber-400">
-            <span className="font-medium">Sample data.</span> Real token tracking will be
-            integrated when Clawdbot gateway exposes per-session usage metrics.
-          </p>
-        </div>
+        <MockDataNotice>
+          <span className="font-medium">Sample data.</span> Real token tracking will be
+          integrated when Clawdbot gateway exposes per-session usage metrics.
+        </MockDataNotice>
       )}
 
       {/* Overview Cards */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-        <OverviewCard
-          title="All Time"
-          icon={TrendingUp}
-          total={data.overview.total}
-          input={data.overview.totalInput}
-          output={data.overview.totalOutput}
-          accent="bg-chart-1/10 text-chart-1"
-        />
-        <OverviewCard
-          title="This Month"
-          icon={CalendarRange}
-          total={data.overview.month}
-          input={data.overview.monthInput}
-          output={data.overview.monthOutput}
-          accent="bg-chart-2/10 text-chart-2"
-        />
-        <OverviewCard
-          title="This Week"
-          icon={CalendarDays}
-          total={data.overview.week}
-          input={data.overview.weekInput}
-          output={data.overview.weekOutput}
-          accent="bg-chart-3/10 text-chart-3"
-        />
-        <OverviewCard
-          title="Today"
-          icon={Calendar}
-          total={data.overview.today}
-          input={data.overview.todayInput}
-          output={data.overview.todayOutput}
-          accent="bg-chart-4/10 text-chart-4"
-        />
+        {([
+          { title: "All Time", icon: TrendingUp, key: "total" as const, accent: "bg-chart-1/10 text-chart-1" },
+          { title: "This Month", icon: CalendarRange, key: "month" as const, accent: "bg-chart-2/10 text-chart-2" },
+          { title: "This Week", icon: CalendarDays, key: "week" as const, accent: "bg-chart-3/10 text-chart-3" },
+          { title: "Today", icon: Calendar, key: "today" as const, accent: "bg-chart-4/10 text-chart-4" },
+        ] as const).map(({ title, icon, key, accent }) => {
+          const total = key === "total" ? data.overview.total : data.overview[key];
+          const input = data.overview[key === "total" ? "totalInput" : `${key}Input` as keyof typeof data.overview] as number;
+          const output = data.overview[key === "total" ? "totalOutput" : `${key}Output` as keyof typeof data.overview] as number;
+          return (
+            <OverviewCard key={key} title={title} icon={icon} accent={accent} value={formatCompactNumber(total)}>
+              <div className="flex items-center gap-3 pt-1">
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <ArrowUpRight className="h-3 w-3 text-chart-2" />
+                  {formatCompactNumber(input)} in
+                </span>
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <ArrowDownRight className="h-3 w-3 text-chart-3" />
+                  {formatCompactNumber(output)} out
+                </span>
+              </div>
+            </OverviewCard>
+          );
+        })}
       </div>
 
       {/* Charts Row */}
       <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
-        {/* ── Area Chart: Usage Trend ────────────────────────────────────── */}
+        {/* Area Chart: Usage Trend */}
         <Card className="lg:col-span-2">
           <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 space-y-0 pb-2">
             <div>
@@ -475,209 +338,35 @@ export function UsagePage() {
             </div>
             <Tabs value={groupBy} onValueChange={setGroupBy}>
               <TabsList className="h-8">
-                <TabsTrigger value="day" className="text-xs px-2.5 h-6">
-                  Daily
-                </TabsTrigger>
-                <TabsTrigger value="week" className="text-xs px-2.5 h-6">
-                  Weekly
-                </TabsTrigger>
-                <TabsTrigger value="month" className="text-xs px-2.5 h-6">
-                  Monthly
-                </TabsTrigger>
+                <TabsTrigger value="day" className="text-xs px-2.5 h-6">Daily</TabsTrigger>
+                <TabsTrigger value="week" className="text-xs px-2.5 h-6">Weekly</TabsTrigger>
+                <TabsTrigger value="month" className="text-xs px-2.5 h-6">Monthly</TabsTrigger>
               </TabsList>
             </Tabs>
           </CardHeader>
           <CardContent>
-            {trendChartData.length === 0 ? (
-              <div className="flex items-center justify-center h-[200px] sm:h-[300px]">
-                <p className="text-muted-foreground text-sm">No data for this period</p>
-              </div>
-            ) : modelFilter !== "all" ? (
-              <ChartContainer config={inputOutputChartConfig} className="h-[200px] sm:h-[300px] w-full">
-                <AreaChart
-                  data={trendChartData}
-                  margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
-                >
-                  <defs>
-                    <linearGradient id="fillInput" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--color-input)" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="var(--color-input)" stopOpacity={0.05} />
-                    </linearGradient>
-                    <linearGradient id="fillOutput" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--color-output)" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="var(--color-output)" stopOpacity={0.05} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid vertical={false} />
-                  <XAxis
-                    dataKey="date"
-                    tickLine={false}
-                    axisLine={false}
-                    tickMargin={8}
-                  />
-                  <YAxis
-                    tickLine={false}
-                    axisLine={false}
-                    tickMargin={8}
-                    tickFormatter={(v) => formatTokens(v)}
-                  />
-                  <ChartTooltip
-                    cursor={false}
-                    content={
-                      <ChartTooltipContent
-                        indicator="dot"
-                        formatter={(value, name) => (
-                          <>
-                            <span className="text-muted-foreground">
-                              {inputOutputChartConfig[name as keyof typeof inputOutputChartConfig]
-                                ?.label || name}
-                              :
-                            </span>{" "}
-                            <span className="font-mono font-medium tabular-nums text-foreground">
-                              {(value as number).toLocaleString()}
-                            </span>
-                          </>
-                        )}
-                      />
-                    }
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="input"
-                    stroke="var(--color-input)"
-                    fill="url(#fillInput)"
-                    strokeWidth={2}
-                    stackId="a"
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="output"
-                    stroke="var(--color-output)"
-                    fill="url(#fillOutput)"
-                    strokeWidth={2}
-                    stackId="a"
-                  />
-                  <ChartLegend content={<ChartLegendContent />} />
-                </AreaChart>
-              </ChartContainer>
-            ) : (
-              <ChartContainer config={modelChartConfig} className="h-[200px] sm:h-[300px] w-full">
-                <AreaChart
-                  data={trendChartData}
-                  margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
-                >
-                  <defs>
-                    {Object.keys(modelChartConfig).map((model) => (
-                      <linearGradient
-                        key={model}
-                        id={`fill-${model}`}
-                        x1="0"
-                        y1="0"
-                        x2="0"
-                        y2="1"
-                      >
-                        <stop
-                          offset="5%"
-                          stopColor={`var(--color-${model})`}
-                          stopOpacity={0.4}
-                        />
-                        <stop
-                          offset="95%"
-                          stopColor={`var(--color-${model})`}
-                          stopOpacity={0.05}
-                        />
-                      </linearGradient>
-                    ))}
-                  </defs>
-                  <CartesianGrid vertical={false} />
-                  <XAxis
-                    dataKey="date"
-                    tickLine={false}
-                    axisLine={false}
-                    tickMargin={8}
-                  />
-                  <YAxis
-                    tickLine={false}
-                    axisLine={false}
-                    tickMargin={8}
-                    tickFormatter={(v) => formatTokens(v)}
-                  />
-                  <ChartTooltip
-                    cursor={false}
-                    content={
-                      <ChartTooltipContent
-                        indicator="dot"
-                        formatter={(value, name) => (
-                          <>
-                            <span className="text-muted-foreground">
-                              {modelChartConfig[name as keyof typeof modelChartConfig]?.label ||
-                                name}
-                              :
-                            </span>{" "}
-                            <span className="font-mono font-medium tabular-nums text-foreground">
-                              {(value as number).toLocaleString()}
-                            </span>
-                          </>
-                        )}
-                      />
-                    }
-                  />
-                  {Object.keys(modelChartConfig).map((model) => (
-                    <Area
-                      key={model}
-                      type="monotone"
-                      dataKey={model}
-                      stroke={`var(--color-${model})`}
-                      fill={`url(#fill-${model})`}
-                      strokeWidth={2}
-                      stackId="1"
-                    />
-                  ))}
-                  <ChartLegend content={<ChartLegendContent />} />
-                </AreaChart>
-              </ChartContainer>
-            )}
+            <StackedAreaTrendChart
+              data={trendChartData}
+              config={trendConfig}
+              dataKeys={trendKeys}
+              gradientPrefix={modelFilter !== "all" ? "fill" : "fill"}
+              yTickFormatter={(v) => formatCompactNumber(v)}
+              tooltipFormatter={tokenTooltipFormatter(trendConfig)}
+            />
           </CardContent>
         </Card>
 
-        {/* ── Radial Chart: Model Distribution ────────────────────────────── */}
-        <Card className="flex flex-col">
-          <CardHeader className="pb-0">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Zap className="h-5 w-5" />
-              By Model
-            </CardTitle>
-            <CardDescription>Token distribution across models</CardDescription>
-          </CardHeader>
-          <CardContent className="flex-1 pb-0">
-            <ChartContainer
-              config={pieChartConfig}
-              className="mx-auto aspect-square max-h-[180px] sm:max-h-[220px]"
-            >
-              <RadialBarChart
-                data={radialChartData}
-                innerRadius={30}
-                outerRadius={110}
-                startAngle={180}
-                endAngle={0}
-              >
-                <PolarRadiusAxis tick={false} tickLine={false} axisLine={false}>
-                </PolarRadiusAxis>
-                <RadialBar
-                  dataKey="value"
-                  background
-                  cornerRadius={10}
-                />
-              </RadialBarChart>
-            </ChartContainer>
-
-            {/* Legend with details */}
+        {/* Radial Chart: Model Distribution */}
+        <RadialDistributionChart
+          config={pieChartConfig}
+          data={radialChartData}
+          icon={Zap}
+          title="By Model"
+          description="Token distribution across models"
+          legend={
             <div className="space-y-3 px-2 pb-4">
               {Object.entries(data.byModel).map(([model, stats]) => {
-                const totalAll = Object.values(data.byModel).reduce(
-                  (s, m) => s + m.total,
-                  0
-                );
+                const totalAll = Object.values(data.byModel).reduce((s, m) => s + m.total, 0);
                 const pct = totalAll > 0 ? ((stats.total / totalAll) * 100).toFixed(1) : "0";
                 return (
                   <div key={model} className="flex items-center gap-3">
@@ -687,90 +376,36 @@ export function UsagePage() {
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">
-                          {MODEL_LABELS[model]}
-                        </span>
+                        <span className="text-sm font-medium">{MODEL_LABELS[model]}</span>
                         <span className="text-sm text-muted-foreground tabular-nums">{pct}%</span>
                       </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>{formatTokens(stats.input)} in</span>
+                        <span>{formatCompactNumber(stats.input)} in</span>
                         <span>·</span>
-                        <span>{formatTokens(stats.output)} out</span>
+                        <span>{formatCompactNumber(stats.output)} out</span>
                       </div>
                     </div>
                   </div>
                 );
               })}
             </div>
-          </CardContent>
-        </Card>
+          }
+        />
       </div>
 
-      {/* ── Bar Chart: Input vs Output by Model ────────────────────────────── */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <BarChart3 className="h-5 w-5" />
-            Input vs Output by Model
-          </CardTitle>
-          <CardDescription>
-            Compare input and output token usage across each model
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ChartContainer config={barChartConfig} className="h-[200px] sm:h-[250px] w-full">
-            <BarChart
-              data={modelBarData}
-              margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-            >
-              <CartesianGrid vertical={false} />
-              <XAxis
-                dataKey="name"
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-              />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-                tickFormatter={(v) => formatTokens(v)}
-              />
-              <ChartTooltip
-                cursor={false}
-                content={
-                  <ChartTooltipContent
-                    indicator="dot"
-                    formatter={(value, name) => (
-                      <>
-                        <span className="text-muted-foreground">
-                          {barChartConfig[name as keyof typeof barChartConfig]?.label || name}:
-                        </span>{" "}
-                        <span className="font-mono font-medium tabular-nums text-foreground">
-                          {(value as number).toLocaleString()}
-                        </span>
-                      </>
-                    )}
-                  />
-                }
-              />
-              <Bar
-                dataKey="input"
-                fill="var(--color-input)"
-                radius={[4, 4, 0, 0]}
-              />
-              <Bar
-                dataKey="output"
-                fill="var(--color-output)"
-                radius={[4, 4, 0, 0]}
-              />
-              <ChartLegend content={<ChartLegendContent />} />
-            </BarChart>
-          </ChartContainer>
-        </CardContent>
-      </Card>
+      {/* Bar Chart: Input vs Output by Model */}
+      <StackedBarChartCard
+        icon={BarChart3}
+        title="Input vs Output by Model"
+        description="Compare input and output token usage across each model"
+        config={barChartConfig}
+        data={modelBarData}
+        dataKeys={["input", "output"]}
+        yTickFormatter={(v) => formatCompactNumber(v)}
+        tooltipFormatter={tokenTooltipFormatter(barChartConfig)}
+      />
 
-      {/* ── Sessions Table ──────────────────────────────────────────────────── */}
+      {/* Sessions Table */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <div>
@@ -791,57 +426,17 @@ export function UsagePage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b">
-                  <th
-                    className="text-left py-3 px-2 font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
-                    onClick={() => toggleSort("timestamp")}
-                  >
-                    <span className="flex items-center gap-1">
-                      Date <SortIcon field="timestamp" />
-                    </span>
-                  </th>
-                  <th className="text-left py-3 px-2 font-medium text-muted-foreground hidden sm:table-cell">
-                    Activity
-                  </th>
-                  <th
-                    className="text-left py-3 px-2 font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
-                    onClick={() => toggleSort("model")}
-                  >
-                    <span className="flex items-center gap-1">
-                      Model <SortIcon field="model" />
-                    </span>
-                  </th>
-                  <th
-                    className="text-right py-3 px-2 font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors hidden md:table-cell"
-                    onClick={() => toggleSort("inputTokens")}
-                  >
-                    <span className="flex items-center gap-1 justify-end">
-                      Input <SortIcon field="inputTokens" />
-                    </span>
-                  </th>
-                  <th
-                    className="text-right py-3 px-2 font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors hidden md:table-cell"
-                    onClick={() => toggleSort("outputTokens")}
-                  >
-                    <span className="flex items-center gap-1 justify-end">
-                      Output <SortIcon field="outputTokens" />
-                    </span>
-                  </th>
-                  <th
-                    className="text-right py-3 px-2 font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
-                    onClick={() => toggleSort("total")}
-                  >
-                    <span className="flex items-center gap-1 justify-end">
-                      Total <SortIcon field="total" />
-                    </span>
-                  </th>
+                  <SortableColumnHeader field="timestamp" label="Date" activeField={sortField} direction={sortDirection} onToggle={toggleSort} />
+                  <th className="text-left py-3 px-2 font-medium text-muted-foreground hidden sm:table-cell">Activity</th>
+                  <SortableColumnHeader field="model" label="Model" activeField={sortField} direction={sortDirection} onToggle={toggleSort} />
+                  <SortableColumnHeader field="inputTokens" label="Input" activeField={sortField} direction={sortDirection} onToggle={toggleSort} align="right" className="hidden md:table-cell" />
+                  <SortableColumnHeader field="outputTokens" label="Output" activeField={sortField} direction={sortDirection} onToggle={toggleSort} align="right" className="hidden md:table-cell" />
+                  <SortableColumnHeader field="total" label="Total" activeField={sortField} direction={sortDirection} onToggle={toggleSort} align="right" />
                 </tr>
               </thead>
               <tbody>
                 {displayedSessions.map((session) => (
-                  <tr
-                    key={session.id}
-                    className="border-b border-border/50 hover:bg-muted/30 transition-colors"
-                  >
+                  <tr key={session.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
                     <td className="py-2.5 px-2 whitespace-nowrap text-muted-foreground">
                       {format(new Date(session.timestamp), "MMM d, HH:mm")}
                     </td>
@@ -866,37 +461,26 @@ export function UsagePage() {
                       </Badge>
                     </td>
                     <td className="py-2.5 px-2 text-right tabular-nums text-muted-foreground hidden md:table-cell">
-                      {formatTokens(session.inputTokens)}
+                      {formatCompactNumber(session.inputTokens)}
                     </td>
                     <td className="py-2.5 px-2 text-right tabular-nums text-muted-foreground hidden md:table-cell">
-                      {formatTokens(session.outputTokens)}
+                      {formatCompactNumber(session.outputTokens)}
                     </td>
                     <td className="py-2.5 px-2 text-right tabular-nums font-medium">
-                      {formatTokens(session.total)}
+                      {formatCompactNumber(session.total)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-
-          {/* Show more/less */}
-          {sortedSessions.length > 10 && (
-            <button
-              onClick={() => setTableExpanded(!tableExpanded)}
-              className="w-full mt-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center gap-1"
-            >
-              {tableExpanded ? (
-                <>
-                  Show Less <ChevronUp className="h-4 w-4" />
-                </>
-              ) : (
-                <>
-                  Show All {sortedSessions.length} Sessions{" "}
-                  <ChevronDown className="h-4 w-4" />
-                </>
-              )}
-            </button>
+          {canExpand && (
+            <ExpandButton
+              expanded={tableExpanded}
+              totalCount={sessionCount}
+              label="Sessions"
+              onToggle={() => setTableExpanded(!tableExpanded)}
+            />
           )}
         </CardContent>
       </Card>
