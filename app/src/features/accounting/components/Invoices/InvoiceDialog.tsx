@@ -63,6 +63,7 @@ export function InvoiceDialog({
           dueDate: data.dueDate.toISOString(),
           status: 'draft',
           amount: data.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0),
+          currency: 'EUR',
           taxRate: data.vatRate,
           taxAmount: 0,
           totalAmount: 0,

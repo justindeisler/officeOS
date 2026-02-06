@@ -42,6 +42,10 @@ interface AssetRow {
   location: string | null
   bill_path: string | null
   created_at: string
+  /** REST API may return snake_case field name for depreciation method */
+  depreciation_method?: string
+  /** REST API may return snake_case field name for useful life years */
+  useful_life_years?: number
 }
 
 /**

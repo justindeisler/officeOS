@@ -32,7 +32,7 @@ function mapToAccountingInvoice(inv: GlobalInvoice): Invoice {
     paymentMethod: undefined,
     notes: inv.notes,
     items: (inv.lineItems || []).map(item => ({
-      id: item.id,
+      id: item.id ?? crypto.randomUUID(),
       invoiceId: inv.id,
       description: item.description,
       quantity: item.quantity,
@@ -293,8 +293,14 @@ export function useInvoices(options: UseInvoicesOptions = {}): UseInvoicesReturn
       setError(null)
 
       try {
-        const result = await invoiceService.markAsPaid(id, paymentDate, paymentMethod)
-        const updated = mapToAccountingInvoice(result)
+        await invoiceService.markAsPaid(id, paymentDate, paymentMethod)
+        // Re-fetch the invoice to get the updated data
+        const allInvoices = await invoiceService.getAll()
+        const updatedGlobal = allInvoices.find(inv => inv.id === id)
+        if (!updatedGlobal) {
+          throw new Error('Invoice not found after marking as paid')
+        }
+        const updated = mapToAccountingInvoice(updatedGlobal)
         setInvoices((prev) =>
           prev.map((invoice) => (invoice.id === id ? updated : invoice))
         )

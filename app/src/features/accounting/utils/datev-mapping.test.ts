@@ -527,7 +527,7 @@ describe('validateDatevRecord', () => {
 
   it('should catch invalid debit/credit indicator', () => {
     const record = mapIncomeToDatev(createMockIncome(), 'SKR03')
-    ;(record as any).debitCredit = 'X'
+    ;(record as unknown as Record<string, unknown>).debitCredit = 'X'
     const errors = validateDatevRecord(record)
 
     expect(errors).toContain('Debit/Credit indicator must be S or H')

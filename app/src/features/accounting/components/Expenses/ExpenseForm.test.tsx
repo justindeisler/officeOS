@@ -506,7 +506,7 @@ describe('ExpenseForm', () => {
 
   describe('loading state', () => {
     it('disables form during submission', async () => {
-      let resolveSubmit: () => void
+      let resolveSubmit: (value?: unknown) => void
       mockOnSubmit.mockImplementation(
         () => new Promise((resolve) => { resolveSubmit = resolve })
       )

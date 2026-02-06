@@ -241,7 +241,7 @@ describe('InvoicePreview', () => {
 
     it('renders payment method when present', () => {
       const invoice = createMockPaidInvoice({
-        paymentMethod: 'Bank Transfer',
+        paymentMethod: 'bank_transfer',
       })
       render(<InvoicePreview invoice={invoice} />)
 

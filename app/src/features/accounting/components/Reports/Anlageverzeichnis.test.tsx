@@ -128,8 +128,8 @@ describe('Anlageverzeichnis', () => {
       const asset = createMockAsset({
         purchasePrice: 2500,
         depreciationSchedule: [
-          { year: 2023, amount: 416.67, accumulatedDepreciation: 416.67, bookValue: 2083.33 },
-          { year: 2024, amount: 833.33, accumulatedDepreciation: 1250, bookValue: 1250 },
+          { id: 'dep-1', assetId: '', year: 2023, months: 12, amount: 416.67, cumulative: 416.67, bookValue: 2083.33 },
+          { id: 'dep-2', assetId: '', year: 2024, months: 12, amount: 833.33, cumulative: 1250, bookValue: 1250 },
         ],
       })
       render(<Anlageverzeichnis year={2024} assets={[asset]} />)
@@ -191,13 +191,13 @@ describe('Anlageverzeichnis', () => {
         createMockAsset({
           purchasePrice: 1000,
           depreciationSchedule: [
-            { year: 2024, amount: 333.33, accumulatedDepreciation: 333.33, bookValue: 666.67 },
+            { id: 'dep-1', assetId: '', year: 2024, months: 12, amount: 333.33, cumulative: 333.33, bookValue: 666.67 },
           ],
         }),
         createMockAsset({
           purchasePrice: 2000,
           depreciationSchedule: [
-            { year: 2024, amount: 666.67, accumulatedDepreciation: 666.67, bookValue: 1333.33 },
+            { id: 'dep-2', assetId: '', year: 2024, months: 12, amount: 666.67, cumulative: 666.67, bookValue: 1333.33 },
           ],
         }),
       ]

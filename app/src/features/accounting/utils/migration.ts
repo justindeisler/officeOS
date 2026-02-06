@@ -98,8 +98,8 @@ async function migrateSingleInvoice(
     const vatAmount = calculateVatAmount(subtotal, vatRate)
     const total = Math.round((subtotal + vatAmount) * 100) / 100
 
-    // Convert status
-    const status = legacyInvoice.status === 'pending' ? 'sent' : legacyInvoice.status
+    // Convert status — legacy data may contain 'pending' which is no longer a valid InvoiceStatus
+    const status = (legacyInvoice.status as string) === 'pending' ? 'sent' : legacyInvoice.status
 
     // Insert invoice
     await db.execute(

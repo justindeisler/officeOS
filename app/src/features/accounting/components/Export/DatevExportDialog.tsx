@@ -29,6 +29,7 @@ async function getTauriModules() {
 }
 import { DatevSettings } from './DatevSettings'
 import type { DatevExportPreview, DatevExportResult } from '../../types/datev'
+import type { Income, Expense } from '../../types'
 import { generateDatevCsv } from '../../utils/datev-csv'
 import { generateDatevXml, generateDatevXmlContent } from '../../utils/datev-xml'
 import { encodeToLatin1 } from '../../utils/datev-csv'
@@ -134,9 +135,9 @@ export const DatevExportDialog: FC<DatevExportDialogProps> = ({
 
     try {
       const { save, writeFile } = await getTauriModules()
-      // Cast to expected types (simplified for demo)
-      const incomeData = incomes as any[]
-      const expenseData = expenses as any[]
+      // Cast to full types — props use a subset of Income/Expense fields
+      const incomeData = incomes as unknown as Income[]
+      const expenseData = expenses as unknown as Expense[]
 
       let exportResult: DatevExportResult
       let content: string

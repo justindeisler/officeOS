@@ -62,9 +62,9 @@ const expenseFormSchema = z.object({
   description: z.string().min(1, 'Description is required'),
   netAmount: z.number().positive('Amount must be positive'),
   vatRate: z.enum(['0', '7', '19']),
-  euerCategory: z.string().default('software'),
-  deductiblePercent: z.number().min(0).max(100, 'Must be between 0 and 100').default(100),
-  isRecurring: z.boolean().default(false),
+  euerCategory: z.string().min(1),
+  deductiblePercent: z.number().min(0).max(100, 'Must be between 0 and 100'),
+  isRecurring: z.boolean(),
   recurringFrequency: z.enum(['monthly', 'quarterly', 'yearly']).optional(),
   receiptPath: z.string().optional(),
 })

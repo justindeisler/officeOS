@@ -3,12 +3,15 @@
  * In web builds, we don't use direct database access - everything goes through the API
  */
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Database = any;
+/** Minimal database interface for web-mode compatibility */
+interface WebDatabase {
+  select: <T = unknown>(...args: unknown[]) => Promise<T[]>;
+  execute: (...args: unknown[]) => Promise<void>;
+}
 
 let initialized = false;
 
-export async function getDb(): Promise<Database> {
+export async function getDb(): Promise<WebDatabase> {
   // In web mode, we don't have a real database connection
   // This function exists to maintain API compatibility with the app initialization
   if (!initialized) {
@@ -16,11 +19,11 @@ export async function getDb(): Promise<Database> {
     initialized = true;
   }
   
-  // Return a dummy object that will never be used (all data goes through services/web/)
+  // Return a stub object — all data goes through services/web/
   return {
     select: async () => [],
     execute: async () => {},
-  } as Database;
+  };
 }
 
 export function generateId(): string {
