@@ -25,6 +25,18 @@ interface TaskState {
     newStatus: TaskStatus,
     newIndex: number
   ) => Promise<void>;
+  /** Local-only move for drag-over preview (no API call) */
+  moveTaskLocal: (
+    taskId: string,
+    newStatus: TaskStatus,
+    newIndex: number
+  ) => void;
+  /** Persist the current task order for a column to the API */
+  persistColumnOrder: (
+    taskId: string,
+    status: TaskStatus,
+    previousTasks: Task[]
+  ) => Promise<void>;
   reorderTasks: (
     status: TaskStatus,
     startIndex: number,
@@ -118,6 +130,79 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       set({ tasks: previousTasks });
       console.error("Failed to delete task:", error);
       toast.error("Failed to delete task");
+    }
+  },
+
+  moveTaskLocal: (taskId, newStatus, newIndex) => {
+    const now = new Date().toISOString();
+
+    set((state) => {
+      const tasks = [...state.tasks];
+      const taskIndex = tasks.findIndex((t) => t.id === taskId);
+      if (taskIndex === -1) return state;
+
+      const task = { ...tasks[taskIndex] };
+      const oldStatus = task.status;
+
+      task.status = newStatus;
+      task.updatedAt = now;
+
+      if (newStatus === "done" && oldStatus !== "done") {
+        task.completedAt = now;
+      } else if (newStatus !== "done") {
+        task.completedAt = undefined;
+      }
+
+      const columnTasks = tasks
+        .filter((t) => t.status === newStatus && t.id !== taskId)
+        .sort((a, b) => a.sortOrder - b.sortOrder);
+
+      columnTasks.splice(newIndex, 0, task);
+
+      columnTasks.forEach((t, index) => {
+        const taskInAll = tasks.find((x) => x.id === t.id);
+        if (taskInAll) {
+          taskInAll.sortOrder = index;
+          if (taskInAll.id === taskId) {
+            taskInAll.status = newStatus;
+            taskInAll.updatedAt = now;
+            if (newStatus === "done" && oldStatus !== "done") {
+              taskInAll.completedAt = now;
+            } else if (newStatus !== "done") {
+              taskInAll.completedAt = undefined;
+            }
+          }
+        }
+      });
+
+      return { tasks };
+    });
+  },
+
+  persistColumnOrder: async (taskId, status, previousTasks) => {
+    try {
+      // Get the task to check if it changed columns (needs moveTask) or just reordered
+      const task = get().tasks.find((t) => t.id === taskId);
+      if (!task) return;
+
+      // Get the ordered task IDs for the column
+      const columnTasks = get()
+        .tasks.filter((t) => t.status === status)
+        .sort((a, b) => a.sortOrder - b.sortOrder);
+      const targetIndex = columnTasks.findIndex((t) => t.id === taskId);
+
+      // Use moveTask endpoint (handles both status change + position)
+      await taskService.moveTask(taskId, status, targetIndex >= 0 ? targetIndex : 0);
+
+      // Also persist order for same-column reorders via the reorder endpoint
+      const taskIds = columnTasks.map((t) => t.id);
+      if (taskIds.length > 1) {
+        await taskService.reorderTasks(taskIds, status);
+      }
+    } catch (error) {
+      set({ tasks: previousTasks });
+      console.error("Failed to persist task order:", error);
+      toast.error("Failed to save task order");
     }
   },
 

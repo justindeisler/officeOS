@@ -98,14 +98,12 @@ class TaskService {
     await api.deleteTask(id);
   }
 
-  async moveTask(taskId: string, newStatus: TaskStatus, _newIndex: number): Promise<void> {
-    // Web API simplified - just moves status, doesn't handle complex reordering yet
-    await api.moveTask(taskId, newStatus);
+  async moveTask(taskId: string, newStatus: TaskStatus, newIndex: number): Promise<void> {
+    await api.moveTask(taskId, newStatus, newIndex);
   }
 
-  async reorderTasks(_taskIds: string[], _status: TaskStatus): Promise<void> {
-    // TODO: Implement reorder endpoint in API
-    console.warn("Task reordering not yet implemented in web API");
+  async reorderTasks(taskIds: string[], status: TaskStatus): Promise<void> {
+    await api.reorderTasks(taskIds, status);
   }
 
   async getOverdueTasks(): Promise<Task[]> {

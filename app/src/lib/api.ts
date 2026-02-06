@@ -40,10 +40,17 @@ class ApiClient {
     });
   }
 
-  async moveTask(id: string, status: string) {
+  async moveTask(id: string, status: string, targetIndex?: number) {
     return this.request<unknown>(`/tasks/${id}/move`, {
       method: 'POST',
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, targetIndex }),
+    });
+  }
+
+  async reorderTasks(taskIds: string[], status: string) {
+    return this.request<unknown[]>('/tasks/reorder', {
+      method: 'POST',
+      body: JSON.stringify({ taskIds, status }),
     });
   }
 
