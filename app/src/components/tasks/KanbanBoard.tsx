@@ -17,6 +17,7 @@ import { TaskCard } from "./TaskCard";
 import { TaskDialog } from "./TaskDialog";
 import { useTaskStore, useFilteredTasks } from "@/stores/taskStore";
 import { useConfettiStore } from "@/stores/confettiStore";
+import { taskService } from "@/services";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import type { Task, TaskStatus, SubtaskCounts } from "@/types";
@@ -40,9 +41,12 @@ export function KanbanBoard() {
   // Subtask counts for all tasks
   const [subtaskCounts, setSubtaskCounts] = useState<Record<string, SubtaskCounts>>({});
 
-  const { moveTask } = useTaskStore();
+  const { moveTaskLocal, persistColumnOrder } = useTaskStore();
   const filteredTasks = useFilteredTasks();
   const triggerConfetti = useConfettiStore((state) => state.trigger);
+
+  // Capture pre-drag task state for rollback on API failure
+  const preDragTasksRef = useRef<Task[]>([]);
 
   // Fetch subtask counts for all visible tasks
   useEffect(() => {
@@ -98,7 +102,8 @@ export function KanbanBoard() {
       setActiveTask(task);
       // Capture original status for confetti check on drop
       originalStatusRef.current = task.status;
-      console.log("🚀 handleDragStart: Captured originalStatus =", task.status);
+      // Capture pre-drag state for API rollback
+      preDragTasksRef.current = useTaskStore.getState().tasks;
     }
   };
 
@@ -121,7 +126,7 @@ export function KanbanBoard() {
       const newStatus = overId as TaskStatus;
       if (activeTask.status !== newStatus) {
         const columnTasks = tasksByStatus[newStatus];
-        moveTask(activeId, newStatus, columnTasks.length);
+        moveTaskLocal(activeId, newStatus, columnTasks.length);
       }
     } else {
       // Dropping on another task
@@ -129,7 +134,7 @@ export function KanbanBoard() {
       if (overTask && activeTask.status !== overTask.status) {
         const columnTasks = tasksByStatus[overTask.status];
         const overIndex = columnTasks.findIndex((t) => t.id === overId);
-        moveTask(activeId, overTask.status, overIndex);
+        moveTaskLocal(activeId, overTask.status, overIndex);
       }
     }
   };
@@ -138,45 +143,56 @@ export function KanbanBoard() {
     const { active, over } = event;
     const originalStatus = originalStatusRef.current;
     const activeId = active.id as string;
+    const preDragTasks = preDragTasksRef.current;
 
-    // Reset state first
+    // Reset drag state
     setActiveTask(null);
     originalStatusRef.current = null;
+    preDragTasksRef.current = [];
 
     // Check for confetti BEFORE any early returns
     // Get fresh state from store (handleDragOver already moved the task)
     const freshTasks = useTaskStore.getState().tasks;
     const currentTask = freshTasks.find((t) => t.id === activeId);
 
-    console.log("🎯 Confetti check:", {
-      originalStatus,
-      currentTaskStatus: currentTask?.status,
-      shouldTrigger: currentTask?.status === "done" && originalStatus !== "done",
-    });
-
     if (currentTask?.status === "done" && originalStatus !== "done") {
-      console.log("🎉 TRIGGERING CONFETTI!");
       triggerConfetti();
     }
 
-    // Now handle reordering logic
-    if (!over) return;
+    // Handle same-column reordering
+    if (over) {
+      const overId = over.id as string;
+      if (activeId !== overId) {
+        const overTask = freshTasks.find((t) => t.id === overId);
+        if (overTask && currentTask && currentTask.status === overTask.status) {
+          const columnTasks = freshTasks
+            .filter((t) => t.status === currentTask.status)
+            .sort((a, b) => a.sortOrder - b.sortOrder);
+          const activeIndex = columnTasks.findIndex((t) => t.id === activeId);
+          const overIndex = columnTasks.findIndex((t) => t.id === overId);
 
-    const overId = over.id as string;
-    if (activeId === overId) return;
+          if (activeIndex !== overIndex) {
+            moveTaskLocal(activeId, currentTask.status, overIndex);
+          }
+        }
+      }
+    }
 
-    const activeTask = filteredTasks.find((t) => t.id === activeId);
-    if (!activeTask) return;
+    // Persist the final state to the API
+    if (currentTask) {
+      persistColumnOrder(activeId, currentTask.status, preDragTasks);
 
-    // Check if overId is a task in the same column (reordering)
-    const overTask = filteredTasks.find((t) => t.id === overId);
-    if (overTask && activeTask.status === overTask.status) {
-      const columnTasks = tasksByStatus[activeTask.status];
-      const activeIndex = columnTasks.findIndex((t) => t.id === activeId);
-      const overIndex = columnTasks.findIndex((t) => t.id === overId);
-
-      if (activeIndex !== overIndex) {
-        moveTask(activeId, activeTask.status, overIndex);
+      // If the task moved to a different column, also persist the source column order
+      if (originalStatus && originalStatus !== currentTask.status) {
+        const sourceColumnTasks = useTaskStore.getState()
+          .tasks.filter((t) => t.status === originalStatus)
+          .sort((a, b) => a.sortOrder - b.sortOrder);
+        const sourceTaskIds = sourceColumnTasks.map((t) => t.id);
+        if (sourceTaskIds.length > 0) {
+          taskService.reorderTasks(sourceTaskIds, originalStatus).catch((err) => {
+            console.error("Failed to persist source column order:", err);
+          });
+        }
       }
     }
   };

@@ -155,11 +155,60 @@ router.patch("/:id", (req, res) => {
   res.json(task);
 });
 
-// Move task (change status)
+// Reorder tasks within a column (bulk update sort_order)
+router.post("/reorder", (req, res) => {
+  const db = getDb();
+  const { taskIds, status } = req.body;
+
+  // Validate input — accept either ordered list of IDs or single-task move
+  if (!Array.isArray(taskIds) || taskIds.length === 0) {
+    return res.status(400).json({ error: "taskIds array is required" });
+  }
+
+  const validStatuses = ["backlog", "queue", "in_progress", "done"];
+  if (status && !validStatuses.includes(status)) {
+    return res.status(400).json({ error: "Invalid status" });
+  }
+
+  // Verify all tasks exist
+  const placeholders = taskIds.map(() => "?").join(",");
+  const existingTasks = db
+    .prepare(`SELECT id FROM tasks WHERE id IN (${placeholders})`)
+    .all(...taskIds) as Array<{ id: string }>;
+
+  const existingIds = new Set(existingTasks.map((t) => t.id));
+  const missingIds = taskIds.filter((id: string) => !existingIds.has(id));
+  if (missingIds.length > 0) {
+    return res.status(404).json({ error: `Tasks not found: ${missingIds.join(", ")}` });
+  }
+
+  // Update sort_order for each task in a transaction
+  const now = getCurrentTimestamp();
+  const updateStmt = db.prepare(
+    "UPDATE tasks SET sort_order = ?, updated_at = ? WHERE id = ?"
+  );
+
+  const transaction = db.transaction(() => {
+    taskIds.forEach((taskId: string, index: number) => {
+      updateStmt.run(index, now, taskId);
+    });
+  });
+
+  transaction();
+
+  // Return updated tasks in the new order
+  const updatedTasks = db
+    .prepare(`SELECT * FROM tasks WHERE id IN (${placeholders}) ORDER BY sort_order ASC`)
+    .all(...taskIds);
+
+  res.json(updatedTasks);
+});
+
+// Move task to a new column and position
 router.post("/:id/move", (req, res) => {
   const db = getDb();
   const { id } = req.params;
-  const { status } = req.body;
+  const { status, targetIndex } = req.body;
 
   const validStatuses = ["backlog", "queue", "in_progress", "done"];
   if (!validStatuses.includes(status)) {
@@ -175,7 +224,34 @@ router.post("/:id/move", (req, res) => {
   const completedAt = status === "done" ? now : null;
   const existingTask = existing as Record<string, unknown>;
 
+  // Update the task's status
   db.prepare("UPDATE tasks SET status = ?, completed_at = ?, updated_at = ? WHERE id = ?").run(status, completedAt, now, id);
+
+  // If targetIndex is provided, reorder the target column
+  if (targetIndex !== undefined && targetIndex !== null) {
+    // Get all tasks in the target column (excluding the moved task, then re-insert at position)
+    const columnTasks = db
+      .prepare(
+        "SELECT id FROM tasks WHERE status = ? AND id != ? ORDER BY sort_order ASC"
+      )
+      .all(status, id) as Array<{ id: string }>;
+
+    // Insert the moved task at the target index
+    const orderedIds = columnTasks.map((t) => t.id);
+    const clampedIndex = Math.max(0, Math.min(targetIndex, orderedIds.length));
+    orderedIds.splice(clampedIndex, 0, id);
+
+    // Update sort_order for entire column
+    const updateStmt = db.prepare(
+      "UPDATE tasks SET sort_order = ?, updated_at = ? WHERE id = ?"
+    );
+    const reorderTransaction = db.transaction(() => {
+      orderedIds.forEach((taskId, index) => {
+        updateStmt.run(index, now, taskId);
+      });
+    });
+    reorderTransaction();
+  }
 
   // Auto-update PRD status to "implemented" when linked task is moved to done
   if (status === "done" && existingTask.status !== "done" && existingTask.prd_id) {
