@@ -39,6 +39,7 @@ describe('AssetList', () => {
     selectedAsset: null,
     setSelectedAsset: vi.fn(),
     refresh: vi.fn(),
+    clearError: vi.fn(),
   }
 
   beforeEach(() => {

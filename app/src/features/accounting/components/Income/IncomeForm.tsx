@@ -29,7 +29,7 @@ const incomeFormSchema = z.object({
   description: z.string().min(1, 'Description is required'),
   netAmount: z.number().positive('Amount must be positive'),
   vatRate: z.enum(['0', '7', '19']),
-  euerCategory: z.string().default('services'),
+  euerCategory: z.string().min(1),
   paymentMethod: z.string().optional(),
   bankReference: z.string().optional(),
 })

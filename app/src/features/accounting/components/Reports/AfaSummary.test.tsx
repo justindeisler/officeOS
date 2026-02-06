@@ -190,9 +190,9 @@ describe('AfaSummary', () => {
       const assets = [
         createMockAsset({
           depreciationSchedule: [
-            { year: 2023, amount: 500, accumulatedDepreciation: 500, bookValue: 2000 },
-            { year: 2024, amount: 500, accumulatedDepreciation: 1000, bookValue: 1500 },
-            { year: 2025, amount: 500, accumulatedDepreciation: 1500, bookValue: 1000 },
+            { id: 'dep-1', assetId: '', year: 2023, months: 12, amount: 500, cumulative: 500, bookValue: 2000 },
+            { id: 'dep-2', assetId: '', year: 2024, months: 12, amount: 500, cumulative: 1000, bookValue: 1500 },
+            { id: 'dep-3', assetId: '', year: 2025, months: 12, amount: 500, cumulative: 1500, bookValue: 1000 },
           ],
         }),
       ]
