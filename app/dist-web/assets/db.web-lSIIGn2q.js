@@ -1,0 +1,1 @@
+let n=!1;async function t(){return n||(console.log("[DB-Web] Web mode - using REST API for data access"),n=!0),{select:async()=>[],execute:async()=>{}}}function r(){return crypto.randomUUID()}function a(e){return e.toISOString()}function c(e){return new Date(e)}async function o(){return 2}export{a as formatDate,r as generateId,t as getDb,o as getSchemaVersion,c as parseDate};
