@@ -1,0 +1,13 @@
+[Unit]
+Description=Personal Assistant Daily Backup
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/jd-server-admin/projects/personal-assistant/api
+ExecStart=/home/jd-server-admin/projects/personal-assistant/api/node_modules/.bin/tsx src/scripts/daily-backup.ts
+Environment=NODE_ENV=production
+Environment=PATH=/home/jd-server-admin/.nvm/versions/node/v22.19.0/bin:/usr/local/bin:/usr/bin:/bin
+
+[Install]
+WantedBy=default.target

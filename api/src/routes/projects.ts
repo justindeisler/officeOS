@@ -4,11 +4,13 @@
 
 import { Router } from "express";
 import { getDb, generateId, getCurrentTimestamp } from "../database.js";
+import { asyncHandler } from "../middleware/asyncHandler.js";
+import { NotFoundError, ValidationError } from "../errors.js";
 
 const router = Router();
 
 // List projects
-router.get("/", (req, res) => {
+router.get("/", asyncHandler(async (req, res) => {
   const db = getDb();
   const { area, status, client_id } = req.query;
 
@@ -32,20 +34,20 @@ router.get("/", (req, res) => {
 
   const projects = db.prepare(sql).all(...params);
   res.json(projects);
-});
+}));
 
 // Get single project
-router.get("/:id", (req, res) => {
+router.get("/:id", asyncHandler(async (req, res) => {
   const db = getDb();
   const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(req.params.id);
   if (!project) {
-    return res.status(404).json({ error: "Project not found" });
+    throw new NotFoundError("Project", req.params.id);
   }
   res.json(project);
-});
+}));
 
 // Create project
-router.post("/", (req, res) => {
+router.post("/", asyncHandler(async (req, res) => {
   const db = getDb();
   const {
     name,
@@ -59,7 +61,7 @@ router.post("/", (req, res) => {
   } = req.body;
 
   if (!name) {
-    return res.status(400).json({ error: "Name is required" });
+    throw new ValidationError("Name is required");
   }
 
   const id = generateId();
@@ -72,16 +74,16 @@ router.post("/", (req, res) => {
 
   const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(id);
   res.status(201).json(project);
-});
+}));
 
 // Update project
-router.patch("/:id", (req, res) => {
+router.patch("/:id", asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
 
   const existing = db.prepare("SELECT * FROM projects WHERE id = ?").get(id);
   if (!existing) {
-    return res.status(404).json({ error: "Project not found" });
+    throw new NotFoundError("Project", id);
   }
 
   const fields = ["name", "area", "client_id", "description", "status", "budget_amount", "budget_currency", "start_date", "target_end_date", "actual_end_date", "codebase_path", "github_repo"];
@@ -105,26 +107,26 @@ router.patch("/:id", (req, res) => {
 
   const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(id);
   res.json(project);
-});
+}));
 
 // Delete project
-router.delete("/:id", (req, res) => {
+router.delete("/:id", asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
 
   const existing = db.prepare("SELECT * FROM projects WHERE id = ?").get(id) as Record<string, unknown> | undefined;
   if (!existing) {
-    return res.status(404).json({ error: "Project not found" });
+    throw new NotFoundError("Project", id);
   }
 
   // Check for associated tasks
   const taskCount = db.prepare("SELECT COUNT(*) as count FROM tasks WHERE project_id = ?").get(id) as { count: number };
   if (taskCount.count > 0) {
-    return res.status(400).json({ error: `Cannot delete project with ${taskCount.count} associated tasks` });
+    throw new ValidationError(`Cannot delete project with ${taskCount.count} associated tasks`);
   }
 
   db.prepare("DELETE FROM projects WHERE id = ?").run(id);
   res.json({ success: true, message: `Project "${existing.name}" deleted` });
-});
+}));
 
 export default router;

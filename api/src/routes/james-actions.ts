@@ -4,11 +4,13 @@
 
 import { Router } from "express";
 import { getDb, generateId, getCurrentTimestamp } from "../database.js";
+import { asyncHandler } from "../middleware/asyncHandler.js";
+import { ValidationError } from "../errors.js";
 
 const router = Router();
 
 // List actions
-router.get("/", (req, res) => {
+router.get("/", asyncHandler(async (req, res) => {
   const db = getDb();
   const { project_id, action_type, limit = 100 } = req.query;
 
@@ -29,10 +31,10 @@ router.get("/", (req, res) => {
 
   const actions = db.prepare(sql).all(...params);
   res.json(actions);
-});
+}));
 
 // Log a new action
-router.post("/", (req, res) => {
+router.post("/", asyncHandler(async (req, res) => {
   const db = getDb();
   const {
     action_type,
@@ -45,7 +47,7 @@ router.post("/", (req, res) => {
   } = req.body;
 
   if (!action_type || !description) {
-    return res.status(400).json({ error: "action_type and description are required" });
+    throw new ValidationError("action_type and description are required");
   }
 
   const id = generateId();
@@ -55,23 +57,17 @@ router.post("/", (req, res) => {
     INSERT INTO james_actions (id, action_type, description, project_id, task_id, suggestion_id, prd_id, metadata, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    id,
-    action_type,
-    description,
-    project_id || null,
-    task_id || null,
-    suggestion_id || null,
-    prd_id || null,
-    metadata ? JSON.stringify(metadata) : null,
-    now
+    id, action_type, description,
+    project_id || null, task_id || null, suggestion_id || null, prd_id || null,
+    metadata ? JSON.stringify(metadata) : null, now
   );
 
   const action = db.prepare("SELECT * FROM james_actions WHERE id = ?").get(id);
   res.status(201).json(action);
-});
+}));
 
 // Get action stats
-router.get("/stats", (_req, res) => {
+router.get("/stats", asyncHandler(async (_req, res) => {
   const db = getDb();
   
   const total = db.prepare("SELECT COUNT(*) as count FROM james_actions").get() as { count: number };
@@ -87,11 +83,7 @@ router.get("/stats", (_req, res) => {
     LIMIT 5
   `).all();
 
-  res.json({
-    total: total.count,
-    byType,
-    recent,
-  });
-});
+  res.json({ total: total.count, byType, recent });
+}));
 
 export default router;

@@ -14,6 +14,8 @@ import { fileURLToPath } from "url";
 import { existsSync } from "fs";
 import { closeDb } from "./database.js";
 import { logger } from "./logger.js";
+import { requestLogger } from "./middleware/requestLogger.js";
+import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import tasksRouter from "./routes/tasks.js";
 import projectsRouter from "./routes/projects.js";
 import clientsRouter from "./routes/clients.js";
@@ -39,6 +41,7 @@ import clientAuthRouter from "./routes/clientAuth.js";
 import clientDashboardRouter from "./routes/clientDashboard.js";
 import usageRouter from "./routes/usage.js";
 import apiUsageRouter from "./routes/api-usage.js";
+import backupsRouter from "./routes/backups.js";
 
 // Environment validation — fail fast if critical vars are missing
 function validateEnvironment() {
@@ -46,8 +49,7 @@ function validateEnvironment() {
   const missing = required.filter(key => !process.env[key]);
 
   if (missing.length > 0) {
-    console.error('❌ Missing required environment variables:', missing.join(', '));
-    console.error('Server cannot start without these. Check your .env file.');
+    logger.fatal({ missing }, 'Missing required environment variables. Check your .env file.');
     process.exit(1);
   }
 
@@ -61,11 +63,10 @@ function validateEnvironment() {
     'example',
   ];
   if (jwtSecret.length < 32 || suspiciousDefaults.some(d => jwtSecret.toLowerCase().includes(d))) {
-    console.warn('⚠️  JWT_SECRET appears weak or default-like. Use a strong random value (32+ chars).');
-    console.warn('   Generate one with: openssl rand -base64 32');
+    logger.warn('JWT_SECRET appears weak or default-like. Use a strong random value (32+ chars). Generate one with: openssl rand -base64 32');
   }
 
-  console.log('✅ Environment validation passed');
+  logger.info('Environment validation passed');
 }
 
 validateEnvironment();
@@ -102,6 +103,9 @@ app.use("/api/", limiter);
 // CORS and body parsing
 app.use(cors());
 app.use(express.json());
+
+// Request logging
+app.use(requestLogger);
 
 // Health check (public)
 app.get("/health", (_req, res) => {
@@ -144,6 +148,13 @@ app.use("/api/james-automations", authMiddleware, jamesAutomationsRouter);
 app.use("/api/james-tasks", authMiddleware, jamesTasksRouter);
 app.use("/api/reports", authMiddleware, reportsRouter);
 app.use("/api", authMiddleware, subtasksRouter);
+app.use("/api/backups", authMiddleware, backupsRouter);
+
+// 404 handler for unmatched API routes (must come after all API routes, before static files)
+app.all("/api/*", notFoundHandler);
+
+// Global error handler for API routes
+app.use(errorHandler);
 
 // Serve static files from the web build
 if (existsSync(STATIC_PATH)) {
@@ -173,12 +184,6 @@ if (existsSync(STATIC_PATH)) {
 } else {
   logger.warn({ path: STATIC_PATH }, "Static path not found");
 }
-
-// Error handler
-app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  logger.error({ err }, "API error");
-  res.status(500).json({ error: err.message });
-});
 
 // Graceful shutdown
 process.on("SIGINT", () => {

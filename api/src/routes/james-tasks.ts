@@ -4,11 +4,13 @@
 
 import { Router } from "express";
 import { getDb, generateId, getCurrentTimestamp } from "../database.js";
+import { asyncHandler } from "../middleware/asyncHandler.js";
+import { NotFoundError, ValidationError } from "../errors.js";
 
 const router = Router();
 
 // List james tasks with optional status filter
-router.get("/", (req, res) => {
+router.get("/", asyncHandler(async (req, res) => {
   const db = getDb();
   const { status, source, limit = 100 } = req.query;
 
@@ -29,20 +31,20 @@ router.get("/", (req, res) => {
 
   const tasks = db.prepare(sql).all(...params);
   res.json(tasks);
-});
+}));
 
 // Get single task
-router.get("/:id", (req, res) => {
+router.get("/:id", asyncHandler(async (req, res) => {
   const db = getDb();
   const task = db.prepare("SELECT * FROM james_tasks WHERE id = ?").get(req.params.id);
   if (!task) {
-    return res.status(404).json({ error: "Task not found" });
+    throw new NotFoundError("Task", req.params.id);
   }
   res.json(task);
-});
+}));
 
 // Create task
-router.post("/", (req, res) => {
+router.post("/", asyncHandler(async (req, res) => {
   const db = getDb();
   const {
     title,
@@ -54,7 +56,7 @@ router.post("/", (req, res) => {
   } = req.body;
 
   if (!title) {
-    return res.status(400).json({ error: "Title is required" });
+    throw new ValidationError("Title is required");
   }
 
   const id = generateId();
@@ -67,10 +69,10 @@ router.post("/", (req, res) => {
 
   const task = db.prepare("SELECT * FROM james_tasks WHERE id = ?").get(id);
   res.status(201).json(task);
-});
+}));
 
 // Update task
-router.patch("/:id", (req, res) => {
+router.patch("/:id", asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
   const updates = req.body;
@@ -78,7 +80,7 @@ router.patch("/:id", (req, res) => {
 
   const existing = db.prepare("SELECT * FROM james_tasks WHERE id = ?").get(id);
   if (!existing) {
-    return res.status(404).json({ error: "Task not found" });
+    throw new NotFoundError("Task", id);
   }
 
   // Build update query dynamically
@@ -115,24 +117,24 @@ router.patch("/:id", (req, res) => {
 
   const task = db.prepare("SELECT * FROM james_tasks WHERE id = ?").get(id);
   res.json(task);
-});
+}));
 
 // Delete task
-router.delete("/:id", (req, res) => {
+router.delete("/:id", asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
 
   const existing = db.prepare("SELECT * FROM james_tasks WHERE id = ?").get(id);
   if (!existing) {
-    return res.status(404).json({ error: "Task not found" });
+    throw new NotFoundError("Task", id);
   }
 
   db.prepare("DELETE FROM james_tasks WHERE id = ?").run(id);
   res.json({ success: true });
-});
+}));
 
 // Stats endpoint for dashboard
-router.get("/stats/summary", (req, res) => {
+router.get("/stats/summary", asyncHandler(async (req, res) => {
   const db = getDb();
   
   const stats = db.prepare(`
@@ -146,6 +148,6 @@ router.get("/stats/summary", (req, res) => {
   `).get();
   
   res.json(stats);
-});
+}));
 
 export default router;

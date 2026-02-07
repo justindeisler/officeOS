@@ -6,6 +6,9 @@
 
 import { Router, type Request, type Response } from "express";
 import { getDb, generateId, getCurrentTimestamp } from "../database.js";
+import { createLogger } from "../logger.js";
+import { asyncHandler } from "../middleware/asyncHandler.js";
+import { NotFoundError, ValidationError, AppError } from "../errors.js";
 import {
   generateInvoicePdf,
   generateInvoicePdfBuffer,
@@ -19,6 +22,7 @@ import {
 } from "../services/pdfService.js";
 
 const router = Router();
+const log = createLogger("invoices");
 
 // ============================================================================
 // Types
@@ -222,7 +226,7 @@ async function generateAndSavePdf(
 
     return pdfPath;
   } catch (error) {
-    console.error("[Invoices] Failed to generate PDF:", error);
+    log.error({ err: error, invoiceId }, "Failed to generate PDF");
     return null;
   }
 }
@@ -234,7 +238,7 @@ async function generateAndSavePdf(
 /**
  * List all invoices
  */
-router.get("/", (req: Request, res: Response) => {
+router.get("/", asyncHandler(async (req, res) => {
   const db = getDb();
   const { status, client_id } = req.query;
 
@@ -262,29 +266,29 @@ router.get("/", (req: Request, res: Response) => {
   }));
 
   res.json(result);
-});
+}));
 
 /**
  * Get single invoice by ID
  */
-router.get("/:id", (req: Request, res: Response) => {
+router.get("/:id", asyncHandler(async (req, res) => {
   const db = getDb();
   const invoice = db.prepare("SELECT * FROM invoices WHERE id = ?").get(
     req.params.id
   ) as InvoiceRow | undefined;
 
   if (!invoice) {
-    return res.status(404).json({ error: "Invoice not found" });
+    throw new NotFoundError("Invoice", req.params.id);
   }
 
   const items = getInvoiceItems(db, invoice.id);
   res.json({ ...invoice, items });
-});
+}));
 
 /**
  * Create a new invoice
  */
-router.post("/", async (req: Request, res: Response) => {
+router.post("/", asyncHandler(async (req, res) => {
   const db = getDb();
   const {
     client_id,
@@ -297,7 +301,7 @@ router.post("/", async (req: Request, res: Response) => {
   } = req.body;
 
   if (!items || items.length === 0) {
-    return res.status(400).json({ error: "At least one line item is required" });
+    throw new ValidationError("At least one line item is required");
   }
 
   const id = generateId();
@@ -368,12 +372,12 @@ router.post("/", async (req: Request, res: Response) => {
     items: invoiceItems,
     pdf_path: pdfPath,
   });
-});
+}));
 
 /**
  * Update an invoice
  */
-router.patch("/:id", async (req: Request, res: Response) => {
+router.patch("/:id", asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
 
@@ -382,12 +386,12 @@ router.patch("/:id", async (req: Request, res: Response) => {
     | undefined;
 
   if (!existing) {
-    return res.status(404).json({ error: "Invoice not found" });
+    throw new NotFoundError("Invoice", id);
   }
 
   // Only allow updates for draft invoices
   if (existing.status !== "draft") {
-    return res.status(400).json({ error: "Can only update draft invoices" });
+    throw new ValidationError("Can only update draft invoices");
   }
 
   const fields = [
@@ -457,12 +461,12 @@ router.patch("/:id", async (req: Request, res: Response) => {
   const invoice = db.prepare("SELECT * FROM invoices WHERE id = ?").get(id) as InvoiceRow;
   const items = getInvoiceItems(db, id);
   res.json({ ...invoice, items });
-});
+}));
 
 /**
  * Delete an invoice
  */
-router.delete("/:id", async (req: Request, res: Response) => {
+router.delete("/:id", asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
 
@@ -471,7 +475,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
     | undefined;
 
   if (!existing) {
-    return res.status(404).json({ error: "Invoice not found" });
+    throw new NotFoundError("Invoice", id);
   }
 
   // Delete PDF if exists
@@ -486,12 +490,12 @@ router.delete("/:id", async (req: Request, res: Response) => {
   db.prepare("DELETE FROM invoices WHERE id = ?").run(id);
 
   res.json({ success: true, message: `Invoice ${existing.invoice_number} deleted` });
-});
+}));
 
 /**
  * Mark invoice as sent
  */
-router.post("/:id/send", (req: Request, res: Response) => {
+router.post("/:id/send", asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
 
@@ -500,23 +504,23 @@ router.post("/:id/send", (req: Request, res: Response) => {
     | undefined;
 
   if (!existing) {
-    return res.status(404).json({ error: "Invoice not found" });
+    throw new NotFoundError("Invoice", id);
   }
 
   if (existing.status !== "draft") {
-    return res.status(400).json({ error: "Can only send draft invoices" });
+    throw new ValidationError("Can only send draft invoices");
   }
 
   db.prepare("UPDATE invoices SET status = 'sent' WHERE id = ?").run(id);
 
   const invoice = db.prepare("SELECT * FROM invoices WHERE id = ?").get(id);
   res.json(invoice);
-});
+}));
 
 /**
  * Mark invoice as paid
  */
-router.post("/:id/pay", (req: Request, res: Response) => {
+router.post("/:id/pay", asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
   const { payment_date, payment_method } = req.body;
@@ -526,15 +530,15 @@ router.post("/:id/pay", (req: Request, res: Response) => {
     | undefined;
 
   if (!existing) {
-    return res.status(404).json({ error: "Invoice not found" });
+    throw new NotFoundError("Invoice", id);
   }
 
   if (existing.status === "paid") {
-    return res.status(400).json({ error: "Invoice is already paid" });
+    throw new ValidationError("Invoice is already paid");
   }
 
   if (existing.status === "cancelled") {
-    return res.status(400).json({ error: "Cannot pay cancelled invoices" });
+    throw new ValidationError("Cannot pay cancelled invoices");
   }
 
   const finalPaymentDate = payment_date || new Date().toISOString().split("T")[0];
@@ -583,17 +587,20 @@ router.post("/:id/pay", (req: Request, res: Response) => {
       now
     );
 
-    console.log(`[Invoices] Auto-created income record ${incomeId} for invoice ${existing.invoice_number}`);
+    log.info(
+      { incomeId, invoiceNumber: existing.invoice_number },
+      "Auto-created income record for paid invoice"
+    );
   }
 
   const invoice = db.prepare("SELECT * FROM invoices WHERE id = ?").get(id);
   res.json(invoice);
-});
+}));
 
 /**
  * Cancel an invoice
  */
-router.post("/:id/cancel", (req: Request, res: Response) => {
+router.post("/:id/cancel", asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
 
@@ -602,86 +609,76 @@ router.post("/:id/cancel", (req: Request, res: Response) => {
     | undefined;
 
   if (!existing) {
-    return res.status(404).json({ error: "Invoice not found" });
+    throw new NotFoundError("Invoice", id);
   }
 
   if (existing.status === "paid") {
-    return res.status(400).json({ error: "Cannot cancel paid invoices" });
+    throw new ValidationError("Cannot cancel paid invoices");
   }
 
   db.prepare("UPDATE invoices SET status = 'cancelled' WHERE id = ?").run(id);
 
   const invoice = db.prepare("SELECT * FROM invoices WHERE id = ?").get(id);
   res.json(invoice);
-});
+}));
 
 /**
  * Download invoice PDF
  */
-router.get("/:id/pdf", async (req: Request, res: Response) => {
-  try {
-    const db = getDb();
-    const { id } = req.params;
+router.get("/:id/pdf", asyncHandler(async (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
 
-    console.log("[Invoices] PDF download requested for:", id);
+  log.debug({ invoiceId: id }, "PDF download requested");
 
-    const invoice = db.prepare("SELECT * FROM invoices WHERE id = ?").get(id) as
-      | InvoiceRow
-      | undefined;
+  const invoice = db.prepare("SELECT * FROM invoices WHERE id = ?").get(id) as
+    | InvoiceRow
+    | undefined;
 
-    if (!invoice) {
-      console.log("[Invoices] Invoice not found:", id);
-      return res.status(404).json({ error: "Invoice not found" });
-    }
-
-    console.log("[Invoices] Found invoice:", invoice.invoice_number);
-
-    // Check if PDF exists
-    let pdfPath = invoice.pdf_path;
-
-    if (!pdfPath || !invoicePdfExists(pdfPath)) {
-      console.log("[Invoices] Generating PDF on the fly...");
-      // Generate PDF on the fly
-      pdfPath = await generateAndSavePdf(db, id);
-
-      if (!pdfPath) {
-        console.error("[Invoices] Failed to generate PDF");
-        return res.status(500).json({ error: "Failed to generate PDF" });
-      }
-      console.log("[Invoices] PDF generated:", pdfPath);
-    }
-
-    const fullPath = getInvoicePdfPath(pdfPath);
-    console.log("[Invoices] Sending PDF from:", fullPath);
-
-    // Set headers for PDF download
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="${invoice.invoice_number}.pdf"`
-    );
-
-    // Send file
-    res.sendFile(fullPath, (err) => {
-      if (err) {
-        console.error("[Invoices] Error sending PDF:", err);
-        if (!res.headersSent) {
-          res.status(500).json({ error: "Failed to send PDF" });
-        }
-      }
-    });
-  } catch (error) {
-    console.error("[Invoices] PDF download error:", error);
-    if (!res.headersSent) {
-      res.status(500).json({ error: "Internal server error" });
-    }
+  if (!invoice) {
+    throw new NotFoundError("Invoice", id);
   }
-});
+
+  // Check if PDF exists
+  let pdfPath = invoice.pdf_path;
+
+  if (!pdfPath || !invoicePdfExists(pdfPath)) {
+    log.info({ invoiceId: id, invoiceNumber: invoice.invoice_number }, "Generating PDF on the fly");
+    // Generate PDF on the fly
+    pdfPath = await generateAndSavePdf(db, id);
+
+    if (!pdfPath) {
+      throw new AppError("Failed to generate PDF", 500, "PDF_GENERATION_FAILED");
+    }
+    log.info({ invoiceId: id, pdfPath }, "PDF generated");
+  }
+
+  const fullPath = getInvoicePdfPath(pdfPath);
+
+  // Set headers for PDF download
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="${invoice.invoice_number}.pdf"`
+  );
+
+  // Send file
+  res.sendFile(fullPath, (err) => {
+    if (err) {
+      log.error({ err, invoiceId: id, path: fullPath }, "Error sending PDF file");
+      if (!res.headersSent) {
+        res.status(500).json({
+          error: { code: "PDF_SEND_FAILED", message: "Failed to send PDF" },
+        });
+      }
+    }
+  });
+}));
 
 /**
  * Regenerate invoice PDF
  */
-router.post("/:id/regenerate-pdf", async (req: Request, res: Response) => {
+router.post("/:id/regenerate-pdf", asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
 
@@ -690,7 +687,7 @@ router.post("/:id/regenerate-pdf", async (req: Request, res: Response) => {
     | undefined;
 
   if (!invoice) {
-    return res.status(404).json({ error: "Invoice not found" });
+    throw new NotFoundError("Invoice", id);
   }
 
   // Delete old PDF if exists
@@ -702,17 +699,17 @@ router.post("/:id/regenerate-pdf", async (req: Request, res: Response) => {
   const pdfPath = await generateAndSavePdf(db, id);
 
   if (!pdfPath) {
-    return res.status(500).json({ error: "Failed to generate PDF" });
+    throw new AppError("Failed to generate PDF", 500, "PDF_GENERATION_FAILED");
   }
 
   res.json({ success: true, pdf_path: pdfPath });
-});
+}));
 
 /**
  * Get seller configuration
  */
-router.get("/config/seller", (_req: Request, res: Response) => {
+router.get("/config/seller", asyncHandler(async (_req, res) => {
   res.json(getDefaultSeller());
-});
+}));
 
 export default router;

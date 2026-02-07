@@ -6,6 +6,8 @@
 
 import { Router, type Request, type Response } from "express";
 import { getDb, generateId, getCurrentTimestamp } from "../database.js";
+import { asyncHandler } from "../middleware/asyncHandler.js";
+import { NotFoundError, ValidationError } from "../errors.js";
 
 const router = Router();
 
@@ -41,9 +43,6 @@ interface DepreciationRow {
 // Helpers
 // ============================================================================
 
-/**
- * Generate depreciation schedule for an asset
- */
 function generateDepreciationSchedule(
   db: ReturnType<typeof getDb>,
   assetId: string,
@@ -66,20 +65,16 @@ function generateDepreciationSchedule(
     if (method === "linear") {
       depreciationAmount = Math.round((depreciableAmount / usefulLifeYears) * 100) / 100;
     } else if (method === "declining") {
-      // Double declining balance
       const rate = 2 / usefulLifeYears;
       const bookValueStart = purchasePrice - accumulated;
       depreciationAmount = Math.round(bookValueStart * rate * 100) / 100;
-      // Don't depreciate below salvage value
       if (purchasePrice - accumulated - depreciationAmount < salvageValue) {
         depreciationAmount = purchasePrice - accumulated - salvageValue;
       }
     } else {
-      // Default to linear
       depreciationAmount = Math.round((depreciableAmount / usefulLifeYears) * 100) / 100;
     }
 
-    // Last year adjustment for rounding
     if (i === usefulLifeYears - 1) {
       depreciationAmount = depreciableAmount - accumulated;
     }
@@ -98,7 +93,6 @@ function generateDepreciationSchedule(
     });
   }
 
-  // Insert into database
   const insertStmt = db.prepare(
     `INSERT INTO depreciation_schedule 
      (id, asset_id, year, depreciation_amount, accumulated_depreciation, book_value)
@@ -119,13 +113,9 @@ function generateDepreciationSchedule(
   return schedule;
 }
 
-/**
- * Get current book value based on depreciation schedule
- */
 function getCurrentBookValue(db: ReturnType<typeof getDb>, assetId: string): number | null {
   const currentYear = new Date().getFullYear();
   
-  // Get the most recent depreciation entry up to current year
   const entry = db.prepare(
     `SELECT book_value FROM depreciation_schedule 
      WHERE asset_id = ? AND year <= ? 
@@ -139,10 +129,7 @@ function getCurrentBookValue(db: ReturnType<typeof getDb>, assetId: string): num
 // Routes
 // ============================================================================
 
-/**
- * List all assets
- */
-router.get("/", (req: Request, res: Response) => {
+router.get("/", asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();
   const { status, category } = req.query;
 
@@ -163,19 +150,15 @@ router.get("/", (req: Request, res: Response) => {
 
   const assets = db.prepare(sql).all(...params) as AssetRow[];
 
-  // Update current values
   const result = assets.map(asset => ({
     ...asset,
     current_value: getCurrentBookValue(db, asset.id) ?? asset.purchase_price,
   }));
 
   res.json(result);
-});
+}));
 
-/**
- * Get single asset by ID with depreciation schedule
- */
-router.get("/:id", (req: Request, res: Response) => {
+router.get("/:id", asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();
   const { id } = req.params;
 
@@ -184,7 +167,7 @@ router.get("/:id", (req: Request, res: Response) => {
     | undefined;
 
   if (!asset) {
-    return res.status(404).json({ error: "Asset not found" });
+    throw new NotFoundError("Asset", id);
   }
 
   const schedule = db.prepare(
@@ -196,12 +179,9 @@ router.get("/:id", (req: Request, res: Response) => {
     current_value: getCurrentBookValue(db, id) ?? asset.purchase_price,
     depreciation_schedule: schedule,
   });
-});
+}));
 
-/**
- * Get depreciation schedule for an asset
- */
-router.get("/:id/schedule", (req: Request, res: Response) => {
+router.get("/:id/schedule", asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();
   const { id } = req.params;
 
@@ -210,7 +190,7 @@ router.get("/:id/schedule", (req: Request, res: Response) => {
     | undefined;
 
   if (!asset) {
-    return res.status(404).json({ error: "Asset not found" });
+    throw new NotFoundError("Asset", id);
   }
 
   const schedule = db.prepare(
@@ -218,12 +198,9 @@ router.get("/:id/schedule", (req: Request, res: Response) => {
   ).all(id) as DepreciationRow[];
 
   res.json(schedule);
-});
+}));
 
-/**
- * Create a new asset
- */
-router.post("/", (req: Request, res: Response) => {
+router.post("/", asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();
   const {
     name,
@@ -237,9 +214,7 @@ router.post("/", (req: Request, res: Response) => {
   } = req.body;
 
   if (!name || !category || !purchase_date || purchase_price === undefined || !useful_life_years) {
-    return res.status(400).json({ 
-      error: "name, category, purchase_date, purchase_price, and useful_life_years are required" 
-    });
+    throw new ValidationError("name, category, purchase_date, purchase_price, and useful_life_years are required");
   }
 
   const id = generateId();
@@ -261,19 +236,12 @@ router.post("/", (req: Request, res: Response) => {
     useful_life_years,
     depreciation_method,
     salvage_value,
-    purchase_price, // Initial current value = purchase price
+    purchase_price,
     now
   );
 
-  // Generate depreciation schedule
   const schedule = generateDepreciationSchedule(
-    db,
-    id,
-    purchase_date,
-    purchase_price,
-    useful_life_years,
-    salvage_value,
-    depreciation_method
+    db, id, purchase_date, purchase_price, useful_life_years, salvage_value, depreciation_method
   );
 
   const asset = db.prepare("SELECT * FROM assets WHERE id = ?").get(id) as AssetRow;
@@ -281,12 +249,9 @@ router.post("/", (req: Request, res: Response) => {
     ...asset,
     depreciation_schedule: schedule,
   });
-});
+}));
 
-/**
- * Update an asset
- */
-router.patch("/:id", (req: Request, res: Response) => {
+router.patch("/:id", asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();
   const { id } = req.params;
 
@@ -295,15 +260,10 @@ router.patch("/:id", (req: Request, res: Response) => {
     | undefined;
 
   if (!existing) {
-    return res.status(404).json({ error: "Asset not found" });
+    throw new NotFoundError("Asset", id);
   }
 
-  const fields = [
-    "name",
-    "description",
-    "category",
-    "status",
-  ];
+  const fields = ["name", "description", "category", "status"];
   const updates: string[] = [];
   const params: unknown[] = [];
 
@@ -314,7 +274,6 @@ router.patch("/:id", (req: Request, res: Response) => {
     }
   }
 
-  // If key financial fields change, regenerate depreciation schedule
   const needsRecalc = 
     req.body.purchase_date !== undefined ||
     req.body.purchase_price !== undefined ||
@@ -330,33 +289,19 @@ router.patch("/:id", (req: Request, res: Response) => {
     const salvageValue = req.body.salvage_value ?? existing.salvage_value;
 
     updates.push(
-      "purchase_date = ?",
-      "purchase_price = ?",
-      "useful_life_years = ?",
-      "depreciation_method = ?",
-      "salvage_value = ?",
-      "current_value = ?"
+      "purchase_date = ?", "purchase_price = ?", "useful_life_years = ?",
+      "depreciation_method = ?", "salvage_value = ?", "current_value = ?"
     );
     params.push(purchaseDate, purchasePrice, usefulLifeYears, depreciationMethod, salvageValue, purchasePrice);
 
-    // Delete old schedule
     db.prepare("DELETE FROM depreciation_schedule WHERE asset_id = ?").run(id);
 
-    // Generate new schedule after update
     if (updates.length > 0) {
       params.push(id);
       db.prepare(`UPDATE assets SET ${updates.join(", ")} WHERE id = ?`).run(...params);
     }
 
-    generateDepreciationSchedule(
-      db,
-      id,
-      purchaseDate,
-      purchasePrice,
-      usefulLifeYears,
-      salvageValue,
-      depreciationMethod
-    );
+    generateDepreciationSchedule(db, id, purchaseDate, purchasePrice, usefulLifeYears, salvageValue, depreciationMethod);
   } else if (updates.length > 0) {
     params.push(id);
     db.prepare(`UPDATE assets SET ${updates.join(", ")} WHERE id = ?`).run(...params);
@@ -372,12 +317,9 @@ router.patch("/:id", (req: Request, res: Response) => {
     current_value: getCurrentBookValue(db, id) ?? asset.purchase_price,
     depreciation_schedule: schedule,
   });
-});
+}));
 
-/**
- * Delete an asset (cascades depreciation schedule)
- */
-router.delete("/:id", (req: Request, res: Response) => {
+router.delete("/:id", asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();
   const { id } = req.params;
 
@@ -386,22 +328,16 @@ router.delete("/:id", (req: Request, res: Response) => {
     | undefined;
 
   if (!existing) {
-    return res.status(404).json({ error: "Asset not found" });
+    throw new NotFoundError("Asset", id);
   }
 
-  // Delete depreciation schedule first
   db.prepare("DELETE FROM depreciation_schedule WHERE asset_id = ?").run(id);
-
-  // Delete asset
   db.prepare("DELETE FROM assets WHERE id = ?").run(id);
 
   res.json({ success: true, message: `Asset "${existing.name}" deleted` });
-});
+}));
 
-/**
- * Record annual depreciation (mark as booked/realized)
- */
-router.post("/:id/depreciate", (req: Request, res: Response) => {
+router.post("/:id/depreciate", asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();
   const { id } = req.params;
   const { year } = req.body;
@@ -411,7 +347,7 @@ router.post("/:id/depreciate", (req: Request, res: Response) => {
     | undefined;
 
   if (!asset) {
-    return res.status(404).json({ error: "Asset not found" });
+    throw new NotFoundError("Asset", id);
   }
 
   const targetYear = year || new Date().getFullYear();
@@ -421,14 +357,10 @@ router.post("/:id/depreciate", (req: Request, res: Response) => {
   ).get(id, targetYear) as DepreciationRow | undefined;
 
   if (!entry) {
-    return res.status(404).json({ error: `No depreciation entry for year ${targetYear}` });
+    throw new NotFoundError(`Depreciation entry for year ${targetYear}`);
   }
 
-  // Update current value on asset
-  db.prepare("UPDATE assets SET current_value = ? WHERE id = ?").run(
-    entry.book_value,
-    id
-  );
+  db.prepare("UPDATE assets SET current_value = ? WHERE id = ?").run(entry.book_value, id);
 
   res.json({
     success: true,
@@ -436,6 +368,6 @@ router.post("/:id/depreciate", (req: Request, res: Response) => {
     depreciation_amount: entry.depreciation_amount,
     new_book_value: entry.book_value,
   });
-});
+}));
 
 export default router;

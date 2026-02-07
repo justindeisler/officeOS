@@ -4,11 +4,15 @@
 
 import { Router } from "express";
 import { getDb, generateId, getCurrentTimestamp } from "../database.js";
+import { createLogger } from "../logger.js";
+import { asyncHandler } from "../middleware/asyncHandler.js";
+import { NotFoundError, ValidationError } from "../errors.js";
 
 const router = Router();
+const log = createLogger("tasks");
 
 // List tasks
-router.get("/", (req, res) => {
+router.get("/", asyncHandler(async (req, res) => {
   const db = getDb();
   const { area, status, project_id, limit } = req.query;
 
@@ -37,10 +41,10 @@ router.get("/", (req, res) => {
 
   const tasks = db.prepare(sql).all(...params);
   res.json(tasks);
-});
+}));
 
 // Get overdue tasks
-router.get("/overdue", (_req, res) => {
+router.get("/overdue", asyncHandler(async (_req, res) => {
   const db = getDb();
   const today = new Date().toISOString().split("T")[0];
   const tasks = db
@@ -51,10 +55,10 @@ router.get("/overdue", (_req, res) => {
     )
     .all(today);
   res.json(tasks);
-});
+}));
 
 // Get tasks assigned to a specific person
-router.get("/assigned/:assignee", (req, res) => {
+router.get("/assigned/:assignee", asyncHandler(async (req, res) => {
   const db = getDb();
   const { assignee } = req.params;
   const tasks = db
@@ -65,20 +69,20 @@ router.get("/assigned/:assignee", (req, res) => {
     )
     .all(assignee);
   res.json(tasks);
-});
+}));
 
 // Get single task
-router.get("/:id", (req, res) => {
+router.get("/:id", asyncHandler(async (req, res) => {
   const db = getDb();
   const task = db.prepare("SELECT * FROM tasks WHERE id = ?").get(req.params.id);
   if (!task) {
-    return res.status(404).json({ error: "Task not found" });
+    throw new NotFoundError("Task", req.params.id);
   }
   res.json(task);
-});
+}));
 
 // Create task
-router.post("/", (req, res) => {
+router.post("/", asyncHandler(async (req, res) => {
   const db = getDb();
   const {
     title,
@@ -94,7 +98,7 @@ router.post("/", (req, res) => {
   } = req.body;
 
   if (!title) {
-    return res.status(400).json({ error: "Title is required" });
+    throw new ValidationError("Title is required");
   }
 
   const id = generateId();
@@ -107,16 +111,16 @@ router.post("/", (req, res) => {
 
   const task = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
   res.status(201).json(task);
-});
+}));
 
 // Update task
-router.patch("/:id", (req, res) => {
+router.patch("/:id", asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
 
   const existing = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
   if (!existing) {
-    return res.status(404).json({ error: "Task not found" });
+    throw new NotFoundError("Task", id);
   }
 
   const fields = ["title", "area", "priority", "status", "description", "project_id", "prd_id", "due_date", "estimated_minutes", "assignee"];
@@ -148,26 +152,26 @@ router.patch("/:id", (req, res) => {
   if (req.body.status === "done" && existingTask.status !== "done" && existingTask.prd_id) {
     const now = getCurrentTimestamp();
     db.prepare("UPDATE prds SET status = 'implemented', updated_at = ? WHERE id = ?").run(now, existingTask.prd_id);
-    console.log(`[API] PRD ${existingTask.prd_id} marked as implemented (linked task ${id} completed)`);
+    log.info({ prdId: existingTask.prd_id, taskId: id }, "PRD marked as implemented (linked task completed)");
   }
 
   const task = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
   res.json(task);
-});
+}));
 
 // Reorder tasks within a column (bulk update sort_order)
-router.post("/reorder", (req, res) => {
+router.post("/reorder", asyncHandler(async (req, res) => {
   const db = getDb();
   const { taskIds, status } = req.body;
 
   // Validate input — accept either ordered list of IDs or single-task move
   if (!Array.isArray(taskIds) || taskIds.length === 0) {
-    return res.status(400).json({ error: "taskIds array is required" });
+    throw new ValidationError("taskIds array is required");
   }
 
   const validStatuses = ["backlog", "queue", "in_progress", "done"];
   if (status && !validStatuses.includes(status)) {
-    return res.status(400).json({ error: "Invalid status" });
+    throw new ValidationError("Invalid status");
   }
 
   // Verify all tasks exist
@@ -179,7 +183,7 @@ router.post("/reorder", (req, res) => {
   const existingIds = new Set(existingTasks.map((t) => t.id));
   const missingIds = taskIds.filter((id: string) => !existingIds.has(id));
   if (missingIds.length > 0) {
-    return res.status(404).json({ error: `Tasks not found: ${missingIds.join(", ")}` });
+    throw new NotFoundError("Tasks", missingIds.join(", "));
   }
 
   // Update sort_order for each task in a transaction
@@ -202,22 +206,22 @@ router.post("/reorder", (req, res) => {
     .all(...taskIds);
 
   res.json(updatedTasks);
-});
+}));
 
 // Move task to a new column and position
-router.post("/:id/move", (req, res) => {
+router.post("/:id/move", asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
   const { status, targetIndex } = req.body;
 
   const validStatuses = ["backlog", "queue", "in_progress", "done"];
   if (!validStatuses.includes(status)) {
-    return res.status(400).json({ error: "Invalid status" });
+    throw new ValidationError("Invalid status");
   }
 
   const existing = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
   if (!existing) {
-    return res.status(404).json({ error: "Task not found" });
+    throw new NotFoundError("Task", id);
   }
 
   const now = getCurrentTimestamp();
@@ -256,25 +260,25 @@ router.post("/:id/move", (req, res) => {
   // Auto-update PRD status to "implemented" when linked task is moved to done
   if (status === "done" && existingTask.status !== "done" && existingTask.prd_id) {
     db.prepare("UPDATE prds SET status = 'implemented', updated_at = ? WHERE id = ?").run(now, existingTask.prd_id);
-    console.log(`[API] PRD ${existingTask.prd_id} marked as implemented (linked task ${id} moved to done)`);
+    log.info({ prdId: existingTask.prd_id, taskId: id }, "PRD marked as implemented (linked task moved to done)");
   }
 
   const task = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
   res.json(task);
-});
+}));
 
 // Delete task
-router.delete("/:id", (req, res) => {
+router.delete("/:id", asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
 
   const existing = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id) as Record<string, unknown> | undefined;
   if (!existing) {
-    return res.status(404).json({ error: "Task not found" });
+    throw new NotFoundError("Task", id);
   }
 
   db.prepare("DELETE FROM tasks WHERE id = ?").run(id);
   res.json({ success: true, message: `Task "${existing.title}" deleted` });
-});
+}));
 
 export default router;

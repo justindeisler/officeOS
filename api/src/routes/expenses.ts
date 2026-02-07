@@ -8,6 +8,8 @@ import { Router, type Request, type Response } from "express";
 import { existsSync, createReadStream } from "fs";
 import { basename } from "path";
 import { getDb, generateId, getCurrentTimestamp } from "../database.js";
+import { asyncHandler } from "../middleware/asyncHandler.js";
+import { NotFoundError, ValidationError } from "../errors.js";
 
 const router = Router();
 
@@ -63,7 +65,7 @@ router.get("/categories", (_req: Request, res: Response) => {
 /**
  * List all expenses
  */
-router.get("/", (req: Request, res: Response) => {
+router.get("/", asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();
   const { start_date, end_date, category, vendor, ust_period, ust_reported } = req.query;
 
@@ -104,44 +106,44 @@ router.get("/", (req: Request, res: Response) => {
 
   const expenses = db.prepare(sql).all(...params) as ExpenseRow[];
   res.json(expenses);
-});
+}));
 
 /**
  * Get single expense by ID
  */
-router.get("/:id", (req: Request, res: Response) => {
+router.get("/:id", asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();
   const expense = db.prepare("SELECT * FROM expenses WHERE id = ?").get(
     req.params.id
   ) as ExpenseRow | undefined;
 
   if (!expense) {
-    return res.status(404).json({ error: "Expense not found" });
+    throw new NotFoundError("Expense", req.params.id);
   }
 
   res.json(expense);
-});
+}));
 
 /**
  * Get receipt PDF for an expense
  */
-router.get("/:id/receipt", (req: Request, res: Response) => {
+router.get("/:id/receipt", asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();
   const expense = db.prepare("SELECT * FROM expenses WHERE id = ?").get(
     req.params.id
   ) as ExpenseRow | undefined;
 
   if (!expense) {
-    return res.status(404).json({ error: "Expense not found" });
+    throw new NotFoundError("Expense", req.params.id);
   }
 
   if (!expense.receipt_path) {
-    return res.status(404).json({ error: "No receipt attached to this expense" });
+    throw new NotFoundError("Receipt (no receipt attached to this expense)");
   }
 
   // Check if file exists
   if (!existsSync(expense.receipt_path)) {
-    return res.status(404).json({ error: "Receipt file not found on disk" });
+    throw new NotFoundError("Receipt file (not found on disk)");
   }
 
   const filename = basename(expense.receipt_path);
@@ -158,12 +160,12 @@ router.get("/:id/receipt", (req: Request, res: Response) => {
   // Stream the file
   const stream = createReadStream(expense.receipt_path);
   stream.pipe(res);
-});
+}));
 
 /**
  * Create a new expense
  */
-router.post("/", (req: Request, res: Response) => {
+router.post("/", asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();
   const {
     date,
@@ -180,9 +182,7 @@ router.post("/", (req: Request, res: Response) => {
   } = req.body;
 
   if (!date || !description || !category || net_amount === undefined) {
-    return res.status(400).json({ 
-      error: "date, description, category, and net_amount are required" 
-    });
+    throw new ValidationError("date, description, category, and net_amount are required");
   }
 
   const id = generateId();
@@ -222,12 +222,12 @@ router.post("/", (req: Request, res: Response) => {
 
   const expense = db.prepare("SELECT * FROM expenses WHERE id = ?").get(id);
   res.status(201).json(expense);
-});
+}));
 
 /**
  * Update an expense
  */
-router.patch("/:id", (req: Request, res: Response) => {
+router.patch("/:id", asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();
   const { id } = req.params;
 
@@ -236,7 +236,7 @@ router.patch("/:id", (req: Request, res: Response) => {
     | undefined;
 
   if (!existing) {
-    return res.status(404).json({ error: "Expense not found" });
+    throw new NotFoundError("Expense", id);
   }
 
   const fields = [
@@ -279,12 +279,12 @@ router.patch("/:id", (req: Request, res: Response) => {
 
   const expense = db.prepare("SELECT * FROM expenses WHERE id = ?").get(id);
   res.json(expense);
-});
+}));
 
 /**
  * Delete an expense
  */
-router.delete("/:id", (req: Request, res: Response) => {
+router.delete("/:id", asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();
   const { id } = req.params;
 
@@ -293,22 +293,22 @@ router.delete("/:id", (req: Request, res: Response) => {
     | undefined;
 
   if (!existing) {
-    return res.status(404).json({ error: "Expense not found" });
+    throw new NotFoundError("Expense", id);
   }
 
   db.prepare("DELETE FROM expenses WHERE id = ?").run(id);
   res.json({ success: true, message: "Expense deleted" });
-});
+}));
 
 /**
  * Mark multiple expenses as USt reported
  */
-router.post("/mark-reported", (req: Request, res: Response) => {
+router.post("/mark-reported", asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();
   const { ids, ust_period } = req.body;
 
   if (!ids || !Array.isArray(ids) || ids.length === 0) {
-    return res.status(400).json({ error: "ids array is required" });
+    throw new ValidationError("ids array is required");
   }
 
   const placeholders = ids.map(() => "?").join(", ");
@@ -325,6 +325,6 @@ router.post("/mark-reported", (req: Request, res: Response) => {
   }
 
   res.json({ success: true, updated: ids.length });
-});
+}));
 
 export default router;

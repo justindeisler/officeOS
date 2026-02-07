@@ -4,11 +4,13 @@
 
 import { Router } from "express";
 import { getDb, generateId, getCurrentTimestamp } from "../database.js";
+import { asyncHandler } from "../middleware/asyncHandler.js";
+import { NotFoundError, ValidationError, ConflictError } from "../errors.js";
 
 const router = Router();
 
 // Get today's time entries
-router.get("/today", (_req, res) => {
+router.get("/today", asyncHandler(async (_req, res) => {
   const db = getDb();
   const today = new Date().toISOString().split("T")[0];
 
@@ -21,22 +23,22 @@ router.get("/today", (_req, res) => {
     .all(today);
 
   res.json(entries);
-});
+}));
 
 // Get running timer
-router.get("/running", (_req, res) => {
+router.get("/running", asyncHandler(async (_req, res) => {
   const db = getDb();
   const running = db.prepare("SELECT * FROM time_entries WHERE is_running = 1").get();
   res.json(running || null);
-});
+}));
 
 // Get time summary for date range
-router.get("/summary", (req, res) => {
+router.get("/summary", asyncHandler(async (req, res) => {
   const db = getDb();
   const { start_date, end_date } = req.query;
 
   if (!start_date || !end_date) {
-    return res.status(400).json({ error: "start_date and end_date are required" });
+    throw new ValidationError("start_date and end_date are required");
   }
 
   const summary = db
@@ -50,10 +52,10 @@ router.get("/summary", (req, res) => {
     .all(start_date, end_date);
 
   res.json(summary);
-});
+}));
 
 // List all time entries
-router.get("/", (req, res) => {
+router.get("/", asyncHandler(async (req, res) => {
   const db = getDb();
   const { task_id, project_id, client_id, limit = 100 } = req.query;
 
@@ -78,15 +80,15 @@ router.get("/", (req, res) => {
 
   const entries = db.prepare(sql).all(...params);
   res.json(entries);
-});
+}));
 
 // Log time (past work)
-router.post("/log", (req, res) => {
+router.post("/log", asyncHandler(async (req, res) => {
   const db = getDb();
   const { category, duration_minutes, task_id, project_id, client_id, description, start_time } = req.body;
 
   if (!category || !duration_minutes) {
-    return res.status(400).json({ error: "category and duration_minutes are required" });
+    throw new ValidationError("category and duration_minutes are required");
   }
 
   const id = generateId();
@@ -100,21 +102,21 @@ router.post("/log", (req, res) => {
 
   const entry = db.prepare("SELECT * FROM time_entries WHERE id = ?").get(id);
   res.status(201).json(entry);
-});
+}));
 
 // Start timer
-router.post("/start", (req, res) => {
+router.post("/start", asyncHandler(async (req, res) => {
   const db = getDb();
   const { category, task_id, project_id, client_id, description } = req.body;
 
   if (!category) {
-    return res.status(400).json({ error: "category is required" });
+    throw new ValidationError("category is required");
   }
 
   // Check for existing running timer
   const running = db.prepare("SELECT * FROM time_entries WHERE is_running = 1").get();
   if (running) {
-    return res.status(400).json({ error: "A timer is already running. Stop it first." });
+    throw new ConflictError("A timer is already running. Stop it first.");
   }
 
   const id = generateId();
@@ -127,15 +129,15 @@ router.post("/start", (req, res) => {
 
   const entry = db.prepare("SELECT * FROM time_entries WHERE id = ?").get(id);
   res.status(201).json(entry);
-});
+}));
 
 // Stop timer
-router.post("/stop", (_req, res) => {
+router.post("/stop", asyncHandler(async (_req, res) => {
   const db = getDb();
 
   const running = db.prepare("SELECT * FROM time_entries WHERE is_running = 1").get() as Record<string, unknown> | undefined;
   if (!running) {
-    return res.status(400).json({ error: "No timer is running" });
+    throw new ValidationError("No timer is running");
   }
 
   const endTime = getCurrentTimestamp();
@@ -146,20 +148,20 @@ router.post("/stop", (_req, res) => {
 
   const entry = db.prepare("SELECT * FROM time_entries WHERE id = ?").get(running.id);
   res.json(entry);
-});
+}));
 
 // Delete time entry
-router.delete("/:id", (req, res) => {
+router.delete("/:id", asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
 
   const existing = db.prepare("SELECT * FROM time_entries WHERE id = ?").get(id);
   if (!existing) {
-    return res.status(404).json({ error: "Time entry not found" });
+    throw new NotFoundError("Time entry", id);
   }
 
   db.prepare("DELETE FROM time_entries WHERE id = ?").run(id);
   res.json({ success: true, message: "Time entry deleted" });
-});
+}));
 
 export default router;

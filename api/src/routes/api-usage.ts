@@ -14,6 +14,7 @@
  */
 
 import { Router } from "express";
+import { asyncHandler } from "../middleware/asyncHandler.js";
 
 const router = Router();
 
@@ -328,22 +329,17 @@ function generateMockApiUsage(startDate: string, endDate: string) {
  *   startDate - ISO date string (default: 30 days ago)
  *   endDate   - ISO date string (default: today)
  */
-router.get("/api-usage", (req, res) => {
-  try {
-    const {
-      startDate = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10),
-      endDate = new Date().toISOString().slice(0, 10),
-    } = req.query as {
-      startDate?: string;
-      endDate?: string;
-    };
+router.get("/api-usage", asyncHandler(async (req, res) => {
+  const {
+    startDate = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10),
+    endDate = new Date().toISOString().slice(0, 10),
+  } = req.query as {
+    startDate?: string;
+    endDate?: string;
+  };
 
-    const data = generateMockApiUsage(startDate, endDate);
-    res.json(data);
-  } catch (error) {
-    console.error("[ApiUsage] Error generating api usage data:", error);
-    res.status(500).json({ error: "Failed to generate API usage data" });
-  }
-});
+  const data = generateMockApiUsage(startDate, endDate);
+  res.json(data);
+}));
 
 export default router;

@@ -6,6 +6,9 @@ import Database from "better-sqlite3";
 import { homedir } from "os";
 import { join } from "path";
 import { existsSync } from "fs";
+import { createLogger } from "./logger.js";
+
+const log = createLogger("database");
 
 let db: Database.Database | null = null;
 
@@ -41,7 +44,7 @@ export function getDb(): Database.Database {
     db.pragma("foreign_keys = ON");
     db.pragma("journal_mode = WAL");
 
-    console.log(`[API] Connected to database at: ${dbPath}`);
+    log.info({ path: dbPath }, "Connected to database");
   }
 
   return db;

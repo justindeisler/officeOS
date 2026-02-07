@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { FolderOpen, Trash2, Download, Upload, Database, User, Building2, CreditCard, MapPin, FileText } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { FolderOpen, Trash2, Download, Upload, Database, User, Building2, CreditCard, MapPin, FileText, Shield, Clock, HardDrive, RefreshCw, FileDown, Table2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,7 +30,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { backupService } from "@/services/backupService";
+import { isWebBuild } from "@/api";
+import * as webBackupApi from "@/services/web/backupService";
+import type { BackupStatus, BackupInfo } from "@/services/web/backupService";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 import type { Area, BusinessProfile } from "@/types";
 
 const defaultBusinessProfile: BusinessProfile = {
@@ -83,6 +87,12 @@ export function SettingsPage() {
     captures: number;
   } | null>(null);
 
+  // Backup & Export state (web mode only)
+  const [backupStatus, setBackupStatus] = useState<BackupStatus | null>(null);
+  const [isBackingUp, setIsBackingUp] = useState(false);
+  const [isDownloadingBackup, setIsDownloadingBackup] = useState(false);
+  const [isExportingJson, setIsExportingJson] = useState(false);
+
   // Sync profile form with store when loaded
   useEffect(() => {
     if (businessProfile) {
@@ -102,6 +112,65 @@ export function SettingsPage() {
     }
     loadStats();
   }, []);
+
+  // Load backup status (web mode)
+  const loadBackupStatus = useCallback(async () => {
+    if (!isWebBuild()) return;
+    try {
+      const status = await webBackupApi.getBackupStatus();
+      setBackupStatus(status);
+    } catch (error) {
+      console.error("Failed to load backup status:", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadBackupStatus();
+  }, [loadBackupStatus]);
+
+  const handleTriggerBackup = async () => {
+    setIsBackingUp(true);
+    try {
+      const result = await webBackupApi.triggerBackup();
+      if (result.success) {
+        toast.success(`Backup created: ${result.backup?.filename}`);
+        await loadBackupStatus();
+      } else {
+        toast.error(result.error || "Backup failed");
+      }
+    } catch (error) {
+      console.error("Backup trigger failed:", error);
+      toast.error("Failed to create backup");
+    } finally {
+      setIsBackingUp(false);
+    }
+  };
+
+  const handleDownloadBackup = async () => {
+    setIsDownloadingBackup(true);
+    try {
+      await webBackupApi.downloadBackup();
+      toast.success("Backup download started");
+    } catch (error) {
+      console.error("Backup download failed:", error);
+      toast.error("Failed to download backup");
+    } finally {
+      setIsDownloadingBackup(false);
+    }
+  };
+
+  const handleExportJson = async () => {
+    setIsExportingJson(true);
+    try {
+      await webBackupApi.exportJson();
+      toast.success("JSON export download started");
+    } catch (error) {
+      console.error("JSON export failed:", error);
+      toast.error("Failed to export data");
+    } finally {
+      setIsExportingJson(false);
+    }
+  };
 
   const handleSaveWorkspacePath = async () => {
     if (pathInput.trim()) {
@@ -572,6 +641,135 @@ export function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Backup & Export (Web mode) */}
+      {isWebBuild() && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5" />
+              Backup & Export
+            </CardTitle>
+            <CardDescription>
+              Automated encrypted backups and data export. Backups are encrypted with AES-256-GCM.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Backup Status */}
+            {backupStatus && (
+              <div className="rounded-lg bg-muted p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-medium flex items-center gap-2">
+                    <HardDrive className="h-4 w-4" />
+                    Backup Status
+                  </h4>
+                  <Badge variant={backupStatus.encryptionKeyAvailable ? "default" : "destructive"}>
+                    {backupStatus.encryptionKeyAvailable ? "🔒 Encryption Active" : "⚠️ No Key"}
+                  </Badge>
+                </div>
+
+                {backupStatus.lastBackup ? (
+                  <div className="text-sm space-y-1">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Clock className="h-3.5 w-3.5" />
+                      <span>
+                        Last backup:{" "}
+                        <span className="text-foreground font-medium">
+                          {new Date(backupStatus.lastBackup.date).toLocaleString("de-DE", {
+                            dateStyle: "medium",
+                            timeStyle: "short",
+                          })}
+                        </span>
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground pl-5">
+                      {backupStatus.lastBackup.filename} ({(backupStatus.lastBackup.sizeBytes / 1024).toFixed(1)} KB)
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No backups yet. Create your first backup below.
+                  </p>
+                )}
+
+                <p className="text-xs text-muted-foreground">
+                  📦 {backupStatus.totalBackups} backup(s) stored in <code className="text-xs">{backupStatus.backupDir}</code>
+                </p>
+              </div>
+            )}
+
+            {/* Backup History */}
+            {backupStatus && backupStatus.recentBackups.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium">Recent Backups</h4>
+                <div className="rounded-lg border divide-y">
+                  {backupStatus.recentBackups.map((backup) => (
+                    <div
+                      key={backup.filename}
+                      className="flex items-center justify-between px-3 py-2 text-sm"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Shield className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                        <span className="truncate font-mono text-xs">
+                          {backup.filename}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0">
+                        <span>{(backup.sizeBytes / 1024).toFixed(1)} KB</span>
+                        <span>
+                          {new Date(backup.date).toLocaleDateString("de-DE", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                          })}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex flex-wrap gap-2 pt-2">
+              <Button
+                variant="default"
+                onClick={handleTriggerBackup}
+                disabled={isBackingUp}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${isBackingUp ? "animate-spin" : ""}`} />
+                {isBackingUp ? "Backing up..." : "Create Backup"}
+              </Button>
+
+              <Button
+                variant="outline"
+                onClick={handleDownloadBackup}
+                disabled={isDownloadingBackup || !backupStatus?.lastBackup}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                {isDownloadingBackup ? "Downloading..." : "Download Backup"}
+              </Button>
+
+              <Button
+                variant="outline"
+                onClick={handleExportJson}
+                disabled={isExportingJson}
+              >
+                <FileDown className="h-4 w-4 mr-2" />
+                {isExportingJson ? "Exporting..." : "Export JSON"}
+              </Button>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              <strong>Create Backup:</strong> Encrypted backup saved on server (auto-rotated, 30 days).
+              <br />
+              <strong>Download Backup:</strong> Download the latest encrypted backup file.
+              <br />
+              <strong>Export JSON:</strong> Download all data as unencrypted JSON (for portability).
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Data Management */}
       <Card>

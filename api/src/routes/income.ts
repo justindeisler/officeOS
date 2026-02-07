@@ -6,6 +6,8 @@
 
 import { Router, type Request, type Response } from "express";
 import { getDb, generateId, getCurrentTimestamp } from "../database.js";
+import { asyncHandler } from "../middleware/asyncHandler.js";
+import { NotFoundError, ValidationError } from "../errors.js";
 
 const router = Router();
 
@@ -39,7 +41,7 @@ interface IncomeRow {
 /**
  * List all income records
  */
-router.get("/", (req: Request, res: Response) => {
+router.get("/", asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();
   const { start_date, end_date, client_id, ust_period, ust_reported } = req.query;
 
@@ -75,28 +77,28 @@ router.get("/", (req: Request, res: Response) => {
 
   const income = db.prepare(sql).all(...params) as IncomeRow[];
   res.json(income);
-});
+}));
 
 /**
  * Get single income record by ID
  */
-router.get("/:id", (req: Request, res: Response) => {
+router.get("/:id", asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();
   const income = db.prepare("SELECT * FROM income WHERE id = ?").get(
     req.params.id
   ) as IncomeRow | undefined;
 
   if (!income) {
-    return res.status(404).json({ error: "Income record not found" });
+    throw new NotFoundError("Income record", req.params.id);
   }
 
   res.json(income);
-});
+}));
 
 /**
  * Create a new income record
  */
-router.post("/", (req: Request, res: Response) => {
+router.post("/", asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();
   const {
     date,
@@ -113,7 +115,7 @@ router.post("/", (req: Request, res: Response) => {
   } = req.body;
 
   if (!date || !description || net_amount === undefined) {
-    return res.status(400).json({ error: "date, description, and net_amount are required" });
+    throw new ValidationError("date, description, and net_amount are required");
   }
 
   const id = generateId();
@@ -149,12 +151,12 @@ router.post("/", (req: Request, res: Response) => {
 
   const income = db.prepare("SELECT * FROM income WHERE id = ?").get(id);
   res.status(201).json(income);
-});
+}));
 
 /**
  * Update an income record
  */
-router.patch("/:id", (req: Request, res: Response) => {
+router.patch("/:id", asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();
   const { id } = req.params;
 
@@ -163,7 +165,7 @@ router.patch("/:id", (req: Request, res: Response) => {
     | undefined;
 
   if (!existing) {
-    return res.status(404).json({ error: "Income record not found" });
+    throw new NotFoundError("Income record", id);
   }
 
   const fields = [
@@ -206,12 +208,12 @@ router.patch("/:id", (req: Request, res: Response) => {
 
   const income = db.prepare("SELECT * FROM income WHERE id = ?").get(id);
   res.json(income);
-});
+}));
 
 /**
  * Delete an income record
  */
-router.delete("/:id", (req: Request, res: Response) => {
+router.delete("/:id", asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();
   const { id } = req.params;
 
@@ -220,22 +222,22 @@ router.delete("/:id", (req: Request, res: Response) => {
     | undefined;
 
   if (!existing) {
-    return res.status(404).json({ error: "Income record not found" });
+    throw new NotFoundError("Income record", id);
   }
 
   db.prepare("DELETE FROM income WHERE id = ?").run(id);
   res.json({ success: true, message: "Income record deleted" });
-});
+}));
 
 /**
  * Mark multiple income records as USt reported
  */
-router.post("/mark-reported", (req: Request, res: Response) => {
+router.post("/mark-reported", asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();
   const { ids, ust_period } = req.body;
 
   if (!ids || !Array.isArray(ids) || ids.length === 0) {
-    return res.status(400).json({ error: "ids array is required" });
+    throw new ValidationError("ids array is required");
   }
 
   const placeholders = ids.map(() => "?").join(", ");
@@ -252,6 +254,6 @@ router.post("/mark-reported", (req: Request, res: Response) => {
   }
 
   res.json({ success: true, updated: ids.length });
-});
+}));
 
 export default router;

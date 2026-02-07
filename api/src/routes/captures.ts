@@ -5,8 +5,12 @@
 import { Router } from "express";
 import { spawn } from "child_process";
 import { getDb, generateId, getCurrentTimestamp } from "../database.js";
+import { createLogger } from "../logger.js";
+import { asyncHandler } from "../middleware/asyncHandler.js";
+import { NotFoundError, ValidationError } from "../errors.js";
 
 const router = Router();
+const log = createLogger("captures");
 
 // Helper to parse metadata JSON
 function parseCapture(capture: any) {
@@ -21,7 +25,7 @@ function parseCapture(capture: any) {
 }
 
 // List captures
-router.get("/", (req, res) => {
+router.get("/", asyncHandler(async (req, res) => {
   const db = getDb();
   const { processed, type, limit = 100 } = req.query;
 
@@ -42,25 +46,25 @@ router.get("/", (req, res) => {
 
   const captures = db.prepare(sql).all(...params).map(parseCapture);
   res.json(captures);
-});
+}));
 
 // Get single capture
-router.get("/:id", (req, res) => {
+router.get("/:id", asyncHandler(async (req, res) => {
   const db = getDb();
   const capture = db.prepare("SELECT * FROM captures WHERE id = ?").get(req.params.id);
   if (!capture) {
-    return res.status(404).json({ error: "Capture not found" });
+    throw new NotFoundError("Capture", req.params.id);
   }
   res.json(parseCapture(capture));
-});
+}));
 
 // Create capture
-router.post("/", (req, res) => {
+router.post("/", asyncHandler(async (req, res) => {
   const db = getDb();
   const { content, type = "note" } = req.body;
 
   if (!content) {
-    return res.status(400).json({ error: "Content is required" });
+    throw new ValidationError("Content is required");
   }
 
   const id = generateId();
@@ -73,17 +77,17 @@ router.post("/", (req, res) => {
 
   const capture = db.prepare("SELECT * FROM captures WHERE id = ?").get(id);
   res.status(201).json(capture);
-});
+}));
 
 // Mark capture as processed
-router.post("/:id/process", (req, res) => {
+router.post("/:id/process", asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
   const { processed_to, processed_by, artifact_type, artifact_id } = req.body;
 
   const existing = db.prepare("SELECT * FROM captures WHERE id = ?").get(id);
   if (!existing) {
-    return res.status(404).json({ error: "Capture not found" });
+    throw new NotFoundError("Capture", id);
   }
 
   db.prepare(`
@@ -105,16 +109,16 @@ router.post("/:id/process", (req, res) => {
 
   const capture = db.prepare("SELECT * FROM captures WHERE id = ?").get(id);
   res.json(capture);
-});
+}));
 
 // Process capture with James AI
-router.post("/:id/process-with-james", async (req, res) => {
+router.post("/:id/process-with-james", asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
 
   const existing = db.prepare("SELECT * FROM captures WHERE id = ?").get(id) as Record<string, unknown> | undefined;
   if (!existing) {
-    return res.status(404).json({ error: "Capture not found" });
+    throw new NotFoundError("Capture", id);
   }
 
   // Mark as processing
@@ -202,22 +206,22 @@ curl -X POST http://localhost:3005/api/captures/${id}/process -H "Content-Type: 
     // Allow the parent process to exit independently
     child.unref();
     
-    console.log(`[James] Started processing capture ${id} (PID: ${child.pid})`);
+    log.info({ captureId: id, pid: child.pid }, "Started James processing for capture");
   } catch (error) {
     // Mark as failed if we can't even start the agent
     db.prepare("UPDATE captures SET processing_status = 'failed' WHERE id = ?").run(id);
-    console.error("Failed to start James processing:", error);
+    log.error({ err: error, captureId: id }, "Failed to start James processing");
   }
-});
+}));
 
 // Get processing status
-router.get("/:id/processing-status", (req, res) => {
+router.get("/:id/processing-status", asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
 
   const capture = db.prepare("SELECT * FROM captures WHERE id = ?").get(id) as Record<string, unknown> | undefined;
   if (!capture) {
-    return res.status(404).json({ error: "Capture not found" });
+    throw new NotFoundError("Capture", id);
   }
 
   res.json({
@@ -228,20 +232,20 @@ router.get("/:id/processing-status", (req, res) => {
     artifactId: capture.artifact_id,
     processed: Boolean(capture.processed),
   });
-});
+}));
 
 // Delete capture
-router.delete("/:id", (req, res) => {
+router.delete("/:id", asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
 
   const existing = db.prepare("SELECT * FROM captures WHERE id = ?").get(id);
   if (!existing) {
-    return res.status(404).json({ error: "Capture not found" });
+    throw new NotFoundError("Capture", id);
   }
 
   db.prepare("DELETE FROM captures WHERE id = ?").run(id);
   res.json({ success: true, message: "Capture deleted" });
-});
+}));
 
 export default router;

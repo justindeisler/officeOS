@@ -4,11 +4,15 @@
 
 import { Router } from "express";
 import { getDb, generateId, getCurrentTimestamp } from "../database.js";
+import { createLogger } from "../logger.js";
+import { asyncHandler } from "../middleware/asyncHandler.js";
+import { NotFoundError, ValidationError } from "../errors.js";
 
 const router = Router();
+const log = createLogger("subtasks");
 
 // List subtasks for a task
-router.get("/tasks/:taskId/subtasks", (req, res) => {
+router.get("/tasks/:taskId/subtasks", asyncHandler(async (req, res) => {
   const db = getDb();
   const { taskId } = req.params;
 
@@ -21,22 +25,22 @@ router.get("/tasks/:taskId/subtasks", (req, res) => {
     .all(taskId);
 
   res.json(subtasks);
-});
+}));
 
 // Create subtask
-router.post("/tasks/:taskId/subtasks", (req, res) => {
+router.post("/tasks/:taskId/subtasks", asyncHandler(async (req, res) => {
   const db = getDb();
   const { taskId } = req.params;
   const { title } = req.body;
 
   if (!title) {
-    return res.status(400).json({ error: "Title is required" });
+    throw new ValidationError("Title is required");
   }
 
   // Verify task exists
   const task = db.prepare("SELECT id FROM tasks WHERE id = ?").get(taskId);
   if (!task) {
-    return res.status(404).json({ error: "Task not found" });
+    throw new NotFoundError("Task", taskId);
   }
 
   // Get max sort_order for this task
@@ -55,16 +59,16 @@ router.post("/tasks/:taskId/subtasks", (req, res) => {
 
   const subtask = db.prepare("SELECT * FROM subtasks WHERE id = ?").get(id);
   res.status(201).json(subtask);
-});
+}));
 
 // Update subtask
-router.patch("/subtasks/:id", (req, res) => {
+router.patch("/subtasks/:id", asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
 
   const existing = db.prepare("SELECT * FROM subtasks WHERE id = ?").get(id) as Record<string, unknown> | undefined;
   if (!existing) {
-    return res.status(404).json({ error: "Subtask not found" });
+    throw new NotFoundError("Subtask", id);
   }
 
   const fields = ["title", "completed", "sort_order"];
@@ -108,48 +112,48 @@ router.patch("/subtasks/:id", (req, res) => {
           "UPDATE tasks SET status = 'done', completed_at = ?, updated_at = ? WHERE id = ?"
         ).run(now, now, taskId);
         
-        console.log(`[API] Task ${taskId} auto-completed (all ${stats.total} subtasks done)`);
+        log.info({ taskId, subtaskCount: stats.total }, "Task auto-completed (all subtasks done)");
 
         // Also update PRD if linked
         if (taskResult.prd_id) {
           db.prepare("UPDATE prds SET status = 'implemented', updated_at = ? WHERE id = ?").run(now, taskResult.prd_id);
-          console.log(`[API] PRD ${taskResult.prd_id} marked as implemented (linked task ${taskId} auto-completed)`);
+          log.info({ prdId: taskResult.prd_id, taskId }, "PRD marked as implemented (linked task auto-completed)");
         }
       }
     }
   }
 
   res.json(subtask);
-});
+}));
 
 // Delete subtask
-router.delete("/subtasks/:id", (req, res) => {
+router.delete("/subtasks/:id", asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
 
   const existing = db.prepare("SELECT * FROM subtasks WHERE id = ?").get(id) as Record<string, unknown> | undefined;
   if (!existing) {
-    return res.status(404).json({ error: "Subtask not found" });
+    throw new NotFoundError("Subtask", id);
   }
 
   db.prepare("DELETE FROM subtasks WHERE id = ?").run(id);
   res.json({ success: true, message: "Subtask deleted" });
-});
+}));
 
 // Reorder subtasks
-router.post("/tasks/:taskId/subtasks/reorder", (req, res) => {
+router.post("/tasks/:taskId/subtasks/reorder", asyncHandler(async (req, res) => {
   const db = getDb();
   const { taskId } = req.params;
   const { subtaskIds } = req.body;
 
   if (!Array.isArray(subtaskIds)) {
-    return res.status(400).json({ error: "subtaskIds array is required" });
+    throw new ValidationError("subtaskIds array is required");
   }
 
   // Verify task exists
   const task = db.prepare("SELECT id FROM tasks WHERE id = ?").get(taskId);
   if (!task) {
-    return res.status(404).json({ error: "Task not found" });
+    throw new NotFoundError("Task", taskId);
   }
 
   // Update sort_order for each subtask
@@ -172,10 +176,10 @@ router.post("/tasks/:taskId/subtasks/reorder", (req, res) => {
     .all(taskId);
 
   res.json(subtasks);
-});
+}));
 
 // Get subtask counts for multiple tasks (bulk endpoint for efficiency)
-router.post("/subtasks/counts", (req, res) => {
+router.post("/subtasks/counts", asyncHandler(async (req, res) => {
   const db = getDb();
   const { taskIds } = req.body;
 
@@ -203,6 +207,6 @@ router.post("/subtasks/counts", (req, res) => {
   }
 
   res.json(result);
-});
+}));
 
 export default router;

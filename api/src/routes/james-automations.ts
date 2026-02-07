@@ -4,33 +4,35 @@
 
 import { Router } from "express";
 import { getDb, generateId, getCurrentTimestamp } from "../database.js";
+import { asyncHandler } from "../middleware/asyncHandler.js";
+import { NotFoundError, ValidationError } from "../errors.js";
 
 const router = Router();
 
 // List all automations
-router.get("/", (_req, res) => {
+router.get("/", asyncHandler(async (_req, res) => {
   const db = getDb();
   const automations = db.prepare(
     "SELECT * FROM james_automations ORDER BY name ASC"
   ).all();
   res.json(automations);
-});
+}));
 
 // Get single automation
-router.get("/:id", (req, res) => {
+router.get("/:id", asyncHandler(async (req, res) => {
   const db = getDb();
   const automation = db.prepare(
     "SELECT * FROM james_automations WHERE id = ?"
   ).get(req.params.id);
   
   if (!automation) {
-    return res.status(404).json({ error: "Automation not found" });
+    throw new NotFoundError("Automation", req.params.id);
   }
   res.json(automation);
-});
+}));
 
 // Create automation
-router.post("/", (req, res) => {
+router.post("/", asyncHandler(async (req, res) => {
   const db = getDb();
   const {
     name,
@@ -43,7 +45,7 @@ router.post("/", (req, res) => {
   } = req.body;
 
   if (!name || !schedule) {
-    return res.status(400).json({ error: "Name and schedule are required" });
+    throw new ValidationError("Name and schedule are required");
   }
 
   const id = generateId();
@@ -54,31 +56,23 @@ router.post("/", (req, res) => {
       id, name, description, schedule, schedule_human, type, enabled, next_run, created_at, updated_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    id,
-    name,
-    description || null,
-    schedule,
-    schedule_human || null,
-    type,
-    enabled ? 1 : 0,
-    next_run || null,
-    now,
-    now
+    id, name, description || null, schedule, schedule_human || null,
+    type, enabled ? 1 : 0, next_run || null, now, now
   );
 
   const automation = db.prepare("SELECT * FROM james_automations WHERE id = ?").get(id);
   res.status(201).json(automation);
-});
+}));
 
 // Update automation
-router.patch("/:id", (req, res) => {
+router.patch("/:id", asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
   const now = getCurrentTimestamp();
 
   const existing = db.prepare("SELECT * FROM james_automations WHERE id = ?").get(id);
   if (!existing) {
-    return res.status(404).json({ error: "Automation not found" });
+    throw new NotFoundError("Automation", id);
   }
 
   const fields = ["name", "description", "schedule", "schedule_human", "type", "enabled", "last_run", "next_run"];
@@ -97,20 +91,20 @@ router.patch("/:id", (req, res) => {
 
   const automation = db.prepare("SELECT * FROM james_automations WHERE id = ?").get(id);
   res.json(automation);
-});
+}));
 
 // Delete automation
-router.delete("/:id", (req, res) => {
+router.delete("/:id", asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
 
   const existing = db.prepare("SELECT * FROM james_automations WHERE id = ?").get(id);
   if (!existing) {
-    return res.status(404).json({ error: "Automation not found" });
+    throw new NotFoundError("Automation", id);
   }
 
   db.prepare("DELETE FROM james_automations WHERE id = ?").run(id);
   res.json({ success: true });
-});
+}));
 
 export default router;

@@ -8,8 +8,10 @@
 import { Router } from "express";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+import { createLogger } from "../logger.js";
 
 const router = Router();
+const log = createLogger("auth");
 
 // Load and validate required environment variables
 if (!process.env.JWT_SECRET) {
@@ -43,7 +45,7 @@ if (process.env.AUTH_JAMES_HASH) {
 
 // Warn if no users configured
 if (Object.keys(USERS).length === 0) {
-  console.warn("[Auth] WARNING: No users configured. Set AUTH_*_HASH environment variables.");
+  log.warn("No users configured. Set AUTH_*_HASH environment variables.");
 }
 
 // Login

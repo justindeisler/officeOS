@@ -15,6 +15,7 @@
  */
 
 import { Router } from "express";
+import { asyncHandler } from "../middleware/asyncHandler.js";
 
 const router = Router();
 
@@ -241,26 +242,21 @@ function generateMockData(startDate: string, endDate: string, groupBy: string, m
  *   model     - Filter by model (opus-4-5, sonnet-4-5, haiku-4-5)
  *   groupBy   - Aggregation period: day (default), week, month
  */
-router.get("/usage", (req, res) => {
-  try {
-    const {
-      startDate = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10),
-      endDate = new Date().toISOString().slice(0, 10),
-      model,
-      groupBy = "day",
-    } = req.query as {
-      startDate?: string;
-      endDate?: string;
-      model?: string;
-      groupBy?: string;
-    };
+router.get("/usage", asyncHandler(async (req, res) => {
+  const {
+    startDate = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10),
+    endDate = new Date().toISOString().slice(0, 10),
+    model,
+    groupBy = "day",
+  } = req.query as {
+    startDate?: string;
+    endDate?: string;
+    model?: string;
+    groupBy?: string;
+  };
 
-    const data = generateMockData(startDate, endDate, groupBy, model);
-    res.json(data);
-  } catch (error) {
-    console.error("[Usage] Error generating usage data:", error);
-    res.status(500).json({ error: "Failed to generate usage data" });
-  }
-});
+  const data = generateMockData(startDate, endDate, groupBy, model);
+  res.json(data);
+}));
 
 export default router;
