@@ -24,6 +24,7 @@ import {
   Lightbulb,
   BarChart3,
   DollarSign,
+  Share2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -64,6 +65,7 @@ const baseNavigation: NavItem[] = [
       { name: "Reports", href: "/accounting/reports", icon: FileText },
     ],
   },
+  { name: "Social Media", href: "/social-media", icon: Share2 },
   { name: "PRD Creator", href: "/prd", icon: FileText },
   { 
     name: "James", 

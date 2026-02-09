@@ -7,6 +7,37 @@
 
 import { adminClient, API_BASE } from '@/api';
 
+// Social Media types
+export interface SocialMediaPost {
+  id: string;
+  platform: 'linkedin' | 'instagram';
+  status: 'suggested' | 'approved' | 'scheduled' | 'published' | 'rejected';
+  content_text: string;
+  visual_path: string | null;
+  visual_type: string | null;
+  scheduled_date: string | null;
+  published_date: string | null;
+  source: string | null;
+  metadata: {
+    topics?: string[];
+    hashtags?: string[];
+    [key: string]: unknown;
+  } | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateSocialMediaPost {
+  platform: 'linkedin' | 'instagram';
+  content_text: string;
+  visual_path?: string;
+  visual_type?: string;
+  scheduled_date?: string;
+  source?: string;
+  metadata?: Record<string, unknown>;
+  status?: string;
+}
+
 class ApiClient {
   private async request<T>(path: string, options?: RequestInit): Promise<T> {
     return adminClient.request<T>(path, options);
@@ -784,6 +815,51 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ taskIds }),
     });
+  }
+
+  // Social Media Posts
+  async getSocialMediaPosts(filters?: { platform?: string; status?: string; source?: string; limit?: number }) {
+    const params = new URLSearchParams();
+    if (filters?.platform) params.set('platform', filters.platform);
+    if (filters?.status) params.set('status', filters.status);
+    if (filters?.source) params.set('source', filters.source);
+    if (filters?.limit) params.set('limit', String(filters.limit));
+    const query = params.toString();
+    return this.request<SocialMediaPost[]>(`/social-media/posts${query ? `?${query}` : ''}`);
+  }
+
+  async getSocialMediaPost(id: string) {
+    return this.request<SocialMediaPost>(`/social-media/posts/${id}`);
+  }
+
+  async createSocialMediaPost(post: CreateSocialMediaPost) {
+    return this.request<SocialMediaPost>('/social-media/posts', {
+      method: 'POST',
+      body: JSON.stringify(post),
+    });
+  }
+
+  async updateSocialMediaPost(id: string, updates: Partial<CreateSocialMediaPost> & { status?: string }) {
+    return this.request<SocialMediaPost>(`/social-media/posts/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteSocialMediaPost(id: string) {
+    return this.request<{ success: boolean }>(`/social-media/posts/${id}`, { method: 'DELETE' });
+  }
+
+  async publishSocialMediaPost(id: string) {
+    return this.request<SocialMediaPost>(`/social-media/posts/${id}/publish`, { method: 'POST' });
+  }
+
+  async getSocialMediaStats() {
+    return this.request<{
+      total: number;
+      byPlatform: Array<{ platform: string; status: string; count: number }>;
+      upcoming: SocialMediaPost[];
+    }>('/social-media/stats');
   }
 }
 

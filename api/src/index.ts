@@ -42,6 +42,7 @@ import clientDashboardRouter from "./routes/clientDashboard.js";
 import usageRouter from "./routes/usage.js";
 import apiUsageRouter from "./routes/api-usage.js";
 import backupsRouter from "./routes/backups.js";
+import socialMediaRouter from "./routes/social-media.js";
 
 // Environment validation — fail fast if critical vars are missing
 function validateEnvironment() {
@@ -149,6 +150,7 @@ app.use("/api/james-tasks", authMiddleware, jamesTasksRouter);
 app.use("/api/reports", authMiddleware, reportsRouter);
 app.use("/api", authMiddleware, subtasksRouter);
 app.use("/api/backups", authMiddleware, backupsRouter);
+app.use("/api/social-media", authMiddleware, socialMediaRouter);
 
 // 404 handler for unmatched API routes (must come after all API routes, before static files)
 app.all("/api/*", notFoundHandler);
