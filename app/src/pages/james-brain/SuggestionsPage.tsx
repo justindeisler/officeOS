@@ -17,6 +17,7 @@ import {
   FileText,
   Loader2,
   ExternalLink,
+  Filter,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +30,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -115,6 +123,10 @@ export function SuggestionsPage() {
   const [generateModalOpen, setGenerateModalOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [creatingPrd, setCreatingPrd] = useState(false);
+
+  // Filter and sort state
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
+  const [projectFilter, setProjectFilter] = useState<string>("all");
 
   // Comments state
   const [comments, setComments] = useState<SuggestionComment[]>([]);
@@ -210,16 +222,42 @@ export function SuggestionsPage() {
     fetchSuggestions();
   }, []);
 
+  // Get unique project names for filter
+  const uniqueProjects = Array.from(
+    new Set(suggestions.map((s) => s.project_name).filter(Boolean))
+  ).sort() as string[];
+
+  // Helper: Apply project filter and sort
+  const filterAndSort = (list: Suggestion[]) => {
+    let filtered = list;
+    
+    // Apply project filter
+    if (projectFilter !== "all") {
+      filtered = filtered.filter((s) => s.project_name === projectFilter);
+    }
+    
+    // Apply sort
+    return filtered.sort((a, b) => {
+      const dateA = new Date(a.created_at).getTime();
+      const dateB = new Date(b.created_at).getTime();
+      return sortOrder === "newest" ? dateB - dateA : dateA - dateB;
+    });
+  };
+
   // Active = pending + approved (not yet implemented)
-  const activeSuggestions = suggestions.filter(
-    (s) => s.status === "pending" || s.status === "approved"
+  const activeSuggestions = filterAndSort(
+    suggestions.filter((s) => s.status === "pending" || s.status === "approved")
   );
   
   // Implemented = completed suggestions
-  const implementedSuggestions = suggestions.filter((s) => s.status === "implemented");
+  const implementedSuggestions = filterAndSort(
+    suggestions.filter((s) => s.status === "implemented")
+  );
   
   // Archived = rejected
-  const archivedSuggestions = suggestions.filter((s) => s.status === "rejected");
+  const archivedSuggestions = filterAndSort(
+    suggestions.filter((s) => s.status === "rejected")
+  );
 
   const handleApprove = async (id: string) => {
     try {
@@ -480,14 +518,44 @@ export function SuggestionsPage() {
         <TabsContent value="active" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">
-                Active Suggestions
-              </CardTitle>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <CardTitle className="text-lg">
+                  Active Suggestions
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  <Select value={projectFilter} onValueChange={setProjectFilter}>
+                    <SelectTrigger className="w-[180px]">
+                      <Filter className="h-4 w-4 mr-2" />
+                      <SelectValue placeholder="All Projects" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Projects</SelectItem>
+                      {uniqueProjects.map((project) => (
+                        <SelectItem key={project} value={project}>
+                          {project}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={sortOrder} onValueChange={(value: "newest" | "oldest") => setSortOrder(value)}>
+                    <SelectTrigger className="w-[130px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="newest">Newest First</SelectItem>
+                      <SelectItem value="oldest">Oldest First</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               {activeSuggestions.length === 0 ? (
                 <p className="text-muted-foreground text-sm text-center py-8">
-                  No active suggestions. James will create suggestions based on project analysis.
+                  {projectFilter !== "all" 
+                    ? `No active suggestions for ${projectFilter}. Try a different filter.`
+                    : "No active suggestions. James will create suggestions based on project analysis."
+                  }
                 </p>
               ) : (
                 <div className="space-y-3">
@@ -503,14 +571,44 @@ export function SuggestionsPage() {
         <TabsContent value="implemented" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">
-                Implemented Suggestions
-              </CardTitle>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <CardTitle className="text-lg">
+                  Implemented Suggestions
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  <Select value={projectFilter} onValueChange={setProjectFilter}>
+                    <SelectTrigger className="w-[180px]">
+                      <Filter className="h-4 w-4 mr-2" />
+                      <SelectValue placeholder="All Projects" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Projects</SelectItem>
+                      {uniqueProjects.map((project) => (
+                        <SelectItem key={project} value={project}>
+                          {project}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={sortOrder} onValueChange={(value: "newest" | "oldest") => setSortOrder(value)}>
+                    <SelectTrigger className="w-[130px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="newest">Newest First</SelectItem>
+                      <SelectItem value="oldest">Oldest First</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               {implementedSuggestions.length === 0 ? (
                 <p className="text-muted-foreground text-sm text-center py-8">
-                  No implemented suggestions yet. Completed improvements will appear here.
+                  {projectFilter !== "all"
+                    ? `No implemented suggestions for ${projectFilter}. Try a different filter.`
+                    : "No implemented suggestions yet. Completed improvements will appear here."
+                  }
                 </p>
               ) : (
                 <div className="space-y-3">
@@ -526,14 +624,44 @@ export function SuggestionsPage() {
         <TabsContent value="archived" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">
-                Archived Suggestions
-              </CardTitle>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <CardTitle className="text-lg">
+                  Archived Suggestions
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  <Select value={projectFilter} onValueChange={setProjectFilter}>
+                    <SelectTrigger className="w-[180px]">
+                      <Filter className="h-4 w-4 mr-2" />
+                      <SelectValue placeholder="All Projects" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Projects</SelectItem>
+                      {uniqueProjects.map((project) => (
+                        <SelectItem key={project} value={project}>
+                          {project}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={sortOrder} onValueChange={(value: "newest" | "oldest") => setSortOrder(value)}>
+                    <SelectTrigger className="w-[130px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="newest">Newest First</SelectItem>
+                      <SelectItem value="oldest">Oldest First</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               {archivedSuggestions.length === 0 ? (
                 <p className="text-muted-foreground text-sm text-center py-8">
-                  No archived suggestions. Declined suggestions will appear here.
+                  {projectFilter !== "all"
+                    ? `No archived suggestions for ${projectFilter}. Try a different filter.`
+                    : "No archived suggestions. Declined suggestions will appear here."
+                  }
                 </p>
               ) : (
                 <div className="space-y-3">
