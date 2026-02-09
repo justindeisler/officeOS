@@ -5,6 +5,8 @@
  */
 
 import { Router } from "express";
+import { existsSync, statSync } from "fs";
+import path from "path";
 import { getDb, generateId, getCurrentTimestamp } from "../database.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { ValidationError, NotFoundError } from "../errors.js";
@@ -225,6 +227,83 @@ router.post("/posts/:id/publish", asyncHandler(async (req, res) => {
     ...post,
     metadata: post.metadata ? JSON.parse(post.metadata) : null,
   });
+}));
+
+// ─── Serve Visual ──────────────────────────────────────────────────
+
+router.get("/posts/:id/visual", asyncHandler(async (req, res) => {
+  const db = getDb();
+  const post = db.prepare("SELECT visual_path, visual_type FROM social_media_posts WHERE id = ?").get(req.params.id) as Pick<SocialMediaPost, "visual_path" | "visual_type"> | undefined;
+
+  if (!post) {
+    throw new NotFoundError("Social media post", req.params.id);
+  }
+
+  if (!post.visual_path) {
+    res.status(404).json({ error: "No visual generated for this post" });
+    return;
+  }
+
+  const filePath = post.visual_path;
+  if (!existsSync(filePath)) {
+    log.warn({ postId: req.params.id, path: filePath }, "Visual file missing from filesystem");
+    res.status(404).json({ error: "Visual file not found" });
+    return;
+  }
+
+  // Security: ensure the path is within the expected directory
+  const resolvedPath = path.resolve(filePath);
+  const allowedDir = path.resolve("/home/jd-server-admin/clawd/social-media/visuals");
+  if (!resolvedPath.startsWith(allowedDir)) {
+    log.warn({ postId: req.params.id, path: resolvedPath }, "Visual path outside allowed directory");
+    res.status(403).json({ error: "Access denied" });
+    return;
+  }
+
+  // Set cache headers (visuals don't change once generated)
+  const stat = statSync(filePath);
+  const ext = path.extname(filePath).toLowerCase();
+  const contentType = ext === ".jpg" || ext === ".jpeg" ? "image/jpeg" : "image/png";
+  
+  res.set({
+    "Content-Type": contentType,
+    "Content-Length": stat.size.toString(),
+    "Cache-Control": "public, max-age=86400",
+    "ETag": `"${stat.mtime.getTime().toString(36)}-${stat.size.toString(36)}"`,
+  });
+
+  res.sendFile(resolvedPath);
+}));
+
+// ─── Generate Visual (trigger) ─────────────────────────────────────
+
+router.post("/posts/:id/generate-visual", asyncHandler(async (req, res) => {
+  const db = getDb();
+  const post = db.prepare("SELECT * FROM social_media_posts WHERE id = ?").get(req.params.id) as SocialMediaPost | undefined;
+
+  if (!post) {
+    throw new NotFoundError("Social media post", req.params.id);
+  }
+
+  // Spawn Python visual generator
+  const { execSync } = await import("child_process");
+  try {
+    const result = execSync(
+      `python3 /home/jd-server-admin/clawd/scripts/generate_post_visual.py --post-id "${req.params.id}" --output-json`,
+      { timeout: 30000, encoding: "utf-8" }
+    );
+    const parsed = JSON.parse(result.trim());
+
+    res.json({
+      success: parsed.success,
+      visual_path: parsed.path,
+      visual_type: parsed.type,
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    log.error({ postId: req.params.id, error: message }, "Visual generation failed");
+    res.status(500).json({ error: "Visual generation failed", details: message });
+  }
 }));
 
 // ─── Stats ─────────────────────────────────────────────────────────

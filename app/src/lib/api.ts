@@ -854,6 +854,13 @@ class ApiClient {
     return this.request<SocialMediaPost>(`/social-media/posts/${id}/publish`, { method: 'POST' });
   }
 
+  async generateSocialMediaVisual(id: string) {
+    return this.request<{ success: boolean; visual_path: string; visual_type: string }>(
+      `/social-media/posts/${id}/generate-visual`,
+      { method: 'POST' }
+    );
+  }
+
   async getSocialMediaStats() {
     return this.request<{
       total: number;

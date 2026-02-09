@@ -125,6 +125,12 @@ app.use("/api/client", clientDashboardRouter);
 // James trigger (public - called from webapp)
 app.use("/api/james", jamesRouter);
 
+// Social media visuals (public static files - for <img> tags in UI)
+app.use("/api/social-media/visuals", express.static("/home/jd-server-admin/clawd/social-media/visuals", {
+  maxAge: "1d",
+  immutable: false,
+}));
+
 // James usage/cost tracking (protected)
 app.use("/api/james", authMiddleware, usageRouter);
 app.use("/api/james", authMiddleware, apiUsageRouter);
@@ -150,6 +156,7 @@ app.use("/api/james-tasks", authMiddleware, jamesTasksRouter);
 app.use("/api/reports", authMiddleware, reportsRouter);
 app.use("/api", authMiddleware, subtasksRouter);
 app.use("/api/backups", authMiddleware, backupsRouter);
+// Social media routes
 app.use("/api/social-media", authMiddleware, socialMediaRouter);
 
 // 404 handler for unmatched API routes (must come after all API routes, before static files)

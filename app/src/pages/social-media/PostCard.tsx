@@ -138,11 +138,30 @@ export function PostCard({
           </div>
         </div>
 
-        {/* Visual preview (if exists) */}
-        {post.visual_path && (
-          <div className="rounded-lg overflow-hidden bg-muted aspect-video flex items-center justify-center border">
-            <ImageIcon className="h-8 w-8 text-muted-foreground/50" />
-            <span className="ml-2 text-sm text-muted-foreground">{post.visual_type || "Visual"}</span>
+        {/* Visual preview */}
+        {post.visual_path ? (
+          <div className="rounded-lg overflow-hidden bg-muted border">
+            <img
+              src={`/api/social-media/visuals/${post.visual_path.split('/').pop()}`}
+              alt={`${post.visual_type || "Visual"} for ${post.platform} post`}
+              className="w-full aspect-video object-cover"
+              loading="lazy"
+              onError={(e) => {
+                // Fallback to placeholder on load error
+                const target = e.target as HTMLImageElement;
+                target.style.display = "none";
+                target.parentElement!.innerHTML = `
+                  <div class="aspect-video flex items-center justify-center">
+                    <span class="text-sm text-muted-foreground">⚠️ Visual unavailable</span>
+                  </div>
+                `;
+              }}
+            />
+          </div>
+        ) : (
+          <div className="rounded-lg overflow-hidden bg-muted/50 aspect-video flex items-center justify-center border border-dashed">
+            <ImageIcon className="h-6 w-6 text-muted-foreground/30" />
+            <span className="ml-2 text-xs text-muted-foreground/50">No visual generated</span>
           </div>
         )}
 
