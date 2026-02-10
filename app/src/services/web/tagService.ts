@@ -1,42 +1,65 @@
 /**
- * Web-based Tag Service stub
- * TODO: Implement tag API endpoints
+ * Web-based Tag Service using REST API
  */
 
+import { api } from "@/lib/api";
 import type { Tag } from "@/types";
+
+/** Map API response (color: string | null) to Tag type (color?: string) */
+function toTag(raw: { id: string; name: string; color: string | null }): Tag {
+  return { id: raw.id, name: raw.name, color: raw.color ?? undefined };
+}
 
 class TagService {
   async getAll(): Promise<Tag[]> {
-    console.warn("Tag service not yet implemented for web");
-    return [];
+    const tags = await api.getTags();
+    return tags.map(toTag);
   }
 
-  async getById(_id: string): Promise<Tag | null> {
-    return null;
+  async getById(id: string): Promise<Tag | null> {
+    const tags = await api.getTags();
+    const found = tags.find((t) => t.id === id);
+    return found ? toTag(found) : null;
   }
 
-  async create(_item: Omit<Tag, "id">): Promise<Tag> {
-    throw new Error("Tag creation not yet implemented for web");
+  async create(item: Omit<Tag, "id">): Promise<Tag> {
+    const raw = await api.createTag(item);
+    return toTag(raw);
   }
 
-  async update(_id: string, _updates: Partial<Tag>): Promise<void> {
-    throw new Error("Tag update not yet implemented for web");
+  async update(id: string, updates: Partial<Tag>): Promise<void> {
+    await api.updateTag(id, updates);
   }
 
-  async delete(_id: string): Promise<void> {
-    throw new Error("Tag deletion not yet implemented for web");
+  async delete(id: string): Promise<void> {
+    await api.deleteTag(id);
   }
 
-  async getTaskTags(_taskId: string): Promise<Tag[]> {
-    return [];
+  async getTaskTags(taskId: string): Promise<Tag[]> {
+    const tags = await api.getTaskTags(taskId);
+    return tags.map(toTag);
   }
 
-  async addTagToTask(_taskId: string, _tagId: string): Promise<void> {
-    console.warn("Task tagging not yet implemented for web");
+  async addTagToTask(taskId: string, tagId: string): Promise<void> {
+    await api.addTagToTask(taskId, tagId);
   }
 
-  async removeTagFromTask(_taskId: string, _tagId: string): Promise<void> {
-    console.warn("Task tag removal not yet implemented for web");
+  async removeTagFromTask(taskId: string, tagId: string): Promise<void> {
+    await api.removeTagFromTask(taskId, tagId);
+  }
+
+  async syncTaskTags(taskId: string, tagIds: string[]): Promise<Tag[]> {
+    const tags = await api.syncTaskTags(taskId, tagIds);
+    return tags.map(toTag);
+  }
+
+  async getTaskTagsBulk(taskIds: string[]): Promise<Record<string, Tag[]>> {
+    const bulk = await api.getTaskTagsBulk(taskIds);
+    const result: Record<string, Tag[]> = {};
+    for (const [taskId, tags] of Object.entries(bulk)) {
+      result[taskId] = tags.map(toTag);
+    }
+    return result;
   }
 }
 

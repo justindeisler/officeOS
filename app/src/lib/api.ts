@@ -817,6 +817,60 @@ class ApiClient {
     });
   }
 
+  // ── Tags ──────────────────────────────────────────────────
+
+  async getTags() {
+    return this.request<Array<{ id: string; name: string; color: string | null }>>('/tags');
+  }
+
+  async createTag(data: { name: string; color?: string }) {
+    return this.request<{ id: string; name: string; color: string | null }>('/tags', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateTag(id: string, data: { name?: string; color?: string | null }) {
+    return this.request<{ id: string; name: string; color: string | null }>(`/tags/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteTag(id: string) {
+    return this.request<{ success: boolean }>(`/tags/${id}`, { method: 'DELETE' });
+  }
+
+  async getTaskTags(taskId: string) {
+    return this.request<Array<{ id: string; name: string; color: string | null }>>(`/tags/tasks/${taskId}`);
+  }
+
+  async addTagToTask(taskId: string, tagId: string) {
+    return this.request<{ success: boolean }>(`/tags/tasks/${taskId}/${tagId}`, {
+      method: 'POST',
+    });
+  }
+
+  async removeTagFromTask(taskId: string, tagId: string) {
+    return this.request<{ success: boolean }>(`/tags/tasks/${taskId}/${tagId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async syncTaskTags(taskId: string, tagIds: string[]) {
+    return this.request<Array<{ id: string; name: string; color: string | null }>>(`/tags/tasks/${taskId}/sync`, {
+      method: 'POST',
+      body: JSON.stringify({ tagIds }),
+    });
+  }
+
+  async getTaskTagsBulk(taskIds: string[]) {
+    return this.request<Record<string, Array<{ id: string; name: string; color: string | null }>>>('/tags/tasks/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ taskIds }),
+    });
+  }
+
   // Social Media Posts
   async getSocialMediaPosts(filters?: { platform?: string; status?: string; source?: string; limit?: number }) {
     const params = new URLSearchParams();

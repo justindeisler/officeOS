@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { taskService } from "@/services";
 import { toast } from "sonner";
+import { useTagStore } from "@/stores/tagStore";
 import type { Task, TaskStatus, Area } from "@/types";
 
 interface TaskState {
@@ -303,9 +304,12 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
   },
 }));
 
-// Selectors
+// Selectors with proper Zustand subscription
 export const useFilteredTasks = () => {
-  const { tasks, filter } = useTaskStore();
+  const tasks = useTaskStore((state) => state.tasks);
+  const filter = useTaskStore((state) => state.filter);
+  const filterTagIds = useTagStore((state) => state.filterTagIds);
+  const taskTags = useTagStore((state) => state.taskTags);
 
   return tasks.filter((task) => {
     if (filter.area !== "all" && task.area !== filter.area) {
@@ -317,13 +321,52 @@ export const useFilteredTasks = () => {
     ) {
       return false;
     }
+    // Tag filter: if any tags are selected, task must have at least one of them
+    if (filterTagIds.length > 0) {
+      const tags = taskTags[task.id] || [];
+      const tagIds = tags.map((t) => t.id);
+      if (!filterTagIds.some((id) => tagIds.includes(id))) {
+        return false;
+      }
+    }
     return true;
   });
 };
 
 export const useTasksByStatus = (status: TaskStatus) => {
-  const filteredTasks = useFilteredTasks();
-  return filteredTasks
-    .filter((task) => task.status === status)
+  const tasks = useTaskStore((state) => state.tasks);
+  const filter = useTaskStore((state) => state.filter);
+  const filterTagIds = useTagStore((state) => state.filterTagIds);
+  const taskTags = useTagStore((state) => state.taskTags);
+
+  return tasks
+    .filter((task) => {
+      // Apply status filter
+      if (task.status !== status) return false;
+
+      // Apply area filter
+      if (filter.area !== "all" && task.area !== filter.area) {
+        return false;
+      }
+
+      // Apply search filter
+      if (
+        filter.search &&
+        !task.title.toLowerCase().includes(filter.search.toLowerCase())
+      ) {
+        return false;
+      }
+
+      // Apply tag filter
+      if (filterTagIds.length > 0) {
+        const tags = taskTags[task.id] || [];
+        const tagIds = tags.map((t) => t.id);
+        if (!filterTagIds.some((id) => tagIds.includes(id))) {
+          return false;
+        }
+      }
+
+      return true;
+    })
     .sort((a, b) => a.sortOrder - b.sortOrder);
 };

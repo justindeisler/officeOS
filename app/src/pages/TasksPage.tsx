@@ -1,14 +1,16 @@
 import { useState } from "react";
-import { Plus, Bot, Loader2 } from "lucide-react";
+import { Plus, Bot, Loader2, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { KanbanBoard } from "@/components/tasks/KanbanBoard";
 import { TaskFilters } from "@/components/tasks/TaskFilters";
 import { TaskDialog } from "@/components/tasks/TaskDialog";
+import { TagManager } from "@/components/tags";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 
 export function TasksPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [tagManagerOpen, setTagManagerOpen] = useState(false);
   const [jamesLoading, setJamesLoading] = useState(false);
 
   const handleAddTask = () => {
@@ -59,6 +61,14 @@ export function TasksPage() {
               James
             </span>
           </button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setTagManagerOpen(true)}
+            title="Manage Tags"
+          >
+            <Settings2 className="h-4 w-4" />
+          </Button>
           <Button onClick={handleAddTask} className="flex-1 sm:flex-none">
             <Plus className="h-4 w-4 mr-2" />
             Add Task
@@ -76,6 +86,11 @@ export function TasksPage() {
         task={null}
         defaultStatus="backlog"
         onClose={handleCloseDialog}
+      />
+
+      <TagManager
+        open={tagManagerOpen}
+        onOpenChange={setTagManagerOpen}
       />
     </div>
   );

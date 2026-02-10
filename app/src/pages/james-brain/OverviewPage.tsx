@@ -90,20 +90,18 @@ export function OverviewPage() {
     fetchData();
   }, []);
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center p-12">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-      </div>
-    );
-  }
-
   const pendingSuggestions = suggestions.filter((s) => s.status === "pending");
   const inProgressTasks = tasks.filter((t) => t.status === "in_progress");
   const queuedTasks = tasks.filter((t) => t.status === "queue");
 
   return (
-    <div className="space-y-6">
+    <>
+      {isLoading ? (
+        <div className="flex items-center justify-center p-12">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        </div>
+      ) : (
+        <div className="space-y-6">
       <div>
         <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight flex items-center gap-2">
           <Bot className="h-7 w-7" />
@@ -284,6 +282,8 @@ export function OverviewPage() {
           )}
         </CardContent>
       </Card>
-    </div>
+        </div>
+      )}
+    </>
   );
 }

@@ -50,7 +50,9 @@ async function triggerJamesImplementation(suggestion: {
     commentSection || null,
     '',
     'Please spawn a sub-agent to implement this suggestion.',
-    `When complete, mark it as implemented via POST /api/suggestions/${suggestion.id}/implement.`,
+    `IMPORTANT: When the sub-agent completes the work, it MUST run:`,
+    `  mark-suggestion-implemented ${suggestion.id} --summary "brief description of what was done"`,
+    `This marks the suggestion as implemented in the PA app. Include this command in the sub-agent's task description.`,
   ].filter(Boolean).join('\n');
   
   try {

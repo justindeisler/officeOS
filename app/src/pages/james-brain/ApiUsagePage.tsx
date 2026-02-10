@@ -296,13 +296,16 @@ export function ApiUsagePage() {
 
   // ─── Loading / Error ────────────────────────────────────────────────────
 
-  if (isLoading) return <DashboardLoading />;
-  if (error || !data) return <DashboardError message={error ?? undefined} />;
-
   // ─── Render ─────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6">
+    <>
+      {isLoading ? (
+        <DashboardLoading />
+      ) : error || !data ? (
+        <DashboardError message={error ?? undefined} />
+      ) : (
+        <div className="space-y-6">
       {/* Header */}
       <DashboardHeader
         icon={DollarSign}
@@ -677,6 +680,8 @@ export function ApiUsagePage() {
           </div>
         </CardContent>
       </Card>
-    </div>
+        </div>
+      )}
+    </>
   );
 }

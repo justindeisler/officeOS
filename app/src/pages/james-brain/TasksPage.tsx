@@ -188,16 +188,14 @@ export function TasksPage() {
       .sort((a, b) => a.priority - b.priority);
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center p-12">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6">
+    <>
+      {isLoading ? (
+        <div className="flex items-center justify-center p-12">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        </div>
+      ) : (
+        <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight flex items-center gap-2">
@@ -379,6 +377,8 @@ export function TasksPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+        </div>
+      )}
+    </>
   );
 }

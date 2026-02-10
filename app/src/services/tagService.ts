@@ -120,6 +120,24 @@ class TagService {
       );
     }
   }
+
+  // Aliases for compatibility with web service interface (used by tagStore)
+  async getTaskTags(taskId: string): Promise<Tag[]> {
+    return this.getTagsForTask(taskId);
+  }
+
+  async syncTaskTags(taskId: string, tagIds: string[]): Promise<Tag[]> {
+    await this.setTaskTags(taskId, tagIds);
+    return this.getTagsForTask(taskId);
+  }
+
+  async getTaskTagsBulk(taskIds: string[]): Promise<Record<string, Tag[]>> {
+    const result: Record<string, Tag[]> = {};
+    for (const taskId of taskIds) {
+      result[taskId] = await this.getTagsForTask(taskId);
+    }
+    return result;
+  }
 }
 
 export const tagService = new TagService();

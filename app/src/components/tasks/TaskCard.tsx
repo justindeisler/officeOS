@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useProjectStore } from "@/stores/projectStore";
 import { usePRDStore } from "@/stores/prdStore";
+import { useTagStore } from "@/stores/tagStore";
+import { TagBadge } from "@/components/tags";
 import { SubtaskList } from "./SubtaskList";
 import type { Task, SubtaskCounts } from "@/types";
 
@@ -54,6 +56,7 @@ function getProjectColorIndex(projectName: string): number {
 export function TaskCard({ task, onEdit, onAssignToJames, isDragging, subtaskCounts }: TaskCardProps) {
   const { projects } = useProjectStore();
   const { prds } = usePRDStore();
+  const taskTags = useTagStore((s) => s.taskTags[task.id] || []);
   const project = task.projectId
     ? projects.find((p) => p.id === task.projectId)
     : null;
@@ -175,6 +178,11 @@ export function TaskCard({ task, onEdit, onAssignToJames, isDragging, subtaskCou
                 Request
               </span>
             )}
+
+            {/* Tag badges */}
+            {taskTags.map((tag) => (
+              <TagBadge key={tag.id} tag={tag} />
+            ))}
 
             {/* Priority indicator */}
             <span

@@ -253,16 +253,19 @@ export function UsagePage() {
 
   // ─── Loading / Error ────────────────────────────────────────────────────
 
-  if (isLoading) return <DashboardLoading />;
-  if (error || !data) return <DashboardError message={error ?? undefined} />;
-
   // ─── Render ─────────────────────────────────────────────────────────────
 
   const trendConfig = modelFilter !== "all" ? inputOutputChartConfig : modelChartConfig;
   const trendKeys = Object.keys(trendConfig);
 
   return (
-    <div className="space-y-6">
+    <>
+      {isLoading ? (
+        <DashboardLoading />
+      ) : error || !data ? (
+        <DashboardError message={error ?? undefined} />
+      ) : (
+        <div className="space-y-6">
       {/* Header */}
       <DashboardHeader
         icon={BarChart3}
@@ -484,6 +487,8 @@ export function UsagePage() {
           )}
         </CardContent>
       </Card>
-    </div>
+        </div>
+      )}
+    </>
   );
 }

@@ -17,6 +17,7 @@ import { TaskCard } from "./TaskCard";
 import { TaskDialog } from "./TaskDialog";
 import { useTaskStore, useFilteredTasks } from "@/stores/taskStore";
 import { useConfettiStore } from "@/stores/confettiStore";
+import { useTagStore } from "@/stores/tagStore";
 import { taskService } from "@/services";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -44,11 +45,14 @@ export function KanbanBoard() {
   const { moveTaskLocal, persistColumnOrder } = useTaskStore();
   const filteredTasks = useFilteredTasks();
   const triggerConfetti = useConfettiStore((state) => state.trigger);
+  const { loadTaskTags } = useTagStore();
 
   // Capture pre-drag task state for rollback on API failure
   const preDragTasksRef = useRef<Task[]>([]);
 
-  // Fetch subtask counts for all visible tasks
+  // Fetch subtask counts and task tags for all visible tasks
+  const taskIdKey = filteredTasks.map((t) => t.id).join(",");
+
   useEffect(() => {
     const taskIds = filteredTasks.map((t) => t.id);
     if (taskIds.length === 0) return;
@@ -63,7 +67,8 @@ export function KanbanBoard() {
     };
 
     fetchCounts();
-  }, [filteredTasks.map((t) => t.id).join(",")]);
+    loadTaskTags(taskIds);
+  }, [taskIdKey]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {

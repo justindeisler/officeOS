@@ -7,6 +7,7 @@ import { useTimerStore } from "@/stores/timerStore";
 import { useCaptureStore } from "@/stores/captureStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { usePRDStore } from "@/stores/prdStore";
+import { useTagStore } from "@/stores/tagStore";
 
 interface InitializationState {
   isReady: boolean;
@@ -66,6 +67,7 @@ export function useAppInitialization(isAuthenticated: boolean): InitializationSt
             useInvoiceStore.getState().initialize(),
             useCaptureStore.getState().initialize(),
             usePRDStore.getState().initialize(),
+            useTagStore.getState().initialize(),
           ]);
           console.log("[App] Stores initialized!");
         } else {

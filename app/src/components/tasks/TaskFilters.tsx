@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useTaskStore } from "@/stores/taskStore";
+import { TagFilterDropdown } from "@/components/tags";
 import type { Area } from "@/types";
 
 export function TaskFilters() {
@@ -41,6 +42,9 @@ export function TaskFilters() {
           <SelectItem value="personal">Personal</SelectItem>
         </SelectContent>
       </Select>
+
+      {/* Tag filter */}
+      <TagFilterDropdown />
     </div>
   );
 }

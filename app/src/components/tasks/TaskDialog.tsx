@@ -26,6 +26,8 @@ import { useTaskStore } from "@/stores/taskStore";
 import { useProjectStore } from "@/stores/projectStore";
 import { useClientStore } from "@/stores/clientStore";
 import { usePRDStore } from "@/stores/prdStore";
+import { useTagStore } from "@/stores/tagStore";
+import { TagMultiSelect } from "@/components/tags";
 import {
   exportTaskToMarkdown,
   downloadMarkdown,
@@ -53,6 +55,7 @@ export function TaskDialog({
   const { projects } = useProjectStore();
   const { clients } = useClientStore();
   const { prds } = usePRDStore();
+  const { taskTags, syncTaskTags } = useTagStore();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -63,6 +66,7 @@ export function TaskDialog({
   const [projectId, setProjectId] = useState<string | undefined>(undefined);
   const [prdId, setPrdId] = useState<string | undefined>(undefined);
   const [assignee, setAssignee] = useState<Assignee>(null);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const isEditing = !!task;
@@ -78,6 +82,9 @@ export function TaskDialog({
       setProjectId(task.projectId);
       setPrdId(task.prdId);
       setAssignee(task.assignee || null);
+      // Load tags for this task
+      const tags = taskTags[task.id] || [];
+      setSelectedTagIds(tags.map((t) => t.id));
     } else {
       setTitle("");
       setDescription("");
@@ -88,10 +95,11 @@ export function TaskDialog({
       setProjectId(undefined);
       setPrdId(undefined);
       setAssignee(null);
+      setSelectedTagIds([]);
     }
   }, [task, defaultStatus, open]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!title.trim()) return;
@@ -109,9 +117,19 @@ export function TaskDialog({
     };
 
     if (isEditing && task) {
-      updateTask(task.id, taskData);
+      await updateTask(task.id, taskData);
+      // Sync tags
+      await syncTaskTags(task.id, selectedTagIds);
     } else {
-      addTask(taskData);
+      // For new tasks we need the ID from the store after creation
+      await addTask(taskData);
+      // Get the newly created task (last one added with matching title)
+      const newTask = useTaskStore.getState().tasks.find(
+        (t) => t.title === taskData.title && t.status === taskData.status
+      );
+      if (newTask && selectedTagIds.length > 0) {
+        await syncTaskTags(newTask.id, selectedTagIds);
+      }
     }
 
     onClose();
@@ -293,6 +311,15 @@ export function TaskDialog({
                   className="h-10"
                 />
               </div>
+            </div>
+
+            {/* Tags */}
+            <div className="grid gap-2">
+              <Label>Tags</Label>
+              <TagMultiSelect
+                selectedIds={selectedTagIds}
+                onChange={setSelectedTagIds}
+              />
             </div>
 
             {/* Assign to James */}
