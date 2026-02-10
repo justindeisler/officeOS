@@ -6,13 +6,21 @@ import { Router } from "express";
 import { getDb, generateId, getCurrentTimestamp } from "../database.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { NotFoundError, ValidationError } from "../errors.js";
+import { cache, cacheKey, TTL } from "../cache.js";
 
 const router = Router();
 
 // List projects
 router.get("/", asyncHandler(async (req, res) => {
-  const db = getDb();
   const { area, status, client_id } = req.query;
+  const key = cacheKey("projects", "list", status as string, area as string, client_id as string);
+
+  const cached = cache.get(key);
+  if (cached) {
+    return res.json(cached);
+  }
+
+  const db = getDb();
 
   let sql = "SELECT * FROM projects WHERE 1=1";
   const params: unknown[] = [];
@@ -33,6 +41,7 @@ router.get("/", asyncHandler(async (req, res) => {
   sql += " ORDER BY created_at DESC";
 
   const projects = db.prepare(sql).all(...params);
+  cache.set(key, projects, TTL.PROJECTS);
   res.json(projects);
 }));
 
@@ -73,6 +82,7 @@ router.post("/", asyncHandler(async (req, res) => {
   ).run(id, name, area, client_id || null, description || null, budget_amount || null, budget_currency, start_date || null, target_end_date || null, now, now);
 
   const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(id);
+  cache.invalidate("projects:*");
   res.status(201).json(project);
 }));
 
@@ -106,6 +116,7 @@ router.patch("/:id", asyncHandler(async (req, res) => {
   }
 
   const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(id);
+  cache.invalidate("projects:*");
   res.json(project);
 }));
 
@@ -126,6 +137,7 @@ router.delete("/:id", asyncHandler(async (req, res) => {
   }
 
   db.prepare("DELETE FROM projects WHERE id = ?").run(id);
+  cache.invalidate("projects:*");
   res.json({ success: true, message: `Project "${existing.name}" deleted` });
 }));
 

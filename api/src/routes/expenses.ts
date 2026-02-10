@@ -10,6 +10,7 @@ import { basename } from "path";
 import { getDb, generateId, getCurrentTimestamp } from "../database.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { NotFoundError, ValidationError } from "../errors.js";
+import { cache, cacheKey, TTL } from "../cache.js";
 
 const router = Router();
 
@@ -66,8 +67,15 @@ router.get("/categories", (_req: Request, res: Response) => {
  * List all expenses
  */
 router.get("/", asyncHandler(async (req: Request, res: Response) => {
-  const db = getDb();
   const { start_date, end_date, category, vendor, ust_period, ust_reported } = req.query;
+  const key = cacheKey("expenses", "list", start_date as string, end_date as string, category as string, vendor as string, ust_period as string, ust_reported as string);
+
+  const cached = cache.get(key);
+  if (cached) {
+    return res.json(cached);
+  }
+
+  const db = getDb();
 
   let sql = "SELECT * FROM expenses WHERE 1=1";
   const params: unknown[] = [];
@@ -105,6 +113,7 @@ router.get("/", asyncHandler(async (req: Request, res: Response) => {
   sql += " ORDER BY date DESC";
 
   const expenses = db.prepare(sql).all(...params) as ExpenseRow[];
+  cache.set(key, expenses, TTL.EXPENSES);
   res.json(expenses);
 }));
 
@@ -221,6 +230,7 @@ router.post("/", asyncHandler(async (req: Request, res: Response) => {
   );
 
   const expense = db.prepare("SELECT * FROM expenses WHERE id = ?").get(id);
+  cache.invalidate("expenses:*");
   res.status(201).json(expense);
 }));
 
@@ -278,6 +288,7 @@ router.patch("/:id", asyncHandler(async (req: Request, res: Response) => {
   }
 
   const expense = db.prepare("SELECT * FROM expenses WHERE id = ?").get(id);
+  cache.invalidate("expenses:*");
   res.json(expense);
 }));
 
@@ -297,6 +308,7 @@ router.delete("/:id", asyncHandler(async (req: Request, res: Response) => {
   }
 
   db.prepare("DELETE FROM expenses WHERE id = ?").run(id);
+  cache.invalidate("expenses:*");
   res.json({ success: true, message: "Expense deleted" });
 }));
 
@@ -324,6 +336,7 @@ router.post("/mark-reported", asyncHandler(async (req: Request, res: Response) =
     ).run(...params);
   }
 
+  cache.invalidate("expenses:*");
   res.json({ success: true, updated: ids.length });
 }));
 

@@ -6,13 +6,21 @@ import { Router } from "express";
 import { getDb, generateId, getCurrentTimestamp } from "../database.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { NotFoundError, ValidationError } from "../errors.js";
+import { cache, cacheKey, TTL } from "../cache.js";
 
 const router = Router();
 
 // List clients
 router.get("/", asyncHandler(async (req, res) => {
-  const db = getDb();
   const { status } = req.query;
+  const key = cacheKey("clients", "list", status as string);
+
+  const cached = cache.get(key);
+  if (cached) {
+    return res.json(cached);
+  }
+
+  const db = getDb();
 
   let sql = "SELECT * FROM clients WHERE 1=1";
   const params: unknown[] = [];
@@ -25,6 +33,7 @@ router.get("/", asyncHandler(async (req, res) => {
   sql += " ORDER BY name ASC";
 
   const clients = db.prepare(sql).all(...params);
+  cache.set(key, clients, TTL.CLIENTS);
   res.json(clients);
 }));
 
@@ -56,6 +65,7 @@ router.post("/", asyncHandler(async (req, res) => {
   ).run(id, name, email || null, company || null, contact_info || null, notes || null, status, now, now);
 
   const client = db.prepare("SELECT * FROM clients WHERE id = ?").get(id);
+  cache.invalidate("clients:*");
   res.status(201).json(client);
 }));
 
@@ -89,6 +99,7 @@ router.patch("/:id", asyncHandler(async (req, res) => {
   }
 
   const client = db.prepare("SELECT * FROM clients WHERE id = ?").get(id);
+  cache.invalidate("clients:*");
   res.json(client);
 }));
 
@@ -103,6 +114,7 @@ router.delete("/:id", asyncHandler(async (req, res) => {
   }
 
   db.prepare("DELETE FROM clients WHERE id = ?").run(id);
+  cache.invalidate("clients:*");
   res.json({ success: true, message: `Client "${existing.name}" deleted` });
 }));
 

@@ -8,6 +8,7 @@ import { Router, type Request, type Response } from "express";
 import { getDb, generateId, getCurrentTimestamp } from "../database.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { NotFoundError, ValidationError } from "../errors.js";
+import { cache, cacheKey, TTL } from "../cache.js";
 
 const router = Router();
 
@@ -42,8 +43,15 @@ interface IncomeRow {
  * List all income records
  */
 router.get("/", asyncHandler(async (req: Request, res: Response) => {
-  const db = getDb();
   const { start_date, end_date, client_id, ust_period, ust_reported } = req.query;
+  const key = cacheKey("income", "list", start_date as string, end_date as string, client_id as string, ust_period as string, ust_reported as string);
+
+  const cached = cache.get(key);
+  if (cached) {
+    return res.json(cached);
+  }
+
+  const db = getDb();
 
   let sql = "SELECT * FROM income WHERE 1=1";
   const params: unknown[] = [];
@@ -76,6 +84,7 @@ router.get("/", asyncHandler(async (req: Request, res: Response) => {
   sql += " ORDER BY date DESC";
 
   const income = db.prepare(sql).all(...params) as IncomeRow[];
+  cache.set(key, income, TTL.INCOME);
   res.json(income);
 }));
 
@@ -150,6 +159,7 @@ router.post("/", asyncHandler(async (req: Request, res: Response) => {
   );
 
   const income = db.prepare("SELECT * FROM income WHERE id = ?").get(id);
+  cache.invalidate("income:*");
   res.status(201).json(income);
 }));
 
@@ -207,6 +217,7 @@ router.patch("/:id", asyncHandler(async (req: Request, res: Response) => {
   }
 
   const income = db.prepare("SELECT * FROM income WHERE id = ?").get(id);
+  cache.invalidate("income:*");
   res.json(income);
 }));
 
@@ -226,6 +237,7 @@ router.delete("/:id", asyncHandler(async (req: Request, res: Response) => {
   }
 
   db.prepare("DELETE FROM income WHERE id = ?").run(id);
+  cache.invalidate("income:*");
   res.json({ success: true, message: "Income record deleted" });
 }));
 
@@ -253,6 +265,7 @@ router.post("/mark-reported", asyncHandler(async (req: Request, res: Response) =
     ).run(...params);
   }
 
+  cache.invalidate("income:*");
   res.json({ success: true, updated: ids.length });
 }));
 

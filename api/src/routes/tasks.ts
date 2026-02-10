@@ -7,14 +7,22 @@ import { getDb, generateId, getCurrentTimestamp } from "../database.js";
 import { createLogger } from "../logger.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { NotFoundError, ValidationError } from "../errors.js";
+import { cache, cacheKey, TTL } from "../cache.js";
 
 const router = Router();
 const log = createLogger("tasks");
 
 // List tasks
 router.get("/", asyncHandler(async (req, res) => {
-  const db = getDb();
   const { area, status, project_id, limit } = req.query;
+  const key = cacheKey("tasks", "list", area as string, status as string, project_id as string, limit as string);
+
+  const cached = cache.get(key);
+  if (cached) {
+    return res.json(cached);
+  }
+
+  const db = getDb();
 
   let sql = "SELECT * FROM tasks WHERE 1=1";
   const params: unknown[] = [];
@@ -40,6 +48,7 @@ router.get("/", asyncHandler(async (req, res) => {
   }
 
   const tasks = db.prepare(sql).all(...params);
+  cache.set(key, tasks, TTL.TASKS);
   res.json(tasks);
 }));
 
@@ -110,6 +119,7 @@ router.post("/", asyncHandler(async (req, res) => {
   ).run(id, title, area, priority, status, description || null, project_id || null, prd_id || null, due_date || null, estimated_minutes || null, assignee || null, now, now);
 
   const task = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
+  cache.invalidate("tasks:*");
   res.status(201).json(task);
 }));
 
@@ -156,6 +166,7 @@ router.patch("/:id", asyncHandler(async (req, res) => {
   }
 
   const task = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
+  cache.invalidate("tasks:*");
   res.json(task);
 }));
 
@@ -205,6 +216,7 @@ router.post("/reorder", asyncHandler(async (req, res) => {
     .prepare(`SELECT * FROM tasks WHERE id IN (${placeholders}) ORDER BY sort_order ASC`)
     .all(...taskIds);
 
+  cache.invalidate("tasks:*");
   res.json(updatedTasks);
 }));
 
@@ -264,6 +276,7 @@ router.post("/:id/move", asyncHandler(async (req, res) => {
   }
 
   const task = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
+  cache.invalidate("tasks:*");
   res.json(task);
 }));
 
@@ -278,6 +291,7 @@ router.delete("/:id", asyncHandler(async (req, res) => {
   }
 
   db.prepare("DELETE FROM tasks WHERE id = ?").run(id);
+  cache.invalidate("tasks:*");
   res.json({ success: true, message: `Task "${existing.title}" deleted` });
 }));
 

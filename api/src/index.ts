@@ -13,6 +13,7 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { existsSync } from "fs";
 import { closeDb } from "./database.js";
+import { cache } from "./cache.js";
 import { logger } from "./logger.js";
 import { requestLogger } from "./middleware/requestLogger.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
@@ -43,6 +44,8 @@ import usageRouter from "./routes/usage.js";
 import apiUsageRouter from "./routes/api-usage.js";
 import backupsRouter from "./routes/backups.js";
 import socialMediaRouter from "./routes/social-media.js";
+import tagsRouter from "./routes/tags.js";
+import cacheRouter from "./routes/cache.js";
 
 // Environment validation — fail fast if critical vars are missing
 function validateEnvironment() {
@@ -158,6 +161,10 @@ app.use("/api", authMiddleware, subtasksRouter);
 app.use("/api/backups", authMiddleware, backupsRouter);
 // Social media routes
 app.use("/api/social-media", authMiddleware, socialMediaRouter);
+// Tag routes
+app.use("/api/tags", authMiddleware, tagsRouter);
+// Cache management routes
+app.use("/api/cache", authMiddleware, cacheRouter);
 
 // 404 handler for unmatched API routes (must come after all API routes, before static files)
 app.all("/api/*", notFoundHandler);
@@ -197,12 +204,14 @@ if (existsSync(STATIC_PATH)) {
 // Graceful shutdown
 process.on("SIGINT", () => {
   logger.info("Shutting down (SIGINT)");
+  cache.destroy();
   closeDb();
   process.exit(0);
 });
 
 process.on("SIGTERM", () => {
   logger.info("Shutting down (SIGTERM)");
+  cache.destroy();
   closeDb();
   process.exit(0);
 });
