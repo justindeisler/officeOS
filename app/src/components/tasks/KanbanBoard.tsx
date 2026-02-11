@@ -13,7 +13,7 @@ import {
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { KanbanColumn } from "./KanbanColumn";
-import { TaskCard } from "./TaskCard";
+import { TaskCard, TaskCardContent } from "./TaskCard";
 import { TaskDialog } from "./TaskDialog";
 import { useTaskStore, useFilteredTasks } from "@/stores/taskStore";
 import { useConfettiStore } from "@/stores/confettiStore";
@@ -265,7 +265,7 @@ export function KanbanBoard() {
 
         <DragOverlay>
           {activeTask ? (
-            <TaskCard 
+            <TaskCardContent 
               task={activeTask} 
               onEdit={() => {}} 
               isDragging 
