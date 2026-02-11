@@ -18,6 +18,8 @@ import { TaskDialog } from "./TaskDialog";
 import { useTaskStore, useFilteredTasks } from "@/stores/taskStore";
 import { useConfettiStore } from "@/stores/confettiStore";
 import { useTagStore } from "@/stores/tagStore";
+import { useProjectStore } from "@/stores/projectStore";
+import { usePRDStore } from "@/stores/prdStore";
 import { taskService } from "@/services";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -45,7 +47,12 @@ export function KanbanBoard() {
   const { moveTaskLocal, persistColumnOrder } = useTaskStore();
   const filteredTasks = useFilteredTasks();
   const triggerConfetti = useConfettiStore((state) => state.trigger);
-  const { loadTaskTags } = useTagStore();
+  const { loadTaskTags, taskTags } = useTagStore();
+
+  // Fetch projects and PRDs once at top level, pass as props to avoid
+  // store hook calls inside TaskCardContent (which caused React #185).
+  const { projects } = useProjectStore();
+  const { prds } = usePRDStore();
 
   // Capture pre-drag task state for rollback on API failure
   const preDragTasksRef = useRef<Task[]>([]);
@@ -258,6 +265,9 @@ export function KanbanBoard() {
                 onEditTask={handleEditTask}
                 onAssignToJames={handleAssignToJames}
                 subtaskCounts={subtaskCounts}
+                projects={projects}
+                prds={prds}
+                taskTags={taskTags}
               />
             </div>
           ))}
@@ -270,6 +280,9 @@ export function KanbanBoard() {
               onEdit={() => {}} 
               isDragging 
               subtaskCounts={subtaskCounts[activeTask.id]}
+              projects={projects}
+              prds={prds}
+              taskTags={taskTags}
             />
           ) : null}
         </DragOverlay>

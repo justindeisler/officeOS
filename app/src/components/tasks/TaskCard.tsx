@@ -6,12 +6,11 @@ import { format } from "date-fns";
 import { Bot, Calendar, FileText, FolderOpen, GripVertical, MessageSquare, MoreHorizontal, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { useProjectStore } from "@/stores/projectStore";
-import { usePRDStore } from "@/stores/prdStore";
-import { useTagStore } from "@/stores/tagStore";
 import { TagBadge } from "@/components/tags";
 import { SubtaskList } from "./SubtaskList";
-import type { Task, SubtaskCounts } from "@/types";
+import type { Task, SubtaskCounts, Tag } from "@/types";
+import type { Project } from "@/types";
+import type { PRD } from "@/types/prd";
 
 interface TaskCardProps {
   task: Task;
@@ -19,6 +18,9 @@ interface TaskCardProps {
   onAssignToJames?: (task: Task) => void;
   isDragging?: boolean;
   subtaskCounts?: SubtaskCounts;
+  projects: Project[];
+  prds: PRD[];
+  taskTags: Record<string, Tag[]>;
 }
 
 const priorityColors = {
@@ -56,7 +58,8 @@ function getProjectColorIndex(projectName: string): number {
 }
 
 /**
- * Pure presentational card content — no dnd-kit hooks.
+ * Pure presentational card content — no dnd-kit hooks, no store hooks.
+ * All data is passed as props to avoid React error #185.
  * Used by both the sortable TaskCard and the DragOverlay preview.
  */
 interface TaskCardContentProps {
@@ -65,6 +68,9 @@ interface TaskCardContentProps {
   onAssignToJames?: (task: Task) => void;
   isDragging?: boolean;
   subtaskCounts?: SubtaskCounts;
+  projects: Project[];
+  prds: PRD[];
+  taskTags: Record<string, Tag[]>;
   dragHandleProps?: {
     attributes: DraggableAttributes;
     listeners: DraggableSyntheticListeners;
@@ -72,10 +78,8 @@ interface TaskCardContentProps {
 }
 
 export const TaskCardContent = forwardRef<HTMLDivElement, TaskCardContentProps & { style?: React.CSSProperties }>(
-  function TaskCardContent({ task, onEdit, onAssignToJames, isDragging, subtaskCounts, dragHandleProps, style }, ref) {
-    const { projects } = useProjectStore();
-    const { prds } = usePRDStore();
-    const taskTags = useTagStore((s) => s.taskTags[task.id] || []);
+  function TaskCardContent({ task, onEdit, onAssignToJames, isDragging, subtaskCounts, projects, prds, taskTags, dragHandleProps, style }, ref) {
+    const tagsForTask = taskTags[task.id] || [];
     const project = task.projectId
       ? projects.find((p) => p.id === task.projectId)
       : null;
@@ -183,7 +187,7 @@ export const TaskCardContent = forwardRef<HTMLDivElement, TaskCardContentProps &
               )}
 
               {/* Tag badges */}
-              {taskTags.map((tag) => (
+              {tagsForTask.map((tag) => (
                 <TagBadge key={tag.id} tag={tag} />
               ))}
 
@@ -240,7 +244,7 @@ export const TaskCardContent = forwardRef<HTMLDivElement, TaskCardContentProps &
  * Sortable TaskCard — wraps TaskCardContent with useSortable hook.
  * ONLY rendered inside a SortableContext (within KanbanColumn).
  */
-export function TaskCard({ task, onEdit, onAssignToJames, isDragging, subtaskCounts }: TaskCardProps) {
+export function TaskCard({ task, onEdit, onAssignToJames, isDragging, subtaskCounts, projects, prds, taskTags }: TaskCardProps) {
   const {
     attributes,
     listeners,
@@ -266,6 +270,9 @@ export function TaskCard({ task, onEdit, onAssignToJames, isDragging, subtaskCou
       onAssignToJames={onAssignToJames}
       isDragging={dragging}
       subtaskCounts={subtaskCounts}
+      projects={projects}
+      prds={prds}
+      taskTags={taskTags}
       dragHandleProps={{ attributes, listeners }}
     />
   );

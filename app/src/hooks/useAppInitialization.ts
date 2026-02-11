@@ -38,6 +38,14 @@ export function useAppInitialization(isAuthenticated: boolean): InitializationSt
   useEffect(() => {
     let mounted = true;
 
+    // Reset to loading when re-initializing (e.g., auth state changed)
+    setState({
+      isReady: false,
+      isLoading: true,
+      error: null,
+      progress: { database: false, stores: false },
+    });
+
     async function initialize() {
       try {
         console.log("[App] Starting initialization...");

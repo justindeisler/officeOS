@@ -6,7 +6,9 @@ import {
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TaskCard } from "./TaskCard";
-import type { Task, TaskStatus, SubtaskCounts } from "@/types";
+import type { Task, TaskStatus, SubtaskCounts, Tag } from "@/types";
+import type { Project } from "@/types";
+import type { PRD } from "@/types/prd";
 
 interface KanbanColumnProps {
   id: TaskStatus;
@@ -16,6 +18,9 @@ interface KanbanColumnProps {
   onEditTask: (task: Task) => void;
   onAssignToJames?: (task: Task) => void;
   subtaskCounts?: Record<string, SubtaskCounts>;
+  projects: Project[];
+  prds: PRD[];
+  taskTags: Record<string, Tag[]>;
 }
 
 const columnColors: Record<TaskStatus, string> = {
@@ -33,6 +38,9 @@ export function KanbanColumn({
   onEditTask,
   onAssignToJames,
   subtaskCounts,
+  projects,
+  prds,
+  taskTags,
 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id });
 
@@ -79,6 +87,9 @@ export function KanbanColumn({
               onEdit={onEditTask}
               onAssignToJames={onAssignToJames}
               subtaskCounts={subtaskCounts?.[task.id]}
+              projects={projects}
+              prds={prds}
+              taskTags={taskTags}
             />
           ))}
         </SortableContext>
