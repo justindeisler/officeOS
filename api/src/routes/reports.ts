@@ -78,9 +78,16 @@ function getQuarterDates(year: number, quarter: 1 | 2 | 3 | 4) {
   const quarterStartMonth = (quarter - 1) * 3;
   const startDate = new Date(year, quarterStartMonth, 1);
   const endDate = new Date(year, quarterStartMonth + 3, 0);
+
+  // Format as YYYY-MM-DD using local date parts to avoid UTC timezone shift.
+  // toISOString() converts to UTC which shifts CET midnight dates back 1 day.
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const formatDate = (d: Date) =>
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
   return {
-    startDate: startDate.toISOString().split('T')[0],
-    endDate: endDate.toISOString().split('T')[0],
+    startDate: formatDate(startDate),
+    endDate: formatDate(endDate),
   };
 }
 
