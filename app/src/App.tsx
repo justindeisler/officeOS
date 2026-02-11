@@ -3,6 +3,7 @@ import { Routes, Route, useNavigate, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
 import { AppLayout } from "./components/layout/AppLayout";
 import { PageLoader } from "./components/PageLoader";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { useAppInitialization } from "./hooks/useAppInitialization";
 import { useAuthStore } from "./stores/authStore";
 import { LoginPage } from "./pages/LoginPage";
@@ -287,6 +288,7 @@ function App() {
 
   return (
     <>
+      <ErrorBoundary>
       <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* Redirect /login to / when authenticated */}
@@ -361,6 +363,7 @@ function App() {
           </Route>
         </Routes>
       </Suspense>
+      </ErrorBoundary>
       <Suspense fallback={null}>
         <QuickCaptureDialog
           open={captureDialogOpen}
