@@ -9,7 +9,7 @@
  */
 
 import React from 'react'
-import { cn } from '@/lib/utils'
+import { cn, getErrorMessage } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Package, TrendingDown, ChevronRight } from 'lucide-react'
@@ -111,7 +111,7 @@ export function AssetWidget({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-sm text-destructive">{error}</div>
+          <div className="text-sm text-destructive">{getErrorMessage(error)}</div>
         </CardContent>
       </Card>
     )

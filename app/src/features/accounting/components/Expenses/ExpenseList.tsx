@@ -9,7 +9,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useExpenses } from '../../hooks/useExpenses'
 import { adminClient } from '@/api'
 import type { Expense } from '../../types'
-import { cn } from '@/lib/utils'
+import { cn, getErrorMessage } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -140,7 +140,7 @@ export function ExpenseList({
   if (error) {
     return (
       <div className={cn('p-8 text-center', className)}>
-        <p className="text-destructive">{error}</p>
+        <p className="text-destructive">{getErrorMessage(error)}</p>
         <Button variant="outline" className="mt-4" onClick={() => window.location.reload()}>
           Retry
         </Button>

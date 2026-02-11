@@ -8,7 +8,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useIncome } from '../../hooks/useIncome'
 import type { Income } from '../../types'
-import { cn } from '@/lib/utils'
+import { cn, getErrorMessage } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -145,7 +145,7 @@ export function IncomeList({
   if (error) {
     return (
       <div className={cn('p-8 text-center', className)}>
-        <p className="text-destructive">{error}</p>
+        <p className="text-destructive">{getErrorMessage(error)}</p>
         <Button variant="outline" className="mt-4" onClick={() => window.location.reload()}>
           Retry
         </Button>

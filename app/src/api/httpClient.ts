@@ -224,8 +224,15 @@ export class HttpClient {
         const data = await response
           .json()
           .catch(() => ({ error: response.statusText }));
+        // Extract a string message — data.error or data.message may be objects
+        const rawMsg = data.error || data.message;
+        const errorMessage = typeof rawMsg === 'string'
+          ? rawMsg
+          : (typeof rawMsg === 'object' && rawMsg !== null && typeof rawMsg.message === 'string')
+            ? rawMsg.message
+            : `Request failed: ${response.statusText}`;
         const error = new ApiError(
-          data.error || data.message || `Request failed: ${response.statusText}`,
+          errorMessage,
           response.status,
           response.statusText,
           data,
@@ -285,8 +292,14 @@ export class HttpClient {
         const data = await response
           .json()
           .catch(() => ({ error: response.statusText }));
+        const rawMsg = data.error || data.message;
+        const errorMessage = typeof rawMsg === 'string'
+          ? rawMsg
+          : (typeof rawMsg === 'object' && rawMsg !== null && typeof rawMsg.message === 'string')
+            ? rawMsg.message
+            : 'Download failed';
         throw new ApiError(
-          data.error || 'Download failed',
+          errorMessage,
           response.status,
           response.statusText,
           data,

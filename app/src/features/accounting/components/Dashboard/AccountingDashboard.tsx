@@ -6,7 +6,7 @@
  */
 
 import { useState } from 'react'
-import { cn } from '@/lib/utils'
+import { cn, getErrorMessage } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { RefreshCw, TrendingUp, TrendingDown, FileText, Receipt, Calculator, Plus, ChevronDown, ChevronUp, BarChart3 } from 'lucide-react'
@@ -144,7 +144,7 @@ export function AccountingDashboard({
     return (
       <div className={cn('space-y-6', className)}>
         <div className="rounded-lg border border-destructive bg-destructive/10 p-6">
-          <p className="text-destructive">{error}</p>
+          <p className="text-destructive">{getErrorMessage(error)}</p>
           <Button variant="outline" onClick={refresh} className="mt-4">
             <RefreshCw className="mr-2 h-4 w-4" />
             Retry

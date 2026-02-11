@@ -6,7 +6,7 @@
  */
 
 import React, { useMemo } from 'react'
-import { cn } from '@/lib/utils'
+import { cn, getErrorMessage } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -166,7 +166,7 @@ export function Anlageverzeichnis({
       <div className={cn('space-y-6', className)}>
         <h2 className="text-xl font-semibold">Anlageverzeichnis {year}</h2>
         <div className="rounded-lg border border-destructive p-8 text-center text-destructive">
-          {error}
+          {getErrorMessage(error)}
         </div>
       </div>
     )

@@ -8,7 +8,7 @@
  */
 
 import React from 'react'
-import { cn } from '@/lib/utils'
+import { cn, getErrorMessage } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -98,7 +98,7 @@ export function EuerExport({
       <div className={cn('space-y-6', className)}>
         <h2 className="text-xl font-semibold">EÜR Export</h2>
         <div className="rounded-lg border border-destructive p-8 text-center text-destructive">
-          Fehler: {error}
+          Fehler: {getErrorMessage(error)}
         </div>
       </div>
     )

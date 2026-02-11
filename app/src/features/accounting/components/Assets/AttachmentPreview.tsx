@@ -7,7 +7,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { FileText, ExternalLink, Trash2, Loader2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, getErrorMessage } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -131,7 +131,7 @@ export function AttachmentPreview({
       <div className="flex-1 min-w-0">
         <p className="truncate text-sm font-medium">{displayName}</p>
         {error ? (
-          <p className="text-xs text-destructive">{error}</p>
+          <p className="text-xs text-destructive">{getErrorMessage(error)}</p>
         ) : (
           <p className="text-xs text-muted-foreground">PDF Document</p>
         )}

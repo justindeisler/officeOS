@@ -10,7 +10,7 @@
  */
 
 import React from 'react'
-import { cn } from '@/lib/utils'
+import { cn, getErrorMessage } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   Table,
@@ -119,7 +119,7 @@ export function UstVoranmeldungList({
       <div className={cn('space-y-6', className)}>
         <h2 className="text-xl font-semibold">USt-Voranmeldung</h2>
         <div className="rounded-lg border border-destructive p-8 text-center text-destructive">
-          Fehler: {error}
+          Fehler: {getErrorMessage(error)}
         </div>
       </div>
     )
