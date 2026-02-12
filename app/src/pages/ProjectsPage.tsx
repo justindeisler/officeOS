@@ -77,19 +77,19 @@ export function ProjectsPage() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Projects</h1>
         </div>
-        <Button onClick={handleAddProject} className="w-full sm:w-auto">
+        <Button onClick={handleAddProject} className="w-full sm:w-auto min-h-[44px]">
           <Plus className="h-4 w-4 mr-2" />
           New Project
         </Button>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-4">
+      <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
         <Select
           value={filter.area}
           onValueChange={(value) => setFilter({ area: value as Area | "all" })}
         >
-          <SelectTrigger className="w-[150px]">
+          <SelectTrigger className="w-full sm:w-[150px] min-h-[44px]">
             <SelectValue placeholder="All Areas" />
           </SelectTrigger>
           <SelectContent>
@@ -105,7 +105,7 @@ export function ProjectsPage() {
             value={filter.clientId}
             onValueChange={(value) => setFilter({ clientId: value })}
           >
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full sm:w-[180px] min-h-[44px]">
               <SelectValue placeholder="All Clients" />
             </SelectTrigger>
             <SelectContent>
@@ -122,13 +122,13 @@ export function ProjectsPage() {
 
       {/* Pipeline View */}
       {totalProjects === 0 ? (
-        <div className="rounded-lg border bg-card p-12 text-center">
+        <div className="rounded-lg border bg-card p-8 sm:p-12 text-center">
           <FolderKanban className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
           <h3 className="text-lg font-medium mb-2">No projects yet</h3>
           <p className="text-muted-foreground text-sm mb-4">
             Create your first project to start tracking work.
           </p>
-          <Button onClick={handleAddProject}>
+          <Button onClick={handleAddProject} className="min-h-[44px]">
             <Plus className="h-4 w-4 mr-2" />
             New Project
           </Button>

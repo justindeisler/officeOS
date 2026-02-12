@@ -63,14 +63,14 @@ export function ProjectCard({ project, onEdit }: ProjectCardProps) {
 
   return (
     <Card className="group">
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-3">
+      <CardContent className="p-3 sm:p-4">
+        <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             {/* Name */}
             <div className="flex items-center gap-2 mb-1">
               <Link
                 to={`/projects/${project.id}`}
-                className="font-medium truncate hover:underline hover:text-primary"
+                className="font-medium truncate hover:underline hover:text-primary min-h-[44px] flex items-center"
               >
                 {project.name}
               </Link>
@@ -78,31 +78,31 @@ export function ProjectCard({ project, onEdit }: ProjectCardProps) {
 
             {/* Client */}
             {client && (
-              <p className="text-sm text-muted-foreground mb-2">{client.name}</p>
+              <p className="text-sm text-muted-foreground mb-2 truncate">{client.name}</p>
             )}
 
             {/* Badges */}
-            <div className="flex flex-wrap items-center gap-2 mb-3">
-              <Badge variant="outline" className={statusColors[project.status]}>
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-3">
+              <Badge variant="outline" className={`${statusColors[project.status]} text-xs`}>
                 {statusLabels[project.status]}
               </Badge>
-              <Badge variant="outline" className={areaColors[project.area]}>
+              <Badge variant="outline" className={`${areaColors[project.area]} text-xs`}>
                 {project.area}
               </Badge>
             </div>
 
             {/* Meta info */}
-            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs text-muted-foreground">
               {project.budgetAmount && (
                 <div className="flex items-center gap-1">
                   <DollarSign className="h-3 w-3" />
-                  {formatCurrency(project.budgetAmount, project.budgetCurrency)}
+                  <span className="truncate">{formatCurrency(project.budgetAmount, project.budgetCurrency)}</span>
                 </div>
               )}
               {project.targetEndDate && (
                 <div className="flex items-center gap-1">
                   <Calendar className="h-3 w-3" />
-                  {format(new Date(project.targetEndDate), "MMM d, yyyy")}
+                  <span className="whitespace-nowrap">{format(new Date(project.targetEndDate), "MMM d, yyyy")}</span>
                 </div>
               )}
             </div>
@@ -114,7 +114,7 @@ export function ProjectCard({ project, onEdit }: ProjectCardProps) {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="h-10 w-10 min-h-[44px] min-w-[44px] opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0"
               >
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
