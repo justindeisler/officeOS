@@ -233,10 +233,10 @@ export function SecondBrainPage() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 min-h-[32px] min-w-[32px]"
                     onClick={clearSearch}
                   >
-                    <X className="h-3.5 w-3.5" />
+                    <X className="h-4 w-4" />
                   </Button>
                 )}
               </div>
@@ -315,7 +315,7 @@ export function SecondBrainPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 min-h-[44px] min-w-[44px]"
                       onClick={clearSearch}
                     >
                       <X className="h-4 w-4" />
@@ -361,7 +361,7 @@ export function SecondBrainPage() {
                   variant="ghost"
                   size="icon"
                   onClick={handleBackToList}
-                  className="shrink-0"
+                  className="shrink-0 min-h-[44px] min-w-[44px]"
                 >
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
@@ -435,7 +435,7 @@ function DocumentList({
       <div className="p-4 text-center">
         <BookOpen className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
         <p className="text-sm text-muted-foreground">{error}</p>
-        <Button variant="outline" size="sm" className="mt-3" onClick={onRetry}>
+        <Button variant="outline" size="sm" className="mt-3 min-h-[44px]" onClick={onRetry}>
           Retry
         </Button>
       </div>
@@ -473,7 +473,7 @@ function DocumentList({
             onOpenChange={() => onToggleFolder(folder.name)}
           >
             <CollapsibleTrigger asChild>
-              <button className="flex items-center gap-2 w-full px-2 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors">
+              <button className="flex items-center gap-2 w-full px-3 py-2.5 min-h-[44px] rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors">
                 {isExpanded ? (
                   <ChevronDown className="h-4 w-4 shrink-0" />
                 ) : (
@@ -699,7 +699,7 @@ function DocumentItem({
     <motion.button
       onClick={onClick}
       className={cn(
-        "flex flex-col w-full px-3 py-2.5 rounded-md text-left transition-colors",
+        "flex flex-col w-full px-3 py-2.5 min-h-[44px] rounded-md text-left transition-colors",
         isSelected
           ? "bg-primary/10 text-primary"
           : "hover:bg-accent active:bg-accent/80"
