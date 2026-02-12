@@ -5,6 +5,7 @@
 
 import express from 'express';
 import { getDb } from '../database.js';
+import { EUER_LINES, HOMEOFFICE_PAUSCHALE } from '../constants/euer.js';
 
 const router = express.Router();
 
@@ -35,41 +36,25 @@ interface ExpenseRow {
   date: string;
   vendor: string;
   description: string;
+  category: string;
   net_amount: number;
   vat_rate: number;
   vat_amount: number;
   gross_amount: number;
   euer_line: number;
   euer_category: string;
-  deductible_percent: number;
+  deductible_percent?: number; // May not exist in all DB schemas
   payment_method: string | null;
   receipt_path: string | null;
-  is_recurring: number;
-  recurring_frequency: string | null;
+  is_recurring?: number;
+  recurring_frequency?: string | null;
   ust_period: string | null;
-  vorsteuer_claimed: number;
-  is_gwg: number;
-  asset_id: string | null;
+  ust_reported: number;
+  vorsteuer_claimed?: number; // Legacy - may not exist in production DB
+  is_gwg?: number;
+  asset_id?: string | null;
   created_at: string;
 }
-
-/**
- * EÜR Line constants (matching frontend types)
- */
-const EUER_LINES = {
-  BETRIEBSEINNAHMEN: 14,
-  ENTNAHME_VERKAUF: 16,
-  UST_ERSTATTUNG: 17,
-  FREMDLEISTUNGEN: 21,
-  VORSTEUER: 24,
-  GEZAHLTE_UST: 29,
-  AFA: 30,
-  ARBEITSZIMMER: 33,
-  ANLAGENABGANG_VERLUST: 35,
-  SONSTIGE: 40,
-};
-
-const HOMEOFFICE_PAUSCHALE = 1260; // €1,260 per year
 
 /**
  * Get quarter date boundaries
@@ -158,10 +143,10 @@ router.get('/ust/:year/:quarter', async (req, res) => {
 
     const totalUmsatzsteuer = umsatzsteuer19 + umsatzsteuer7;
 
-    // Calculate Vorsteuer (input VAT) from claimed expenses
+    // Calculate Vorsteuer (input VAT) from all expenses in the period
+    // All expenses with VAT in the quarter are eligible for Vorsteuer deduction
     const vorsteuer = expenseRecords
-      .filter((e) => e.vorsteuer_claimed === 1)
-      .reduce((sum, e) => sum + e.vat_amount, 0);
+      .reduce((sum, e) => sum + (e.vat_amount || 0), 0);
 
     // Zahllast = total output VAT - total input VAT
     const zahllast = totalUmsatzsteuer - vorsteuer;
@@ -238,9 +223,9 @@ router.post('/ust/:year/:quarter/file', async (req, res) => {
       `UPDATE income SET ust_reported = 1 WHERE date >= ? AND date <= ?`
     ).run(startDate, endDate);
 
-    // Mark all expenses in this period as Vorsteuer claimed
+    // Mark all expenses in this period as reported (Vorsteuer claimed)
     db.prepare(
-      `UPDATE expenses SET vorsteuer_claimed = 1 WHERE date >= ? AND date <= ?`
+      `UPDATE expenses SET ust_reported = 1 WHERE date >= ? AND date <= ?`
     ).run(startDate, endDate);
 
     // Get updated report (reuse the GET endpoint logic)
@@ -301,7 +286,7 @@ router.get('/euer/:year', async (req, res) => {
     for (const record of expenseRecords) {
       const line = record.euer_line;
       // Apply deductible percentage
-      const deductible = record.net_amount * (record.deductible_percent / 100);
+      const deductible = record.net_amount * ((record.deductible_percent ?? 100) / 100);
       expensesByLine[line] = (expensesByLine[line] || 0) + deductible;
     }
 

@@ -80,7 +80,7 @@ function mapApiToIncome(row: Record<string, unknown>): Income {
 export async function getAllIncome(): Promise<Income[]> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const data = await apiRequest<Record<string, unknown>[]>('/api/income');
+    const data = await apiRequest<Record<string, unknown>[]>('/income');
     return data.map(mapApiToIncome);
   }
 
@@ -99,7 +99,7 @@ export async function getIncomeById(id: string): Promise<Income | null> {
   // Use REST API in web mode
   if (!isTauri()) {
     try {
-      const data = await apiRequest<Record<string, unknown>>(`/api/income/${id}`);
+      const data = await apiRequest<Record<string, unknown>>(`/income/${id}`);
       return mapApiToIncome(data);
     } catch {
       return null;
@@ -127,7 +127,7 @@ export async function getIncomeByDateRange(
   if (!isTauri()) {
     const start = startDate.toISOString().split('T')[0];
     const end = endDate.toISOString().split('T')[0];
-    const data = await apiRequest<Record<string, unknown>[]>(`/api/income?startDate=${start}&endDate=${end}`);
+    const data = await apiRequest<Record<string, unknown>[]>(`/income?startDate=${start}&endDate=${end}`);
     return data.map(mapApiToIncome);
   }
 
@@ -146,7 +146,7 @@ export async function getIncomeByDateRange(
 export async function getIncomeByUstPeriod(period: string): Promise<Income[]> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const data = await apiRequest<Record<string, unknown>[]>(`/api/income?ustPeriod=${period}`);
+    const data = await apiRequest<Record<string, unknown>[]>(`/income?ustPeriod=${period}`);
     return data.map(mapApiToIncome);
   }
 
@@ -165,7 +165,7 @@ export async function getIncomeByUstPeriod(period: string): Promise<Income[]> {
 export async function getUnreportedIncome(): Promise<Income[]> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const data = await apiRequest<Record<string, unknown>[]>('/api/income?ustReported=false');
+    const data = await apiRequest<Record<string, unknown>[]>('/income?ustReported=false');
     return data.map(mapApiToIncome);
   }
 
@@ -183,7 +183,7 @@ export async function getUnreportedIncome(): Promise<Income[]> {
 export async function createIncome(data: NewIncome): Promise<Income> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const response = await apiRequest<Record<string, unknown>>('/api/income', {
+    const response = await apiRequest<Record<string, unknown>>('/income', {
       method: 'POST',
       body: JSON.stringify({
         date: data.date.toISOString().split('T')[0],
@@ -283,7 +283,7 @@ export async function updateIncome(
       if (data.bankReference !== undefined) updateData.bank_reference = data.bankReference;
       if (data.ustPeriod !== undefined) updateData.ust_period = data.ustPeriod;
       
-      const response = await apiRequest<Record<string, unknown>>(`/api/income/${id}`, {
+      const response = await apiRequest<Record<string, unknown>>(`/income/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(updateData),
       });
@@ -374,7 +374,7 @@ export async function updateIncome(
 export async function deleteIncome(id: string): Promise<boolean> {
   // Use REST API in web mode
   if (!isTauri()) {
-    await apiRequest(`/api/income/${id}`, {
+    await apiRequest(`/income/${id}`, {
       method: 'DELETE',
     });
     return true;
@@ -392,7 +392,7 @@ export async function deleteIncome(id: string): Promise<boolean> {
 export async function markIncomeAsReported(ids: string[]): Promise<void> {
   // Use REST API in web mode
   if (!isTauri()) {
-    await apiRequest('/api/income/mark-reported', {
+    await apiRequest('/income/mark-reported', {
       method: 'POST',
       body: JSON.stringify({ ids }),
     });
@@ -423,7 +423,7 @@ export async function getIncomeSummary(
   if (!isTauri()) {
     const start = startDate.toISOString().split('T')[0];
     const end = endDate.toISOString().split('T')[0];
-    return await apiRequest(`/api/income/summary?startDate=${start}&endDate=${end}`);
+    return await apiRequest(`/income/summary?startDate=${start}&endDate=${end}`);
   }
 
   // Tauri mode - use database

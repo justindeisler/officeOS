@@ -136,10 +136,10 @@ export const clientPortalClient = new HttpClient({
  * Equivalent to the `apiRequest<T>()` that was duplicated in expenses.ts,
  * income.ts, assets.ts, and reports.ts — but backed by the shared client.
  *
- * Uses API_URL (no /api prefix) since accounting routes include '/api/' in their paths.
+ * Uses API_BASE (with /api prefix) since accounting routes use relative paths like '/income'.
  */
 const accountingClient = new HttpClient({
-  baseUrl: API_URL,
+  baseUrl: API_BASE,
   getToken: getAdminToken,
 });
 

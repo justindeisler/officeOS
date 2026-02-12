@@ -233,7 +233,7 @@ export async function getUstVoranmeldung(
 ): Promise<UstVoranmeldung> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const data = await apiRequest<UstVoranmeldung>(`/api/reports/ust/${year}/${quarter}`);
+    const data = await apiRequest<UstVoranmeldung>(`/reports/ust/${year}/${quarter}`);
     return {
       ...data,
       startDate: new Date(data.startDate),
@@ -259,10 +259,10 @@ export async function getUstVoranmeldung(
 
   const totalUmsatzsteuer = umsatzsteuer19 + umsatzsteuer7
 
-  // Calculate Vorsteuer (input VAT) from claimed expenses
+  // Calculate Vorsteuer (input VAT) from all expenses in the period
+  // All expenses with VAT in the quarter are eligible for Vorsteuer deduction
   const vorsteuer = expenseRecords
-    .filter((e) => e.vorsteuerClaimed)
-    .reduce((sum, e) => sum + e.vatAmount, 0)
+    .reduce((sum, e) => sum + (e.vatAmount || 0), 0)
 
   // Zahllast = total output VAT - total input VAT
   // Positive = owe money, Negative = refund expected
@@ -294,7 +294,7 @@ export async function getUstVoranmeldungenForYear(
 ): Promise<UstVoranmeldung[]> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const data = await apiRequest<UstVoranmeldung[]>(`/api/reports/ust/${year}`);
+    const data = await apiRequest<UstVoranmeldung[]>(`/reports/ust/${year}`);
     return data.map(item => ({
       ...item,
       startDate: new Date(item.startDate),
@@ -322,7 +322,7 @@ export async function markUstAsFiled(
   // Use REST API in web mode
   if (!isTauri()) {
     const data = await apiRequest<UstVoranmeldung>(
-      `/api/reports/ust/${year}/${quarter}/file`,
+      `/reports/ust/${year}/${quarter}/file`,
       { method: 'POST' }
     );
     return {
@@ -346,9 +346,9 @@ export async function markUstAsFiled(
     [startDateStr, endDateStr]
   )
 
-  // Mark all expenses in this period as Vorsteuer claimed
+  // Mark all expenses in this period as reported (Vorsteuer claimed)
   await db.execute(
-    `UPDATE expenses SET vorsteuer_claimed = 1 WHERE date >= $1 AND date <= $2`,
+    `UPDATE expenses SET ust_reported = 1 WHERE date >= $1 AND date <= $2`,
     [startDateStr, endDateStr]
   )
 
@@ -369,7 +369,7 @@ export async function markUstAsFiled(
 export async function getEuerReport(year: number): Promise<EuerReport> {
   // Use REST API in web mode
   if (!isTauri()) {
-    return apiRequest<EuerReport>(`/api/reports/euer/${year}`);
+    return apiRequest<EuerReport>(`/reports/euer/${year}`);
   }
 
   // Tauri mode - use database directly
@@ -391,7 +391,7 @@ export async function getEuerReport(year: number): Promise<EuerReport> {
   for (const record of expenseRecords) {
     const line = record.euerLine
     // Apply deductible percentage
-    const deductible = record.netAmount * (record.deductiblePercent / 100)
+    const deductible = record.netAmount * ((record.deductiblePercent ?? 100) / 100)
     expensesByLine[line] = (expensesByLine[line] || 0) + deductible
   }
 

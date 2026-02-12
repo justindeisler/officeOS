@@ -160,11 +160,15 @@ const SCHEMA = `
     vendor TEXT,
     purchase_price REAL NOT NULL,
     vat_paid REAL DEFAULT 0,
-    gross_price REAL NOT NULL,
+    gross_price REAL DEFAULT 0,
     afa_method TEXT DEFAULT 'linear',
-    afa_years INTEGER NOT NULL,
-    afa_start_date TEXT NOT NULL,
-    afa_annual_amount REAL NOT NULL,
+    afa_years INTEGER DEFAULT 3,
+    afa_start_date TEXT,
+    afa_annual_amount REAL DEFAULT 0,
+    useful_life_years INTEGER DEFAULT 3,
+    depreciation_method TEXT DEFAULT 'linear',
+    salvage_value REAL DEFAULT 0,
+    current_value REAL,
     status TEXT DEFAULT 'active',
     disposal_date TEXT,
     disposal_price REAL,
@@ -500,6 +504,78 @@ export function insertTestIncome(
     overrides.euer_category ?? 'services',
     overrides.ust_period ?? null,
     overrides.ust_reported ?? 0
+  );
+  return id;
+}
+
+/** Insert a test asset and return its ID */
+export function insertTestAsset(
+  db: Database.Database,
+  overrides: Partial<{
+    id: string;
+    name: string;
+    description: string;
+    category: string;
+    purchase_date: string;
+    purchase_price: number;
+    useful_life_years: number;
+    depreciation_method: string;
+    salvage_value: number;
+    current_value: number;
+    status: string;
+    vendor: string;
+    gross_price: number;
+    vat_paid: number;
+  }> = {}
+): string {
+  const id = overrides.id ?? testId('asset');
+  const purchasePrice = overrides.purchase_price ?? 3000;
+  db.prepare(
+    `INSERT INTO assets (id, name, description, category, purchase_date, purchase_price,
+     useful_life_years, depreciation_method, salvage_value, current_value, status, vendor,
+     gross_price, vat_paid, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+  ).run(
+    id,
+    overrides.name ?? 'Test Asset',
+    overrides.description ?? 'A test asset',
+    overrides.category ?? 'equipment',
+    overrides.purchase_date ?? '2024-01-15',
+    purchasePrice,
+    overrides.useful_life_years ?? 3,
+    overrides.depreciation_method ?? 'linear',
+    overrides.salvage_value ?? 0,
+    overrides.current_value ?? purchasePrice,
+    overrides.status ?? 'active',
+    overrides.vendor ?? 'Test Vendor',
+    overrides.gross_price ?? purchasePrice * 1.19,
+    overrides.vat_paid ?? purchasePrice * 0.19
+  );
+  return id;
+}
+
+/** Insert a test depreciation schedule entry and return its ID */
+export function insertTestDepreciation(
+  db: Database.Database,
+  overrides: {
+    asset_id: string;
+    year: number;
+    depreciation_amount: number;
+    accumulated_depreciation?: number;
+    book_value?: number;
+  }
+): string {
+  const id = testId('dep');
+  db.prepare(
+    `INSERT INTO depreciation_schedule (id, asset_id, year, depreciation_amount, accumulated_depreciation, book_value)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).run(
+    id,
+    overrides.asset_id,
+    overrides.year,
+    overrides.depreciation_amount,
+    overrides.accumulated_depreciation ?? overrides.depreciation_amount,
+    overrides.book_value ?? 0
   );
   return id;
 }

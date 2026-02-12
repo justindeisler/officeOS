@@ -290,7 +290,7 @@ async function getNextInventoryNumber(): Promise<string> {
 export async function getAllAssets(): Promise<Asset[]> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const data = await apiRequest<Record<string, unknown>[]>('/api/assets');
+    const data = await apiRequest<Record<string, unknown>[]>('/assets');
     return data.map(item => rowToAsset(item));
   }
 
@@ -316,7 +316,7 @@ export async function getAssetById(id: string): Promise<Asset | null> {
   // Use REST API in web mode
   if (!isTauri()) {
     try {
-      const data = await apiRequest<Record<string, unknown>>(`/api/assets/${id}`);
+      const data = await apiRequest<Record<string, unknown>>(`/assets/${id}`);
       return rowToAsset(data);
     } catch {
       return null;
@@ -344,7 +344,7 @@ export async function getAssetById(id: string): Promise<Asset | null> {
 export async function getAssetsByCategory(category: AssetCategory): Promise<Asset[]> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const data = await apiRequest<Record<string, unknown>[]>(`/api/assets?category=${category}`);
+    const data = await apiRequest<Record<string, unknown>[]>(`/assets?category=${category}`);
     return data.map(item => rowToAsset(item));
   }
 
@@ -370,7 +370,7 @@ export async function getAssetsByCategory(category: AssetCategory): Promise<Asse
 export async function getAssetsByStatus(status: AssetStatus): Promise<Asset[]> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const data = await apiRequest<Record<string, unknown>[]>(`/api/assets?status=${status}`);
+    const data = await apiRequest<Record<string, unknown>[]>(`/assets?status=${status}`);
     return data.map(item => rowToAsset(item));
   }
 
@@ -403,7 +403,7 @@ export async function getActiveAssets(): Promise<Asset[]> {
 export async function getDisposedAssets(): Promise<Asset[]> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const data = await apiRequest<Record<string, unknown>[]>('/api/assets?status=disposed,sold');
+    const data = await apiRequest<Record<string, unknown>[]>('/assets?status=disposed,sold');
     return data.map(item => rowToAsset(item));
   }
 
@@ -431,7 +431,7 @@ export async function getDisposedAssets(): Promise<Asset[]> {
 export async function createAsset(data: NewAsset, existingId?: string): Promise<Asset> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const response = await apiRequest<Record<string, unknown>>('/api/assets', {
+    const response = await apiRequest<Record<string, unknown>>('/assets', {
       method: 'POST',
       body: JSON.stringify({
         id: existingId,
@@ -568,7 +568,7 @@ export async function updateAsset(
       if (data.location !== undefined) updateData.location = data.location;
       if (data.billPath !== undefined) updateData.bill_path = data.billPath;
       
-      const response = await apiRequest<Record<string, unknown>>(`/api/assets/${id}`, {
+      const response = await apiRequest<Record<string, unknown>>(`/assets/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(updateData),
       });
@@ -710,7 +710,7 @@ export async function updateAsset(
 export async function deleteAsset(id: string): Promise<boolean> {
   // Use REST API in web mode
   if (!isTauri()) {
-    await apiRequest(`/api/assets/${id}`, {
+    await apiRequest(`/assets/${id}`, {
       method: 'DELETE',
     });
     return true;
@@ -743,7 +743,7 @@ export async function disposeAsset(
 ): Promise<Asset | null> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const response = await apiRequest<Record<string, unknown>>(`/api/assets/${id}/dispose`, {
+    const response = await apiRequest<Record<string, unknown>>(`/assets/${id}/dispose`, {
       method: 'POST',
       body: JSON.stringify({
         disposal_date: disposalDate.toISOString().split('T')[0],

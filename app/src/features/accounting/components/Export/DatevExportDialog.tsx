@@ -8,6 +8,7 @@
 import { type FC, useState, useCallback, useEffect } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { useDatevExport } from '../../hooks/useDatevExport'
+import { isTauri } from '@/api'
 
 // Lazy-loaded Tauri modules to avoid blocking React mount
 let tauriDialog: typeof import('@tauri-apps/plugin-dialog') | null = null;
@@ -27,6 +28,24 @@ async function getTauriModules() {
     writeFile: tauriFs.writeFile,
   };
 }
+
+/**
+ * Trigger a file download in the browser via a temporary <a> element.
+ * Works for both CSV (Latin-1 bytes) and XML (UTF-8 bytes).
+ */
+function downloadBlobInBrowser(bytes: Uint8Array, filename: string, mimeType: string): void {
+  const blob = new Blob([bytes], { type: mimeType })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  // Clean up
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
 import { DatevSettings } from './DatevSettings'
 import type { DatevExportPreview, DatevExportResult } from '../../types/datev'
 import type { Income, Expense } from '../../types'
@@ -134,7 +153,6 @@ export const DatevExportDialog: FC<DatevExportDialogProps> = ({
     setError(null)
 
     try {
-      const { save, writeFile } = await getTauriModules()
       // Cast to full types — props use a subset of Income/Expense fields
       const incomeData = incomes as unknown as Income[]
       const expenseData = expenses as unknown as Expense[]
@@ -162,25 +180,10 @@ export const DatevExportDialog: FC<DatevExportDialogProps> = ({
         throw new Error(exportResult.errors.join('\n'))
       }
 
-      // Generate filename and open Tauri save dialog
+      // Generate filename
       const filename = generateDatevFilename(exportOptions, exportOptions.format)
 
-      const filePath = await save({
-        defaultPath: filename,
-        filters: [
-          {
-            name: exportOptions.format === 'csv' ? 'CSV Files' : 'XML Files',
-            extensions: [exportOptions.format],
-          },
-        ],
-      })
-
-      if (!filePath) {
-        // User cancelled the dialog
-        return
-      }
-
-      // Write file using Tauri API
+      // Encode content to bytes
       let bytes: Uint8Array
       if (encoding === 'iso-8859-1') {
         bytes = encodeToLatin1(content)
@@ -188,7 +191,31 @@ export const DatevExportDialog: FC<DatevExportDialogProps> = ({
         bytes = new TextEncoder().encode(content)
       }
 
-      await writeFile(filePath, bytes)
+      if (isTauri()) {
+        // Desktop mode: use Tauri save dialog + file system API
+        const { save, writeFile } = await getTauriModules()
+
+        const filePath = await save({
+          defaultPath: filename,
+          filters: [
+            {
+              name: exportOptions.format === 'csv' ? 'CSV Files' : 'XML Files',
+              extensions: [exportOptions.format],
+            },
+          ],
+        })
+
+        if (!filePath) {
+          // User cancelled the dialog
+          return
+        }
+
+        await writeFile(filePath, bytes)
+      } else {
+        // Browser mode: trigger download via blob URL
+        downloadBlobInBrowser(bytes, filename, mimeType)
+      }
+
       setResult(exportResult)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Export failed')

@@ -34,6 +34,12 @@ interface ExpenseRow {
   receipt_path: string | null;
   ust_period: string | null;
   ust_reported: number;
+  deductible_percent: number;
+  vorsteuer_claimed: number;
+  is_recurring: number;
+  recurring_frequency: string | null;
+  is_gwg: number;
+  asset_id: string | null;
   created_at: string;
 }
 
@@ -188,6 +194,12 @@ router.post("/", asyncHandler(async (req: Request, res: Response) => {
     payment_method,
     receipt_path,
     ust_period,
+    deductible_percent = 100,
+    vorsteuer_claimed = 0,
+    is_recurring = 0,
+    recurring_frequency,
+    is_gwg = 0,
+    asset_id,
   } = req.body;
 
   if (!date || !description || !category || net_amount === undefined) {
@@ -209,8 +221,10 @@ router.post("/", asyncHandler(async (req: Request, res: Response) => {
     `INSERT INTO expenses (
       id, date, vendor, description, category, net_amount, vat_rate,
       vat_amount, gross_amount, euer_line, euer_category, payment_method,
-      receipt_path, ust_period, ust_reported, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`
+      receipt_path, ust_period, ust_reported,
+      deductible_percent, vorsteuer_claimed, is_recurring, recurring_frequency,
+      is_gwg, asset_id, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     date,
@@ -226,6 +240,12 @@ router.post("/", asyncHandler(async (req: Request, res: Response) => {
     payment_method || null,
     receipt_path || null,
     ust_period || null,
+    deductible_percent,
+    vorsteuer_claimed ? 1 : 0,
+    is_recurring ? 1 : 0,
+    recurring_frequency || null,
+    is_gwg ? 1 : 0,
+    asset_id || null,
     now
   );
 
@@ -260,6 +280,12 @@ router.patch("/:id", asyncHandler(async (req: Request, res: Response) => {
     "receipt_path",
     "ust_period",
     "ust_reported",
+    "deductible_percent",
+    "vorsteuer_claimed",
+    "is_recurring",
+    "recurring_frequency",
+    "is_gwg",
+    "asset_id",
   ];
   const updates: string[] = [];
   const params: unknown[] = [];

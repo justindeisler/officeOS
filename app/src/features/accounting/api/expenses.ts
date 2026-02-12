@@ -98,7 +98,7 @@ function rowToExpense(row: ExpenseRow | Record<string, unknown>): Expense {
 export async function getAllExpenses(): Promise<Expense[]> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const data = await apiRequest<Record<string, unknown>[]>('/api/expenses');
+    const data = await apiRequest<Record<string, unknown>[]>('/expenses');
     return data.map(rowToExpense);
   }
 
@@ -117,7 +117,7 @@ export async function getExpenseById(id: string): Promise<Expense | null> {
   // Use REST API in web mode
   if (!isTauri()) {
     try {
-      const data = await apiRequest<Record<string, unknown>>(`/api/expenses/${id}`);
+      const data = await apiRequest<Record<string, unknown>>(`/expenses/${id}`);
       return rowToExpense(data);
     } catch {
       return null;
@@ -141,7 +141,7 @@ export async function getExpensesByDateRange(start: Date, end: Date): Promise<Ex
   if (!isTauri()) {
     const startStr = start.toISOString().split('T')[0];
     const endStr = end.toISOString().split('T')[0];
-    const data = await apiRequest<Record<string, unknown>[]>(`/api/expenses?startDate=${startStr}&endDate=${endStr}`);
+    const data = await apiRequest<Record<string, unknown>[]>(`/expenses?startDate=${startStr}&endDate=${endStr}`);
     return data.map(rowToExpense);
   }
 
@@ -160,7 +160,7 @@ export async function getExpensesByDateRange(start: Date, end: Date): Promise<Ex
 export async function getExpensesByUstPeriod(period: string): Promise<Expense[]> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const data = await apiRequest<Record<string, unknown>[]>(`/api/expenses?ustPeriod=${period}`);
+    const data = await apiRequest<Record<string, unknown>[]>(`/expenses?ustPeriod=${period}`);
     return data.map(rowToExpense);
   }
 
@@ -179,7 +179,7 @@ export async function getExpensesByUstPeriod(period: string): Promise<Expense[]>
 export async function getExpensesByCategory(category: string): Promise<Expense[]> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const data = await apiRequest<Record<string, unknown>[]>(`/api/expenses?category=${category}`);
+    const data = await apiRequest<Record<string, unknown>[]>(`/expenses?category=${category}`);
     return data.map(rowToExpense);
   }
 
@@ -198,7 +198,7 @@ export async function getExpensesByCategory(category: string): Promise<Expense[]
 export async function getRecurringExpenses(): Promise<Expense[]> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const data = await apiRequest<Record<string, unknown>[]>('/api/expenses?recurring=true');
+    const data = await apiRequest<Record<string, unknown>[]>('/expenses?recurring=true');
     return data.map(rowToExpense);
   }
 
@@ -216,7 +216,7 @@ export async function getRecurringExpenses(): Promise<Expense[]> {
 export async function getGwgExpenses(): Promise<Expense[]> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const data = await apiRequest<Record<string, unknown>[]>('/api/expenses?gwg=true');
+    const data = await apiRequest<Record<string, unknown>[]>('/expenses?gwg=true');
     return data.map(rowToExpense);
   }
 
@@ -234,7 +234,7 @@ export async function getGwgExpenses(): Promise<Expense[]> {
 export async function getUnclaimedVorsteuer(): Promise<Expense[]> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const data = await apiRequest<Record<string, unknown>[]>('/api/expenses?vorsteuerClaimed=false');
+    const data = await apiRequest<Record<string, unknown>[]>('/expenses?vorsteuerClaimed=false');
     return data.map(rowToExpense);
   }
 
@@ -252,7 +252,7 @@ export async function getUnclaimedVorsteuer(): Promise<Expense[]> {
 export async function createExpense(data: NewExpense): Promise<Expense> {
   // Use REST API in web mode
   if (!isTauri()) {
-    const response = await apiRequest<Record<string, unknown>>('/api/expenses', {
+    const response = await apiRequest<Record<string, unknown>>('/expenses', {
       method: 'POST',
       body: JSON.stringify({
         date: data.date.toISOString().split('T')[0],
@@ -366,7 +366,7 @@ export async function updateExpense(
       if (data.ustPeriod !== undefined) updateData.ust_period = data.ustPeriod;
       if (data.assetId !== undefined) updateData.asset_id = data.assetId;
       
-      const response = await apiRequest<Record<string, unknown>>(`/api/expenses/${id}`, {
+      const response = await apiRequest<Record<string, unknown>>(`/expenses/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(updateData),
       });
@@ -476,7 +476,7 @@ export async function updateExpense(
 export async function deleteExpense(id: string): Promise<boolean> {
   // Use REST API in web mode
   if (!isTauri()) {
-    await apiRequest(`/api/expenses/${id}`, {
+    await apiRequest(`/expenses/${id}`, {
       method: 'DELETE',
     });
     return true;
@@ -494,7 +494,7 @@ export async function deleteExpense(id: string): Promise<boolean> {
 export async function markVorsteuerClaimed(ids: string[]): Promise<void> {
   // Use REST API in web mode
   if (!isTauri()) {
-    await apiRequest('/api/expenses/mark-vorsteuer', {
+    await apiRequest('/expenses/mark-vorsteuer', {
       method: 'POST',
       body: JSON.stringify({ ids }),
     });
@@ -523,7 +523,7 @@ export async function getVorsteuerSummary(
   if (!isTauri()) {
     const startStr = start.toISOString().split('T')[0];
     const endStr = end.toISOString().split('T')[0];
-    return await apiRequest(`/api/expenses/vorsteuer-summary?startDate=${startStr}&endDate=${endStr}`);
+    return await apiRequest(`/expenses/vorsteuer-summary?startDate=${startStr}&endDate=${endStr}`);
   }
 
   // Tauri mode - use database
