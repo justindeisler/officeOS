@@ -1,6 +1,7 @@
 {
   "name": "Personal Assistant",
   "short_name": "PA",
+  "version": "1.0.1",
   "description": "Personal productivity assistant for tasks, projects, time tracking, and more",
   "start_url": "/",
   "scope": "/",
