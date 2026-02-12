@@ -36,7 +36,7 @@ export function InboxPage() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Inbox</h1>
         </div>
-        <Button onClick={() => setCaptureDialogOpen(true)} className="w-full sm:w-auto">
+        <Button onClick={() => setCaptureDialogOpen(true)} className="w-full sm:w-auto min-h-[44px]">
           <Zap className="h-4 w-4 mr-2" />
           Quick Capture
         </Button>

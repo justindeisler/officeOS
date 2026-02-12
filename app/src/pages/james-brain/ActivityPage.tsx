@@ -139,35 +139,37 @@ export function ActivityPage() {
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex flex-wrap gap-4 items-center">
+          <div className="flex flex-col sm:flex-row flex-wrap gap-4 items-start sm:items-center">
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm font-medium">Filters:</span>
             </div>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Action Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                {actionTypes.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {actionTypeLabels[type] || type}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={String(limit)} onValueChange={(v) => setLimit(parseInt(v))}>
-              <SelectTrigger className="w-[120px]">
-                <SelectValue placeholder="Limit" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="25">Last 25</SelectItem>
-                <SelectItem value="50">Last 50</SelectItem>
-                <SelectItem value="100">Last 100</SelectItem>
-                <SelectItem value="200">Last 200</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+              <Select value={typeFilter} onValueChange={setTypeFilter}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Action Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  {actionTypes.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {actionTypeLabels[type] || type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={String(limit)} onValueChange={(v) => setLimit(parseInt(v))}>
+                <SelectTrigger className="w-full sm:w-[120px]">
+                  <SelectValue placeholder="Limit" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="25">Last 25</SelectItem>
+                  <SelectItem value="50">Last 50</SelectItem>
+                  <SelectItem value="100">Last 100</SelectItem>
+                  <SelectItem value="200">Last 200</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>

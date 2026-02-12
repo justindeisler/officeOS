@@ -47,7 +47,7 @@ export function TasksPage() {
           <button
             onClick={handleJamesCheck}
             disabled={jamesLoading}
-            className="relative inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-black bg-white border border-transparent rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden group"
+            className="relative inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-black bg-white border border-transparent rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden group min-h-[44px]"
           >
             {/* Rainbow shimmer border */}
             <span className="absolute inset-0 rounded-md p-[2px] bg-gradient-to-r from-pink-500 via-purple-500 via-blue-500 via-cyan-500 via-green-500 via-yellow-500 to-pink-500 bg-[length:400%_100%] animate-shimmer" />
@@ -58,7 +58,7 @@ export function TasksPage() {
               ) : (
                 <Bot className="h-4 w-4" />
               )}
-              James
+              <span className="hidden sm:inline">James</span>
             </span>
           </button>
           <Button
@@ -66,10 +66,11 @@ export function TasksPage() {
             size="icon"
             onClick={() => setTagManagerOpen(true)}
             title="Manage Tags"
+            className="min-h-[44px] min-w-[44px]"
           >
             <Settings2 className="h-4 w-4" />
           </Button>
-          <Button onClick={handleAddTask} className="flex-1 sm:flex-none">
+          <Button onClick={handleAddTask} className="flex-1 sm:flex-none min-h-[44px]">
             <Plus className="h-4 w-4 mr-2" />
             Add Task
           </Button>

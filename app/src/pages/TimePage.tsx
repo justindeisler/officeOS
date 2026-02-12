@@ -16,7 +16,7 @@ export function TimePage() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Time Tracking</h1>
         </div>
-        <Button onClick={() => setShowManualEntry(true)} variant="outline" className="w-full sm:w-auto">
+        <Button onClick={() => setShowManualEntry(true)} variant="outline" className="w-full sm:w-auto min-h-[44px]">
           <Plus className="h-4 w-4 mr-2" />
           Add Entry
         </Button>
