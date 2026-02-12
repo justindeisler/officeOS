@@ -207,3 +207,111 @@ This directory is a Claude Code project. Features:
 
 *Last updated: December 2024*
 
+
+---
+
+## Progressive Web App (PWA)
+
+The Personal Assistant app includes full PWA support for enhanced mobile experience and offline functionality.
+
+### Features
+
+✅ **Install to Home Screen**: Add the app to your device's home screen for quick access
+✅ **Offline Mode**: Continue working even without internet connection
+✅ **Background Sync**: Changes made offline automatically sync when connection is restored
+✅ **Fast Loading**: Cached assets load instantly
+✅ **App-like Experience**: Runs in standalone mode without browser chrome
+
+### Installation
+
+#### Desktop (Chrome/Edge)
+1. Visit the app in Chrome or Edge
+2. Look for the install icon (➕) in the address bar
+3. Click "Install" when prompted
+4. The app will open in a standalone window
+
+#### iOS (Safari)
+1. Open the app in Safari
+2. Tap the Share button (□↗)
+3. Scroll down and tap "Add to Home Screen"
+4. Tap "Add" to confirm
+
+#### Android (Chrome)
+1. Open the app in Chrome
+2. Tap the menu (⋮) and select "Add to Home screen"
+3. Or wait for the automatic install banner
+
+### Offline Capabilities
+
+When offline, the app will:
+- ✅ Load all previously cached pages
+- ✅ Display tasks and projects from cache
+- ✅ Allow creating new tasks (queued for sync)
+- ✅ Allow updating task status (queued for sync)
+- ⚠️ Show an offline indicator at the top
+- 🔄 Display pending sync count
+
+**All changes made offline will automatically sync when you reconnect to the internet.**
+
+### Testing PWA Features
+
+#### Test Offline Mode
+1. Open the app
+2. Open DevTools (F12)
+3. Go to Application → Service Workers
+4. Check "Offline"
+5. Reload the page - it should still work
+6. Try creating/updating tasks - they'll queue for sync
+
+#### Test Installation
+1. Build the app: `npm run build:web`
+2. Serve it: `npm run preview:web`
+3. Open in Chrome/Edge
+4. Look for the install prompt
+
+#### Verify Service Worker
+1. Open DevTools → Application
+2. Check "Service Workers" section
+3. Verify service worker is registered and active
+4. Check "Cache Storage" to see cached resources
+
+### Development
+
+PWA features are **disabled in development mode** to avoid caching issues during development. They only activate in production builds.
+
+```bash
+# Build for production (enables PWA)
+cd app
+npm run build:web
+
+# Preview production build
+npm run preview:web
+```
+
+### Cache Strategy
+
+| Resource Type | Strategy | Details |
+|--------------|----------|---------|
+| Static Assets | CacheFirst | JS, CSS, fonts cached indefinitely |
+| Images | CacheFirst | Cached for 30 days |
+| API Calls | NetworkFirst | Fresh data preferred, cache fallback (5 min) |
+| Google Fonts | CacheFirst | Cached for 1 year |
+
+### Troubleshooting
+
+**App won't update?**
+- Hard refresh: Ctrl+Shift+R (Cmd+Shift+R on Mac)
+- Clear site data: DevTools → Application → Clear storage
+
+**Offline sync not working?**
+- Check the sync status indicator (bottom-right)
+- Manually trigger sync by clicking "Sync now"
+- Check browser console for errors
+
+**Install prompt not showing?**
+- Make sure you're using HTTPS (or localhost)
+- The prompt shows 30 seconds after first visit
+- It won't show if previously dismissed (wait 7 days)
+- Check if already installed (display-mode: standalone)
+
+---

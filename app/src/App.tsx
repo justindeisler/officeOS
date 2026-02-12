@@ -157,6 +157,17 @@ const Confetti = lazy(() =>
   import("./components/ui/Confetti").then((m) => ({ default: m.Confetti }))
 );
 
+// PWA components
+const InstallPrompt = lazy(() =>
+  import("./components/pwa/InstallPrompt").then((m) => ({ default: m.InstallPrompt }))
+);
+const OfflineIndicator = lazy(() =>
+  import("./components/pwa/OfflineIndicator").then((m) => ({ default: m.OfflineIndicator }))
+);
+const SyncStatusIndicator = lazy(() =>
+  import("./components/pwa/SyncStatusIndicator").then((m) => ({ default: m.SyncStatusIndicator }))
+);
+
 function App() {
   console.log("[App] Rendering App component...");
   const [captureDialogOpen, setCaptureDialogOpen] = useState(false);
@@ -373,6 +384,12 @@ function App() {
         <Confetti />
       </Suspense>
       <Toaster richColors position="bottom-right" />
+      {/* PWA Components */}
+      <Suspense fallback={null}>
+        <InstallPrompt />
+        <OfflineIndicator />
+        <SyncStatusIndicator />
+      </Suspense>
     </>
   );
 }

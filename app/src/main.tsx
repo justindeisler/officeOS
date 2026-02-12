@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import "./styles/globals.css";
+import { registerSW } from 'virtual:pwa-register';
 
 console.log("[Main] Starting React application...");
 
@@ -31,3 +32,21 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     </BrowserRouter>
   </React.StrictMode>
 );
+
+// Register service worker for PWA functionality
+const updateSW = registerSW({
+  onNeedRefresh() {
+    if (confirm('New version available! Click OK to update.')) {
+      updateSW(true);
+    }
+  },
+  onOfflineReady() {
+    console.log('[PWA] App ready to work offline');
+  },
+  onRegistered(registration) {
+    console.log('[PWA] Service Worker registered:', registration);
+  },
+  onRegisterError(error) {
+    console.error('[PWA] Service Worker registration error:', error);
+  },
+});

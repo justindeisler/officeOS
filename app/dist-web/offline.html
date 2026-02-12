@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Offline - Personal Assistant</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+          'Helvetica Neue', Arial, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+      }
+
+      .container {
+        background: white;
+        border-radius: 1rem;
+        padding: 2rem;
+        max-width: 400px;
+        text-align: center;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
+          0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      }
+
+      .icon {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 1.5rem;
+        background: #f3f4f6;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2.5rem;
+      }
+
+      h1 {
+        color: #1f2937;
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+      }
+
+      p {
+        color: #6b7280;
+        font-size: 0.875rem;
+        line-height: 1.5;
+        margin-bottom: 1.5rem;
+      }
+
+      .button {
+        background: #3b82f6;
+        color: white;
+        border: none;
+        border-radius: 0.5rem;
+        padding: 0.75rem 1.5rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.2s;
+        width: 100%;
+      }
+
+      .button:hover {
+        background: #2563eb;
+      }
+
+      .status {
+        margin-top: 1rem;
+        padding: 0.75rem;
+        background: #fef3c7;
+        border-radius: 0.5rem;
+        color: #92400e;
+        font-size: 0.75rem;
+      }
+
+      .status.online {
+        background: #d1fae5;
+        color: #065f46;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+      }
+
+      .checking {
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="icon">📡</div>
+      <h1>You're Offline</h1>
+      <p>
+        No internet connection detected. Some features may be limited until you're back
+        online. Your changes will sync automatically when connection is restored.
+      </p>
+      <button class="button" onclick="location.reload()">Try Again</button>
+      <div id="status" class="status checking">Checking connection...</div>
+    </div>
+
+    <script>
+      function checkConnection() {
+        const status = document.getElementById('status');
+        
+        if (navigator.onLine) {
+          status.textContent = '✓ Back online! Reloading...';
+          status.classList.remove('checking');
+          status.classList.add('online');
+          setTimeout(() => location.reload(), 1000);
+        } else {
+          status.textContent = '⚠ Still offline. Will retry automatically.';
+          status.classList.add('checking');
+        }
+      }
+
+      // Check connection status every 5 seconds
+      setInterval(checkConnection, 5000);
+      
+      // Also check when online event fires
+      window.addEventListener('online', checkConnection);
+      
+      // Initial check
+      setTimeout(checkConnection, 1000);
+    </script>
+  </body>
+</html>

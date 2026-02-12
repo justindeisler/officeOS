@@ -34,7 +34,6 @@ import { useUserName } from "@/stores/settingsStore";
 import { useAuthStore } from "@/stores/authStore";
 import { useActiveProjects } from "@/stores/projectStore";
 import { NavItemWithChildren, NavChild } from "./NavItemWithChildren";
-import { BottomNav } from "./BottomNav";
 import type { LucideIcon } from "lucide-react";
 
 interface NavItem {
@@ -287,14 +286,11 @@ export function AppLayout({ onQuickCapture }: AppLayoutProps) {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 pt-14 pb-16 md:pt-0 md:pb-0 md:pl-64 transition-all duration-300 @container">
+      <main className="flex-1 pt-14 md:pt-0 md:pl-64 transition-all duration-300 @container">
         <div className="h-full p-4 sm:p-6 md:p-8">
           <Outlet />
         </div>
       </main>
-
-      {/* Mobile Bottom Navigation */}
-      <BottomNav />
     </div>
   );
 }
