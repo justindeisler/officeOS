@@ -34,6 +34,7 @@ import { useUserName } from "@/stores/settingsStore";
 import { useAuthStore } from "@/stores/authStore";
 import { useActiveProjects } from "@/stores/projectStore";
 import { NavItemWithChildren, NavChild } from "./NavItemWithChildren";
+import { BottomNav } from "./BottomNav";
 import type { LucideIcon } from "lucide-react";
 
 interface NavItem {
@@ -182,14 +183,14 @@ export function AppLayout({ onQuickCapture }: AppLayoutProps) {
               onClick={handleNavClick}
               className={({ isActive }) =>
                 cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                  "flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px]",
                   isActive
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                 )
               }
             >
-              <item.icon className="h-4 w-4" />
+              <item.icon className="h-5 w-5" />
               {item.name}
               {item.showBadge && unprocessedCount > 0 && (
                 <Badge variant="secondary" className="ml-auto text-xs">
@@ -208,14 +209,14 @@ export function AppLayout({ onQuickCapture }: AppLayoutProps) {
           onClick={handleNavClick}
           className={({ isActive }) =>
             cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+              "flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px]",
               isActive
                 ? "bg-sidebar-accent text-sidebar-accent-foreground"
                 : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
             )
           }
         >
-          <Settings className="h-4 w-4" />
+          <Settings className="h-5 w-5" />
           Settings
         </NavLink>
         <button
@@ -223,9 +224,9 @@ export function AppLayout({ onQuickCapture }: AppLayoutProps) {
             handleNavClick();
             logout();
           }}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors text-sidebar-foreground/70 hover:bg-red-500/10 hover:text-red-500"
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors text-sidebar-foreground/70 hover:bg-red-500/10 hover:text-red-500 min-h-[44px]"
         >
-          <LogOut className="h-4 w-4" />
+          <LogOut className="h-5 w-5" />
           Logout
         </button>
       </div>
@@ -235,17 +236,18 @@ export function AppLayout({ onQuickCapture }: AppLayoutProps) {
   return (
     <div className="flex min-h-screen bg-background">
       {/* Mobile header */}
-      <header className="fixed top-0 left-0 right-0 z-40 flex h-14 items-center gap-4 border-b bg-background px-4 md:hidden">
+      <header className="fixed top-0 left-0 right-0 z-40 flex h-14 items-center gap-3 border-b bg-background px-3 md:hidden">
         <Button
           variant="ghost"
           size="icon"
           onClick={() => setSidebarOpen(true)}
           aria-label="Open menu"
+          className="min-h-[44px] min-w-[44px]"
         >
           <Menu className="h-5 w-5" />
         </Button>
         <span 
-          className="text-3xl text-primary"
+          className="text-2xl text-primary flex-1 truncate"
           style={{ fontFamily: "'Sacramento', cursive" }}
         >
           personal assistant
@@ -263,14 +265,14 @@ export function AppLayout({ onQuickCapture }: AppLayoutProps) {
       {/* Mobile sidebar drawer */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-64 border-r bg-sidebar transform transition-transform duration-200 ease-out md:hidden",
+          "fixed inset-y-0 left-0 z-50 w-[280px] max-w-[85vw] border-r bg-sidebar transform transition-transform duration-200 ease-out md:hidden",
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         <Button
           variant="ghost"
           size="icon"
-          className="absolute top-3 right-3"
+          className="absolute top-3 right-3 min-h-[44px] min-w-[44px] z-10"
           onClick={() => setSidebarOpen(false)}
           aria-label="Close menu"
         >
@@ -285,12 +287,14 @@ export function AppLayout({ onQuickCapture }: AppLayoutProps) {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 pt-14 md:pt-0 md:pl-64 transition-all duration-300 @container">
+      <main className="flex-1 pt-14 pb-16 md:pt-0 md:pb-0 md:pl-64 transition-all duration-300 @container">
         <div className="h-full p-4 sm:p-6 md:p-8">
           <Outlet />
         </div>
       </main>
 
+      {/* Mobile Bottom Navigation */}
+      <BottomNav />
     </div>
   );
 }
