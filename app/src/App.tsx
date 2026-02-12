@@ -56,6 +56,11 @@ const SocialMediaPage = lazy(() =>
     default: m.SocialMediaPage,
   }))
 );
+const OfficePage = lazy(() =>
+  import("./pages/OfficePage").then((m) => ({
+    default: m.OfficePage,
+  }))
+);
 // Accounting sub-pages
 const InvoicesPage = lazy(() =>
   import("./pages/accounting/InvoicesPage").then((m) => ({
@@ -341,6 +346,7 @@ function App() {
             <Route path="/prd/:id" element={<PrdDetailPage />} />
             <Route path="/second-brain" element={<SecondBrainPage />} />
             <Route path="/social-media" element={<SocialMediaPage />} />
+            <Route path="/office" element={<OfficePage />} />
             {/* James Brain routes */}
             <Route
               path="/james-brain"

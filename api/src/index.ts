@@ -46,6 +46,7 @@ import backupsRouter from "./routes/backups.js";
 import socialMediaRouter from "./routes/social-media.js";
 import tagsRouter from "./routes/tags.js";
 import cacheRouter from "./routes/cache.js";
+import officeRouter from "./routes/office.js";
 
 // Environment validation — fail fast if critical vars are missing
 function validateEnvironment() {
@@ -91,10 +92,10 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
-// Rate limiting - 100 requests per 15 minutes per IP
+// Global rate limiting - 300 requests per 15 minutes per IP
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many requests, please try again later" },
@@ -102,7 +103,20 @@ const limiter = rateLimit({
   // Disable X-Forwarded-For validation since we're behind nginx proxy
   validate: { xForwardedForHeader: false },
 });
+
+// Stricter rate limiting for auth endpoints - 20 attempts per 15 minutes per IP
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many login attempts, please try again later" },
+  skipSuccessfulRequests: true, // Only count failed attempts
+  validate: { xForwardedForHeader: false },
+});
+
 app.use("/api/", limiter);
+app.use("/api/auth/login", authLimiter);
 
 // CORS and body parsing
 app.use(cors());
@@ -165,6 +179,9 @@ app.use("/api/social-media", authMiddleware, socialMediaRouter);
 app.use("/api/tags", authMiddleware, tagsRouter);
 // Cache management routes
 app.use("/api/cache", authMiddleware, cacheRouter);
+
+// Office visualization routes (protected)
+app.use("/api/office", authMiddleware, officeRouter);
 
 // 404 handler for unmatched API routes (must come after all API routes, before static files)
 app.all("/api/*", notFoundHandler);

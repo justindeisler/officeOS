@@ -25,6 +25,7 @@ import {
   BarChart3,
   DollarSign,
   Share2,
+  Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -65,6 +66,7 @@ const baseNavigation: NavItem[] = [
       { name: "Reports", href: "/accounting/reports", icon: FileText },
     ],
   },
+  { name: "The Office", href: "/office", icon: Building2 },
   { name: "Social Media", href: "/social-media", icon: Share2 },
   { name: "PRD Creator", href: "/prd", icon: FileText },
   { 
