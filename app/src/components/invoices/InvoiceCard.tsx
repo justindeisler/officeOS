@@ -69,35 +69,35 @@ export function InvoiceCard({ invoice, onEdit, onExport }: InvoiceCardProps) {
 
   return (
     <Card className="group">
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between">
-          <div className="flex items-start gap-3">
-            <div className="p-2 rounded-lg bg-muted">
+      <CardContent className="p-3 sm:p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start gap-2 sm:gap-3 min-w-0 flex-1">
+            <div className="p-2 rounded-lg bg-muted shrink-0">
               <FileText className="h-4 w-4 text-muted-foreground" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-mono text-sm font-medium">
                   {invoice.invoiceNumber}
                 </span>
-                <Badge variant={config.variant}>
+                <Badge variant={config.variant} className="text-xs">
                   {isOverdue && <AlertCircle className="h-3 w-3 mr-1" />}
                   {config.label}
                 </Badge>
               </div>
-              <p className="text-sm text-muted-foreground mt-0.5">
+              <p className="text-sm text-muted-foreground mt-0.5 truncate">
                 {client?.name || "Unknown Client"}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="text-right mr-2">
-              <p className="font-semibold">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+            <div className="text-right">
+              <p className="font-semibold text-sm sm:text-base">
                 {formatCurrency(invoice.totalAmount)}
               </p>
-              <p className="text-xs text-muted-foreground">
-                Due {format(parseISO(invoice.dueDate), "MMM d, yyyy")}
+              <p className="text-[10px] sm:text-xs text-muted-foreground whitespace-nowrap">
+                Due {format(parseISO(invoice.dueDate), "MMM d")}
               </p>
             </div>
 
@@ -106,7 +106,7 @@ export function InvoiceCard({ invoice, onEdit, onExport }: InvoiceCardProps) {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="h-10 w-10 min-h-[44px] min-w-[44px] opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0"
                 >
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
@@ -153,16 +153,16 @@ export function InvoiceCard({ invoice, onEdit, onExport }: InvoiceCardProps) {
           <div className="mt-3 pt-3 border-t">
             <div className="text-xs text-muted-foreground space-y-1">
               {invoice.lineItems.slice(0, 2).map((item, idx) => (
-                <div key={idx} className="flex justify-between">
-                  <span className="truncate max-w-[200px]">
+                <div key={idx} className="flex justify-between gap-2">
+                  <span className="truncate flex-1 min-w-0">
                     {item.description}
                   </span>
-                  <span>{formatCurrency(item.amount)}</span>
+                  <span className="shrink-0">{formatCurrency(item.amount)}</span>
                 </div>
               ))}
               {invoice.lineItems.length > 2 && (
                 <p className="text-muted-foreground/70">
-                  +{invoice.lineItems.length - 2} more items
+                  +{invoice.lineItems.length - 2} more item{invoice.lineItems.length - 2 !== 1 ? 's' : ''}
                 </p>
               )}
             </div>
