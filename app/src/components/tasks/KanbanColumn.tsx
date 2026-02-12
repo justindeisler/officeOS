@@ -61,10 +61,10 @@ export function KanbanColumn({
         </div>
         <button
           onClick={() => onAddTask(id)}
-          className="rounded p-1 hover:bg-accent transition-colors"
+          className="rounded p-2 hover:bg-accent transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
           title="Add task"
         >
-          <Plus className="h-4 w-4 text-muted-foreground" />
+          <Plus className="h-5 w-5 text-muted-foreground" />
         </button>
       </div>
 

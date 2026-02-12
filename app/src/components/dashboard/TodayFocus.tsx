@@ -23,7 +23,7 @@ function TaskItem({ task, onComplete }: { task: Task; onComplete: () => void }) 
     >
       <button
         onClick={onComplete}
-        className="mt-0.5 flex-shrink-0"
+        className="mt-0.5 flex-shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center -ml-2"
         disabled={isDone}
       >
         {isDone ? (

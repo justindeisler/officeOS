@@ -100,18 +100,18 @@ export const TaskCardContent = forwardRef<HTMLDivElement, TaskCardContentProps &
         <div className="flex items-start gap-2">
           {/* Drag handle */}
           <button
-            className="mt-0.5 cursor-grab touch-none opacity-0 transition-opacity group-hover:opacity-100"
+            className="mt-0.5 cursor-grab touch-none opacity-50 md:opacity-0 transition-opacity md:group-hover:opacity-100 min-h-[44px] min-w-[32px] flex items-center justify-center -ml-1"
             {...(dragHandleProps?.attributes ?? {})}
             {...(dragHandleProps?.listeners ?? {})}
           >
-            <GripVertical className="h-4 w-4 text-muted-foreground" />
+            <GripVertical className="h-5 w-5 text-muted-foreground" />
           </button>
 
           <div className="flex-1 min-w-0">
             {/* Title */}
             <button
               onClick={() => onEdit(task)}
-              className="text-left w-full"
+              className="text-left w-full min-h-[44px] py-1"
             >
               <h4 className="font-medium text-sm leading-tight hover:text-primary transition-colors">
                 {task.title}
