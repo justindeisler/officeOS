@@ -5,3 +5,4 @@ export { ActivityPage } from "./ActivityPage";
 export { AutomationsPage } from "./AutomationsPage";
 export { UsagePage } from "./UsagePage";
 export { ApiUsagePage } from "./ApiUsagePage";
+export { AgentSpacePage } from "./AgentSpacePage";

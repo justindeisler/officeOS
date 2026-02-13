@@ -124,6 +124,11 @@ const JamesBrainApiUsagePage = lazy(() =>
     default: m.ApiUsagePage,
   }))
 );
+const AgentSpacePage = lazy(() =>
+  import("./pages/james-brain/AgentSpacePage").then((m) => ({
+    default: m.AgentSpacePage,
+  }))
+);
 
 // Client portal (lazy — separate feature area)
 const ClientLayout = lazy(() =>
@@ -375,6 +380,10 @@ function App() {
             <Route
               path="/james-brain/api-costs"
               element={<JamesBrainApiUsagePage />}
+            />
+            <Route
+              path="/james-brain/agent-space"
+              element={<AgentSpacePage />}
             />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>

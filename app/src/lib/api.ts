@@ -334,6 +334,142 @@ class ApiClient {
     }>(`/second-brain/search?q=${encodeURIComponent(query)}`);
   }
 
+  // Journal
+  async getJournalEntries() {
+    return this.request<{
+      entries: Array<{
+        date: string;
+        filename: string;
+        title: string;
+        preview: string;
+        lastModified: string;
+        size: number;
+      }>;
+      total: number;
+    }>('/second-brain/journal');
+  }
+
+  async getJournalEntry(date: string) {
+    return this.request<{
+      date: string;
+      filename: string;
+      title: string;
+      content: string;
+      lastModified: string;
+      size: number;
+    }>(`/second-brain/journal/${date}`);
+  }
+
+  // Research
+  async getResearchNotes() {
+    return this.request<{
+      notes: Array<{
+        filename: string;
+        title: string;
+        preview: string;
+        date: string;
+        lastModified: string;
+        size: number;
+        tags: string[];
+      }>;
+      total: number;
+    }>('/second-brain/research');
+  }
+
+  async getResearchNote(filename: string) {
+    return this.request<{
+      filename: string;
+      title: string;
+      content: string;
+      lastModified: string;
+      size: number;
+    }>(`/second-brain/research/${encodeURIComponent(filename)}`);
+  }
+
+  // Agent Memories
+  async getAgentMemories() {
+    return this.request<{
+      agents: Array<{
+        id: string;
+        name: string;
+        filename: string;
+        lastModified: string;
+        size: number;
+        sections: { principles: number; decisions: number; preferences: number };
+      }>;
+      total: number;
+    }>('/second-brain/agents');
+  }
+
+  async getAgentMemory(agentId: string) {
+    return this.request<{
+      id: string;
+      name: string;
+      content: string;
+      lastModified: string;
+      size: number;
+      sections: { principles: number; decisions: number; preferences: number };
+      isRootMemory: boolean;
+    }>(`/second-brain/agents/${encodeURIComponent(agentId)}`);
+  }
+
+  // Conversations
+  async getConversations(filters?: { agent?: string; limit?: number }) {
+    const params = new URLSearchParams();
+    if (filters?.agent) params.set('agent', filters.agent);
+    if (filters?.limit) params.set('limit', String(filters.limit));
+    const query = params.toString();
+    return this.request<{
+      sessions: Array<{
+        id: string;
+        agent: string;
+        timestamp: string;
+        messageCount: number;
+        size: number;
+        isLong: boolean;
+      }>;
+      total: number;
+      agents: string[];
+    }>(`/second-brain/conversations${query ? `?${query}` : ''}`);
+  }
+
+  async getConversationTranscript(agent: string, sessionId: string) {
+    return this.request<{
+      id: string;
+      agent: string;
+      timestamp: string;
+      messages: Array<{
+        type: string;
+        id: string;
+        timestamp: string;
+        role?: string;
+        text?: string;
+        toolName?: string;
+      }>;
+      totalLines: number;
+      size: number;
+    }>(`/second-brain/conversations/${encodeURIComponent(agent)}/${encodeURIComponent(sessionId)}`);
+  }
+
+  // Universal Brain Search
+  async searchBrain(query: string, source?: string) {
+    const params = new URLSearchParams({ q: query });
+    if (source) params.set('source', source);
+    return this.request<{
+      results: Array<{
+        type: "document" | "agent-memory" | "conversation";
+        path: string;
+        title: string;
+        source: string;
+        snippet: string;
+        lastModified: string;
+        score: number;
+      }>;
+      total: number;
+      query: string;
+    }>(`/second-brain/search?${params.toString()}`);
+  }
+
   /**
    * Download invoice PDF
    * Returns a Blob for download
@@ -913,6 +1049,88 @@ class ApiClient {
       `/social-media/posts/${id}/generate-visual`,
       { method: 'POST' }
     );
+  }
+
+  // Agent Space
+  async getAgents() {
+    return this.request<{
+      agents: Array<{
+        id: string;
+        name: string;
+        emoji: string;
+        role: string;
+        color: string;
+        status: "active" | "idle";
+        sessionCount: number;
+        fileCount: number;
+        lastActivity: string | null;
+      }>;
+    }>('/agent-space');
+  }
+
+  async getAgentDetail(agentId: string) {
+    return this.request<{
+      id: string;
+      name: string;
+      emoji: string;
+      role: string;
+      color: string;
+      status: "active" | "idle";
+      sessionCount: number;
+      lastActivity: string | null;
+      files: Array<{
+        name: string;
+        path: string;
+        category: string;
+        title: string;
+        size: number;
+        lastModified: string;
+        encrypted: boolean;
+      }>;
+    }>(`/agent-space/${encodeURIComponent(agentId)}`);
+  }
+
+  async getAgentFiles(agentId: string) {
+    return this.request<{
+      files: Array<{
+        name: string;
+        path: string;
+        category: string;
+        title: string;
+        size: number;
+        lastModified: string;
+        encrypted: boolean;
+      }>;
+    }>(`/agent-space/${encodeURIComponent(agentId)}/files`);
+  }
+
+  async getAgentFileContent(agentId: string, category: string, filepath: string) {
+    return this.request<{
+      name: string;
+      path: string;
+      category: string;
+      title: string;
+      content: string;
+      size: number;
+      lastModified: string;
+      encrypted: boolean;
+    }>(`/agent-space/${encodeURIComponent(agentId)}/files/${encodeURIComponent(category)}/${filepath}`);
+  }
+
+  // Brain Activity
+  async getBrainActivity(days: number = 7) {
+    return this.request<{
+      activities: Array<{
+        type: "document" | "agent-memory" | "conversation";
+        title: string;
+        path: string;
+        source: string;
+        lastModified: string;
+        action: "created" | "modified";
+      }>;
+      total: number;
+      days: number;
+    }>(`/second-brain/activity?days=${days}`);
   }
 
   async getSocialMediaStats() {

@@ -47,6 +47,7 @@ import socialMediaRouter from "./routes/social-media.js";
 import tagsRouter from "./routes/tags.js";
 import cacheRouter from "./routes/cache.js";
 import officeRouter from "./routes/office.js";
+import agentSpaceRouter from "./routes/agent-space.js";
 
 // Environment validation — fail fast if critical vars are missing
 function validateEnvironment() {
@@ -183,6 +184,9 @@ app.use("/api/cache", authMiddleware, cacheRouter);
 // Office visualization routes (protected)
 app.use("/api/office", authMiddleware, officeRouter);
 
+// Agent Space routes (protected)
+app.use("/api/agent-space", authMiddleware, agentSpaceRouter);
+
 // 404 handler for unmatched API routes (must come after all API routes, before static files)
 app.all("/api/*", notFoundHandler);
 
@@ -192,6 +196,16 @@ app.use(errorHandler);
 // Serve static files from the web build
 if (existsSync(STATIC_PATH)) {
   logger.info({ path: STATIC_PATH }, "Serving static files");
+
+  // Service worker - must be served with no-cache so browsers detect updates
+  app.get("/sw.js", (_req, res) => {
+    res.set({
+      "Cache-Control": "no-cache, no-store, must-revalidate",
+      "Pragma": "no-cache",
+      "Expires": "0",
+    });
+    res.sendFile(join(STATIC_PATH, "sw.js"));
+  });
 
   // Static assets (JS/CSS with hashes) - cache for 1 year
   app.use("/assets", express.static(join(STATIC_PATH, "assets"), {

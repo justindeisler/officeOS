@@ -243,11 +243,91 @@ export interface SecondBrainDocument {
   folder: string;
   lastModified: string;
   content?: string;
+  size?: number;
+  preview?: string;
 }
 
 export interface SecondBrainFolder {
   name: string;
   documents: SecondBrainDocument[];
+}
+
+// Journal
+export interface JournalEntry {
+  date: string;
+  filename: string;
+  title: string;
+  preview: string;
+  lastModified: string;
+  size: number;
+  content?: string;
+}
+
+// Research
+export interface ResearchNote {
+  filename: string;
+  title: string;
+  preview: string;
+  date: string;
+  lastModified: string;
+  size: number;
+  tags: string[];
+  content?: string;
+}
+
+// Agent Memory
+export interface AgentMemory {
+  id: string;
+  name: string;
+  filename: string;
+  lastModified: string;
+  size: number;
+  sections: {
+    principles: number;
+    decisions: number;
+    preferences: number;
+  };
+  content?: string;
+  isRootMemory?: boolean;
+}
+
+// Conversations
+export interface ConversationSession {
+  id: string;
+  agent: string;
+  timestamp: string;
+  messageCount: number;
+  size: number;
+  isLong: boolean;
+}
+
+export interface ConversationMessage {
+  type: string;
+  id: string;
+  timestamp: string;
+  role?: string;
+  text?: string;
+  toolName?: string;
+}
+
+export interface ConversationTranscript {
+  id: string;
+  agent: string;
+  timestamp: string;
+  messages: ConversationMessage[];
+  totalLines: number;
+  size: number;
+}
+
+// Universal Search
+export interface BrainSearchResult {
+  type: "document" | "agent-memory" | "conversation";
+  path: string;
+  title: string;
+  source: string;
+  snippet: string;
+  lastModified: string;
+  score: number;
 }
 
 // ============================================
@@ -294,4 +374,58 @@ export interface Subtask {
 export interface SubtaskCounts {
   total: number;
   completed: number;
+}
+
+// ============================================
+// Agent Space Types
+// ============================================
+
+export interface AgentInfo {
+  id: string;
+  name: string;
+  emoji: string;
+  role: string;
+  color: string;
+  status: "active" | "idle";
+  sessionCount: number;
+  fileCount: number;
+  lastActivity: string | null;
+}
+
+export interface AgentFileInfo {
+  name: string;
+  path: string;
+  category: "persona" | "learning" | "memory" | "specialist";
+  title: string;
+  size: number;
+  lastModified: string;
+  encrypted: boolean;
+}
+
+export interface AgentDetail extends AgentInfo {
+  files: AgentFileInfo[];
+}
+
+export interface AgentFileContent {
+  name: string;
+  path: string;
+  category: string;
+  title: string;
+  content: string;
+  size: number;
+  lastModified: string;
+  encrypted: boolean;
+}
+
+// ============================================
+// Brain Activity Types
+// ============================================
+
+export interface BrainActivity {
+  type: "document" | "agent-memory" | "conversation";
+  title: string;
+  path: string;
+  source: string;
+  lastModified: string;
+  action: "created" | "modified";
 }
