@@ -7,6 +7,49 @@
 
 import { adminClient, API_BASE } from '@/api';
 
+// GitHub Activity types
+export interface GitHubActivityItem {
+  id: string;
+  project_id: string | null;
+  type: 'commit' | 'pr' | 'issue';
+  repo_name: string;
+  sha: string | null;
+  number: number | null;
+  title: string | null;
+  description: string | null;
+  author: string;
+  url: string;
+  created_at: string;
+  closed_at: string | null;
+  merged_at: string | null;
+  additions: number | null;
+  deletions: number | null;
+  estimated_minutes: number | null;
+  imported_at: string;
+}
+
+export interface GitHubActivityStats {
+  total: number;
+  commits: number;
+  prs: number;
+  issues: number;
+  total_additions: number;
+  total_deletions: number;
+  estimated_minutes: number;
+}
+
+export interface GitHubSyncResult {
+  repo: string;
+  commitsImported: number;
+  prsImported: number;
+  issuesImported: number;
+  commitsSkipped: number;
+  prsSkipped: number;
+  issuesSkipped: number;
+  errors: string[];
+  duration: number;
+}
+
 // Social Media types
 export interface SocialMediaPost {
   id: string;
@@ -749,8 +792,79 @@ class ApiClient {
   }
 
   // GitHub Repos
-  async getGitHubRepos(): Promise<{ repos: Array<{ name: string; description: string; url: string; updatedAt: string }>; message?: string; authenticated?: boolean }> {
+  async getGitHubRepos(): Promise<{ repos: Array<{ name: string; fullName: string; description: string; url: string; updatedAt: string }>; message?: string; authenticated?: boolean }> {
     return this.request('/github/repos');
+  }
+
+  // GitHub Commits (live from GitHub)
+  async getGitHubCommits(repo: string, since?: string) {
+    const params = new URLSearchParams({ repo });
+    if (since) params.set('since', since);
+    return this.request<{ repo: string; commits: unknown[]; count: number }>(`/github/commits?${params}`);
+  }
+
+  // GitHub PRs (live from GitHub)
+  async getGitHubPulls(repo: string, state: string = 'all') {
+    return this.request<{ repo: string; pulls: unknown[]; count: number }>(`/github/pulls?repo=${encodeURIComponent(repo)}&state=${state}`);
+  }
+
+  // GitHub Issues (live from GitHub)
+  async getGitHubIssues(repo: string, state: string = 'all') {
+    return this.request<{ repo: string; issues: unknown[]; count: number }>(`/github/issues?repo=${encodeURIComponent(repo)}&state=${state}`);
+  }
+
+  // GitHub Sync (import to DB)
+  async syncGitHubRepo(repo: string, days: number = 7) {
+    return this.request<{ success: boolean; result: GitHubSyncResult }>('/github/sync', {
+      method: 'POST',
+      body: JSON.stringify({ repo, days }),
+    });
+  }
+
+  async syncAllGitHubRepos(days: number = 7) {
+    return this.request<{ success: boolean; totalRepos: number; totalImported: number; results: GitHubSyncResult[] }>('/github/sync-all', {
+      method: 'POST',
+      body: JSON.stringify({ days }),
+    });
+  }
+
+  // GitHub Activity (from DB)
+  async getGitHubActivity(filters?: { repo?: string; project_id?: string; days?: number }) {
+    const params = new URLSearchParams();
+    if (filters?.repo) params.set('repo', filters.repo);
+    if (filters?.project_id) params.set('project_id', filters.project_id);
+    if (filters?.days) params.set('days', String(filters.days));
+    const query = params.toString();
+    return this.request<{ activities: GitHubActivityItem[]; count: number }>(`/github/activity${query ? `?${query}` : ''}`);
+  }
+
+  async getGitHubProjectActivity(projectId: string, type?: string) {
+    const params = type ? `?type=${type}` : '';
+    return this.request<{
+      projectId: string;
+      activities: GitHubActivityItem[];
+      stats: GitHubActivityStats;
+      count: number;
+    }>(`/github/activity/project/${projectId}${params}`);
+  }
+
+  // GitHub Sync Logs
+  async getGitHubSyncLogs(limit: number = 20) {
+    return this.request<{ logs: unknown[]; count: number }>(`/github/sync-logs?limit=${limit}`);
+  }
+
+  // GitHub Link to Project
+  async linkGitHubRepo(projectId: string, repo: string) {
+    return this.request<{ success: boolean; message: string }>('/github/link', {
+      method: 'POST',
+      body: JSON.stringify({ projectId, repo }),
+    });
+  }
+
+  async unlinkGitHubRepo(projectId: string) {
+    return this.request<{ success: boolean }>(`/github/link/${projectId}`, {
+      method: 'DELETE',
+    });
   }
 
   // James Tasks

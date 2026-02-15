@@ -351,7 +351,12 @@ function App() {
             <Route path="/prd/:id" element={<PrdDetailPage />} />
             <Route path="/second-brain" element={<SecondBrainPage />} />
             <Route path="/social-media" element={<SocialMediaPage />} />
-            <Route path="/office" element={<OfficePage />} />
+            {/* Centrale routes */}
+            <Route path="/centrale" element={<Navigate to="/centrale/agent-space" replace />} />
+            <Route path="/centrale/agent-space" element={<AgentSpacePage />} />
+            <Route path="/centrale/office" element={<OfficePage />} />
+            {/* Legacy redirects */}
+            <Route path="/office" element={<Navigate to="/centrale/office" replace />} />
             {/* James Brain routes */}
             <Route
               path="/james-brain"
@@ -383,7 +388,7 @@ function App() {
             />
             <Route
               path="/james-brain/agent-space"
-              element={<AgentSpacePage />}
+              element={<Navigate to="/centrale/agent-space" replace />}
             />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>

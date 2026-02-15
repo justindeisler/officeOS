@@ -67,7 +67,15 @@ const baseNavigation: NavItem[] = [
       { name: "Reports", href: "/accounting/reports", icon: FileText },
     ],
   },
-  { name: "Zentrale", href: "/office", icon: Building2 },
+  {
+    name: "Zentrale",
+    href: "/centrale",
+    icon: Building2,
+    children: [
+      { name: "Agent Space", href: "/centrale/agent-space", icon: Users2 },
+      { name: "Office", href: "/centrale/office", icon: Building2 },
+    ],
+  },
   { name: "Social Media", href: "/social-media", icon: Share2 },
   { name: "PRD Creator", href: "/prd", icon: FileText },
   { 
@@ -83,7 +91,6 @@ const baseNavigation: NavItem[] = [
       { name: "Token Usage", href: "/james-brain/usage", icon: BarChart3 },
       { name: "API Costs", href: "/james-brain/api-costs", icon: DollarSign },
       { name: "Second Brain", href: "/second-brain", icon: Brain },
-      { name: "Agent Space", href: "/james-brain/agent-space", icon: Users2 },
     ],
   },
 ];

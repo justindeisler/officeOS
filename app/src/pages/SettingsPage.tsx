@@ -8,6 +8,7 @@ import {
   DefaultsSection,
   BackupSection,
   DatabaseManagementSection,
+  GitHubSection,
   AboutSection,
 } from "@/components/settings";
 
@@ -65,6 +66,8 @@ export function SettingsPage() {
           onExportJson={settings.handleExportJson}
         />
       )}
+
+      <GitHubSection />
 
       <DatabaseManagementSection
         dataStats={settings.dataStats}

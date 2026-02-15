@@ -5,4 +5,5 @@ export { WorkspaceSection } from "./WorkspaceSection";
 export { DefaultsSection } from "./DefaultsSection";
 export { BackupSection } from "./BackupSection";
 export { DatabaseManagementSection } from "./DatabaseManagementSection";
+export { GitHubSection } from "./GitHubSection";
 export { AboutSection } from "./AboutSection";

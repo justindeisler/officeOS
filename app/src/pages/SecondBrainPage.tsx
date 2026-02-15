@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
@@ -99,6 +99,14 @@ export function SecondBrainPage() {
   const [selectedConvo, setSelectedConvo] = useState<{ messages: ConversationMessage[]; agent: string; id: string } | null>(null);
   const [isLoadingConvos, setIsLoadingConvos] = useState(false);
   const [convoFilter, setConvoFilter] = useState<string>("");
+  const [convoError, setConvoError] = useState<string | null>(null);
+
+  // Rate limit protection: track last fetch time and prevent retry storms
+  const convoFetchRef = useRef<{ lastFetch: number; inFlight: boolean; rateLimitedUntil: number }>({
+    lastFetch: 0,
+    inFlight: false,
+    rateLimitedUntil: 0,
+  });
 
   // Type filter for documents
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -139,7 +147,18 @@ export function SecondBrainPage() {
     } else if (activeTab === "conversations") {
       loadConversations();
     }
-  }, [activeTab, activityDays]);
+  }, [activeTab]); // Note: activityDays handled separately to avoid scroll reset
+
+  // Reload activity when days filter changes (separate to preserve scroll position)
+  const prevActivityDaysRef = useRef(activityDays);
+  useEffect(() => {
+    if (prevActivityDaysRef.current !== activityDays) {
+      prevActivityDaysRef.current = activityDays;
+      if (activeTab === "activity") {
+        loadActivity();
+      }
+    }
+  }, [activityDays, activeTab]);
 
   const loadDocuments = async () => {
     try {
@@ -193,18 +212,50 @@ export function SecondBrainPage() {
     }
   };
 
-  const loadConversations = async () => {
+  const loadConversations = useCallback(async (force = false) => {
+    const ref = convoFetchRef.current;
+    const now = Date.now();
+
+    // Prevent concurrent fetches
+    if (ref.inFlight) return;
+
+    // Respect rate limit backoff
+    if (!force && now < ref.rateLimitedUntil) {
+      console.log(`[SecondBrain] Rate limited, retry after ${Math.ceil((ref.rateLimitedUntil - now) / 1000)}s`);
+      return;
+    }
+
+    // Debounce: don't fetch more than once per 2 seconds
+    if (!force && now - ref.lastFetch < 2000) return;
+
     try {
+      ref.inFlight = true;
+      ref.lastFetch = now;
       setIsLoadingConvos(true);
+      setConvoError(null);
       const result = await api.getConversations({ agent: convoFilter || undefined, limit: 50 });
       setConversations(result.sessions);
       setConversationAgents(result.agents);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Failed to load conversations:", err);
+      // Handle 429 rate limit — back off and don't retry
+      if (err && typeof err === 'object' && 'status' in err && (err as { status: number }).status === 429) {
+        ref.rateLimitedUntil = Date.now() + 30000; // Back off 30 seconds
+        setConvoError("Too many requests. Will retry automatically in 30 seconds.");
+        // Auto-retry after backoff
+        setTimeout(() => {
+          if (convoFetchRef.current.rateLimitedUntil <= Date.now()) {
+            loadConversations(true);
+          }
+        }, 31000);
+      } else {
+        setConvoError("Failed to load conversations. Click retry to try again.");
+      }
     } finally {
+      ref.inFlight = false;
       setIsLoadingConvos(false);
     }
-  };
+  }, [convoFilter]);
 
   const loadConversationTranscript = async (session: ConversationSession) => {
     try {
@@ -437,6 +488,7 @@ export function SecondBrainPage() {
             onSelect={loadConversationTranscript}
             isLoading={isLoadingConvos}
             onRefresh={loadConversations}
+            error={convoError}
           />
         )}
 
@@ -748,6 +800,7 @@ function ConversationList({
   onSelect,
   isLoading,
   onRefresh,
+  error,
 }: {
   conversations: ConversationSession[];
   agents: string[];
@@ -757,20 +810,20 @@ function ConversationList({
   onSelect: (session: ConversationSession) => void;
   isLoading: boolean;
   onRefresh: () => void;
+  error: string | null;
 }) {
+  // When filter changes, trigger a refresh via the parent's loadConversations
+  // (which has built-in rate limiting / debounce protection).
+  const prevFilter = useRef(filter);
   useEffect(() => {
-    onRefresh();
-  }, [filter]);
+    if (prevFilter.current !== filter) {
+      prevFilter.current = filter;
+      onRefresh();
+    }
+  }, [filter, onRefresh]);
 
-  if (isLoading) {
-    return (
-      <div className="space-y-2 p-2">
-        {[1, 2, 3, 4, 5].map(i => (
-          <Skeleton key={i} className="h-14 w-full" />
-        ))}
-      </div>
-    );
-  }
+  // Only show skeleton on initial load (no data yet), not on reload
+  const showSkeleton = isLoading && conversations.length === 0 && !error;
 
   return (
     <div className="space-y-2">
@@ -803,13 +856,38 @@ function ConversationList({
         ))}
       </div>
 
-      {conversations.length === 0 ? (
+      {/* Error state */}
+      {error && (
+        <div className="mx-1 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+          <p className="text-sm text-destructive">{error}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2 h-8 text-xs"
+            onClick={() => onRefresh()}
+            disabled={isLoading}
+          >
+            {isLoading ? "Retrying…" : "Retry now"}
+          </Button>
+        </div>
+      )}
+
+      {showSkeleton ? (
+        <div className="space-y-2 p-2">
+          {[1, 2, 3, 4, 5].map(i => (
+            <Skeleton key={i} className="h-14 w-full" />
+          ))}
+        </div>
+      ) : conversations.length === 0 && !error ? (
         <div className="p-4 text-center">
           <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
           <p className="text-sm text-muted-foreground">No conversations found</p>
         </div>
       ) : (
         <div className="space-y-0.5">
+          {isLoading && conversations.length > 0 && (
+            <p className="text-xs text-muted-foreground px-3 py-1">Updating…</p>
+          )}
           {conversations.map((session) => (
             <motion.button
               key={`${session.agent}-${session.id}`}
@@ -933,20 +1011,14 @@ function ActivityTimeline({
   onDaysChange: (d: number) => void;
   isLoading: boolean;
 }) {
-  if (isLoading) {
-    return (
-      <div className="space-y-2 p-2">
-        {[1, 2, 3, 4, 5].map(i => (
-          <Skeleton key={i} className="h-12 w-full" />
-        ))}
-      </div>
-    );
-  }
+  // Only show skeleton on initial load (no data yet). During reloads, keep existing
+  // data visible to preserve scroll position.
+  const showSkeleton = isLoading && activities.length === 0;
 
   return (
     <div className="space-y-2">
       {/* Days filter */}
-      <div className="flex gap-1.5 px-1 py-2">
+      <div className="flex gap-1.5 px-1 py-2 sticky top-0 bg-inherit z-10">
         {[7, 14, 30].map(d => (
           <button
             key={d}
@@ -961,9 +1033,18 @@ function ActivityTimeline({
             {d}d
           </button>
         ))}
+        {isLoading && activities.length > 0 && (
+          <span className="text-xs text-muted-foreground self-center ml-auto">Updating…</span>
+        )}
       </div>
 
-      {activities.length === 0 ? (
+      {showSkeleton ? (
+        <div className="space-y-2 p-2">
+          {[1, 2, 3, 4, 5].map(i => (
+            <Skeleton key={i} className="h-12 w-full" />
+          ))}
+        </div>
+      ) : activities.length === 0 ? (
         <div className="p-4 text-center">
           <Activity className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
           <p className="text-sm text-muted-foreground">No recent activity</p>

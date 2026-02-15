@@ -10,6 +10,7 @@ import {
   Receipt,
   FolderKanban,
   Edit2,
+  Github,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +22,7 @@ import { useTaskStore } from "@/stores/taskStore";
 import { useTimerStore } from "@/stores/timerStore";
 import { useInvoiceStore } from "@/stores/invoiceStore";
 import type { Project, ProjectStatus, Area, Task, TimeEntry, Invoice } from "@/types";
+import { GitHubActivityFeed } from "@/components/projects/GitHubActivityFeed";
 
 const statusColors: Record<ProjectStatus, string> = {
   pipeline: "bg-blue-500/10 text-blue-500 border-blue-500/20",
@@ -223,6 +225,10 @@ export function ProjectDetailPage() {
     );
   }
 
+  // Extract github_repo from the raw project object (snake_case from API)
+  const githubRepo = ((project as unknown as Record<string, unknown>).githubRepo ||
+    (project as unknown as Record<string, unknown>).github_repo) as string | undefined;
+
   return (
     <div className="space-y-6">
       {/* Back button and actions */}
@@ -262,6 +268,19 @@ export function ProjectDetailPage() {
             <Badge variant="outline" className={areaColors[project.area]}>
               {project.area}
             </Badge>
+            {githubRepo ? (
+              <a
+                href={`https://github.com/${githubRepo}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex"
+              >
+                <Badge variant="outline" className="gap-1 hover:bg-muted">
+                  <Github className="h-3 w-3" />
+                  {githubRepo.split("/").pop()}
+                </Badge>
+              </a>
+            ) : null}
           </div>
         </div>
 
@@ -373,6 +392,12 @@ export function ProjectDetailPage() {
             <Receipt className="h-4 w-4" />
             Invoices ({projectInvoices.length})
           </TabsTrigger>
+          {githubRepo ? (
+            <TabsTrigger value="github" className="gap-2">
+              <Github className="h-4 w-4" />
+              GitHub
+            </TabsTrigger>
+          ) : null}
         </TabsList>
 
         {/* Tasks Tab */}
@@ -446,6 +471,16 @@ export function ProjectDetailPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* GitHub Activity Tab */}
+        {githubRepo ? (
+          <TabsContent value="github">
+            <GitHubActivityFeed
+              projectId={project.id}
+              repoName={githubRepo}
+            />
+          </TabsContent>
+        ) : null}
       </Tabs>
     </div>
   );

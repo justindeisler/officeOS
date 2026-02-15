@@ -31,13 +31,20 @@ export function NavItemWithChildren({
 }: NavItemWithChildrenProps) {
   const location = useLocation();
 
-  // Auto-expand if current route matches any child
-  const [isOpen, setIsOpen] = useState(() =>
-    location.pathname.startsWith(href)
+  // Check if any child route is currently active
+  const isChildActive = children.some((child) =>
+    child.href === href
+      ? location.pathname === child.href
+      : location.pathname.startsWith(child.href)
   );
 
-  // Parent is active if any child route is active
-  const isParentActive = location.pathname.startsWith(href);
+  // Auto-expand if current route matches parent prefix or any child
+  const [isOpen, setIsOpen] = useState(() =>
+    location.pathname.startsWith(href) || isChildActive
+  );
+
+  // Parent is active if route matches parent prefix or any child
+  const isParentActive = location.pathname.startsWith(href) || isChildActive;
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
