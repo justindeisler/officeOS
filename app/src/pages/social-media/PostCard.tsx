@@ -147,14 +147,19 @@ export function PostCard({
               className="w-full aspect-video object-cover"
               loading="lazy"
               onError={(e) => {
-                // Fallback to placeholder on load error
+                // Fallback to placeholder on load error (safe DOM API, no innerHTML/XSS)
                 const target = e.target as HTMLImageElement;
                 target.style.display = "none";
-                target.parentElement!.innerHTML = `
-                  <div class="aspect-video flex items-center justify-center">
-                    <span class="text-sm text-muted-foreground">⚠️ Visual unavailable</span>
-                  </div>
-                `;
+                const parent = target.parentElement;
+                if (parent) {
+                  const fallback = document.createElement("div");
+                  fallback.className = "aspect-video flex items-center justify-center";
+                  const span = document.createElement("span");
+                  span.className = "text-sm text-muted-foreground";
+                  span.textContent = "⚠️ Visual unavailable";
+                  fallback.appendChild(span);
+                  parent.appendChild(fallback);
+                }
               }}
             />
           </div>

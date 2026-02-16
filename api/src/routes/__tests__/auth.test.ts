@@ -11,10 +11,10 @@ import { describe, it, expect, beforeEach, afterAll, vi, beforeAll } from 'vites
 // ============================================================================
 
 // We need to set env vars before auth.ts is loaded
-const TEST_JWT_SECRET = 'test-jwt-secret-key-for-testing-only-32chars!';
-const TEST_PASSWORD = 'testpassword123';
+const TEST_JWT_SECRET = 'test-jwt-secret-key-for-testing-only-32chars!'; // gitleaks:allow
+const TEST_PASSWORD = 'testpassword123'; // gitleaks:allow - test fixture only
 
-// bcrypt hash for 'testpassword123' (cost factor 10)
+// bcrypt hash for TEST_PASSWORD (cost factor 10)
 import bcrypt from 'bcryptjs';
 
 let testPasswordHash: string;
@@ -108,7 +108,7 @@ describe('Auth API', () => {
     it('rejects invalid password', async () => {
       const res = await request(app)
         .post('/api/auth/login')
-        .send({ username: 'justin', password: 'wrongpassword' });
+        .send({ username: 'justin', password: 'wrongpassword' }); // gitleaks:allow - test fixture
 
       expect(res.status).toBe(401);
       expect(res.body.error).toBe('Invalid credentials');

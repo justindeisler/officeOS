@@ -98,11 +98,11 @@ describe('logger', () => {
     it('redacts api_key patterns', async () => {
       const { logger } = await import('./logger');
       logger.setLevel('trace');
-      logger.warn('api_key=sk-abc123def456');
+      logger.warn('api_key=sk-abc123def456'); // gitleaks:allow - mock key for redaction test
 
       const args = consoleSpy.warn.mock.calls[0];
       const output = args.join(' ');
-      expect(output).not.toContain('sk-abc123def456');
+      expect(output).not.toContain('sk-abc123def456'); // gitleaks:allow
       expect(output).toContain('[REDACTED]');
     });
 

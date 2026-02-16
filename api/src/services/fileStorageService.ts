@@ -8,7 +8,7 @@
 
 import { existsSync, mkdirSync, unlinkSync, readFileSync, statSync, createReadStream } from "fs";
 import { writeFile, chmod } from "fs/promises";
-import { join, extname, basename } from "path";
+import { join, extname, basename, resolve, normalize } from "path";
 import { homedir } from "os";
 import { createHash } from "crypto";
 import sharp from "sharp";
@@ -309,16 +309,26 @@ export async function saveFile(
 }
 
 /**
+ * Validate that a file path is safely within the upload directory.
+ * Prevents path traversal attacks by normalizing and checking the resolved path.
+ */
+function isPathWithinUploadBase(filePath: string): boolean {
+  const resolvedBase = resolve(UPLOAD_BASE);
+  const resolvedPath = resolve(normalize(filePath));
+  return resolvedPath.startsWith(resolvedBase + "/") || resolvedPath === resolvedBase;
+}
+
+/**
  * Retrieve a file from storage
  */
 export function getFile(storedPath: string): { stream: ReturnType<typeof createReadStream>; size: number } | null {
-  if (!existsSync(storedPath)) {
+  // Security: normalize and ensure the path is within the upload directory BEFORE any fs operations
+  if (!isPathWithinUploadBase(storedPath)) {
+    log.warn({ storedPath }, "Attempted path traversal");
     return null;
   }
 
-  // Security: ensure the path is within the upload directory
-  if (!storedPath.startsWith(UPLOAD_BASE)) {
-    log.warn({ storedPath }, "Attempted path traversal");
+  if (!existsSync(storedPath)) {
     return null;
   }
 
@@ -334,11 +344,18 @@ export function getFile(storedPath: string): { stream: ReturnType<typeof createR
  */
 export function deleteFile(storedPath: string, thumbnailPath?: string | null): boolean {
   try {
-    if (storedPath && existsSync(storedPath)) {
+    // Security: validate paths are within upload directory before deletion
+    if (storedPath && isPathWithinUploadBase(storedPath) && existsSync(storedPath)) {
       unlinkSync(storedPath);
+    } else if (storedPath && !isPathWithinUploadBase(storedPath)) {
+      log.warn({ storedPath }, "Attempted path traversal on delete");
+      return false;
     }
-    if (thumbnailPath && existsSync(thumbnailPath)) {
+    if (thumbnailPath && isPathWithinUploadBase(thumbnailPath) && existsSync(thumbnailPath)) {
       unlinkSync(thumbnailPath);
+    } else if (thumbnailPath && !isPathWithinUploadBase(thumbnailPath)) {
+      log.warn({ thumbnailPath }, "Attempted path traversal on thumbnail delete");
+      return false;
     }
     return true;
   } catch (err) {
