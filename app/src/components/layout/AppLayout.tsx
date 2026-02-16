@@ -248,8 +248,7 @@ export function AppLayout({ onQuickCapture }: AppLayoutProps) {
           <Menu className="h-5 w-5" />
         </Button>
         <span 
-          className="text-2xl text-primary flex-1 truncate"
-          style={{ fontFamily: "'Sacramento', cursive" }}
+          className="text-xl font-semibold text-primary flex-1 truncate tracking-tight"
         >
           officeOS
         </span>
