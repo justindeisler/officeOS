@@ -251,7 +251,7 @@ export function AppLayout({ onQuickCapture }: AppLayoutProps) {
           className="text-2xl text-primary flex-1 truncate"
           style={{ fontFamily: "'Sacramento', cursive" }}
         >
-          personal assistant
+          officeOS
         </span>
       </header>
 
