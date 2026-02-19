@@ -488,6 +488,9 @@ router.delete("/:id", asyncHandler(async (req, res) => {
   // Delete items
   db.prepare("DELETE FROM invoice_items WHERE invoice_id = ?").run(id);
 
+  // Detach any income records linked to this invoice (preserve the income entry, just unlink)
+  db.prepare("UPDATE income SET invoice_id = NULL WHERE invoice_id = ?").run(id);
+
   // Delete invoice
   db.prepare("DELETE FROM invoices WHERE id = ?").run(id);
 
