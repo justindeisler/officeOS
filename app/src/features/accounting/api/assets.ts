@@ -35,6 +35,7 @@ interface AssetRow {
   status: string
   disposal_date: string | null
   disposal_price: number | null
+  disposal_reason: string | null
   euer_line: number
   euer_category: string
   category: string | null
@@ -205,6 +206,7 @@ function rowToAsset(row: AssetRow | Record<string, unknown>, schedule: Depreciat
     status: (row.status ?? 'active') as AssetStatus,
     disposalDate: row.disposal_date ? new Date(row.disposal_date as string) : undefined,
     disposalPrice: (row.disposal_price as number) ?? undefined,
+    disposalReason: (row.disposal_reason as string) ?? undefined,
     euerLine: (row.euer_line ?? 30) as number,
     euerCategory: (row.euer_category ?? 'afa_beweglich') as string,
     category: (row.category as AssetCategory),

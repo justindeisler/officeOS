@@ -88,21 +88,81 @@ async function getYearlyDepreciation(year: number): Promise<number> {
 }
 
 /**
+ * Get book value at disposal for a given asset
+ * Finds the most recent depreciation schedule entry at or before the disposal year
+ */
+function getBookValueAtDisposal(db: ReturnType<typeof getDb>, assetId: string, disposalDate: string, purchasePrice: number): number {
+  const disposalYear = new Date(disposalDate).getFullYear();
+  const entry = db.prepare(
+    `SELECT book_value FROM depreciation_schedule 
+     WHERE asset_id = ? AND year <= ? 
+     ORDER BY year DESC LIMIT 1`
+  ).get(assetId, disposalYear) as { book_value: number } | undefined;
+  return entry?.book_value ?? purchasePrice;
+}
+
+/**
  * Get asset disposal gains for a year
- * TODO: Asset disposal not yet implemented in database schema
- * (requires disposal_price, disposal_date columns)
+ * Gains occur when disposal_price > book_value (asset sold for profit)
+ * Reported on EÜR line 16 (Veräußerungsgewinne)
  */
 async function getDisposalGains(year: number): Promise<number> {
-  return 0;
+  const db = getDb();
+  const startDate = `${year}-01-01`;
+  const endDate = `${year}-12-31`;
+
+  const assets = db.prepare(
+    `SELECT id, disposal_date, disposal_price, purchase_price 
+     FROM assets 
+     WHERE status IN ('sold', 'disposed') 
+       AND disposal_date >= ? AND disposal_date <= ?
+       AND disposal_price IS NOT NULL`
+  ).all(startDate, endDate) as Array<{
+    id: string; disposal_date: string; disposal_price: number; purchase_price: number;
+  }>;
+
+  let totalGains = 0;
+  for (const asset of assets) {
+    const bookValue = getBookValueAtDisposal(db, asset.id, asset.disposal_date, asset.purchase_price);
+    const gainLoss = asset.disposal_price - bookValue;
+    if (gainLoss > 0) {
+      totalGains += gainLoss;
+    }
+  }
+
+  return Math.round(totalGains * 100) / 100;
 }
 
 /**
  * Get asset disposal losses for a year
- * TODO: Asset disposal not yet implemented in database schema
- * (requires disposal_price, disposal_date columns)
+ * Losses occur when disposal_price < book_value (or when asset is scrapped with remaining book value)
+ * Reported on EÜR line 35 (Anlagenabgang/Verlust)
  */
 async function getDisposalLosses(year: number): Promise<number> {
-  return 0;
+  const db = getDb();
+  const startDate = `${year}-01-01`;
+  const endDate = `${year}-12-31`;
+
+  const assets = db.prepare(
+    `SELECT id, disposal_date, disposal_price, purchase_price 
+     FROM assets 
+     WHERE status IN ('sold', 'disposed') 
+       AND disposal_date >= ? AND disposal_date <= ?`
+  ).all(startDate, endDate) as Array<{
+    id: string; disposal_date: string; disposal_price: number | null; purchase_price: number;
+  }>;
+
+  let totalLosses = 0;
+  for (const asset of assets) {
+    const bookValue = getBookValueAtDisposal(db, asset.id, asset.disposal_date, asset.purchase_price);
+    const disposalPrice = asset.disposal_price ?? 0;
+    const gainLoss = disposalPrice - bookValue;
+    if (gainLoss < 0) {
+      totalLosses += Math.abs(gainLoss);
+    }
+  }
+
+  return Math.round(totalLosses * 100) / 100;
 }
 
 /**

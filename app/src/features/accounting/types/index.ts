@@ -207,6 +207,7 @@ export interface Asset {
   status: AssetStatus;
   disposalDate?: Date;
   disposalPrice?: number;
+  disposalReason?: string;
   euerLine: number;
   euerCategory: string;
   category: AssetCategory;

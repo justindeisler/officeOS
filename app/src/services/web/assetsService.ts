@@ -53,6 +53,7 @@ function sanitizeAsset(raw: Record<string, unknown>): Asset {
     status: (camel.status as Asset['status']) || 'active',
     disposalDate: camel.disposalDate ? new Date(camel.disposalDate as string) : undefined,
     disposalPrice: camel.disposalPrice != null ? Number(camel.disposalPrice) : undefined,
+    disposalReason: camel.disposalReason as string | undefined,
     euerLine: Number(camel.euerLine) || 30,
     euerCategory: String(camel.euerCategory ?? 'AfA'),
     category: (camel.category as Asset['category']) || 'equipment',
@@ -131,6 +132,29 @@ class AssetsService {
       year: Number(result.year) || new Date().getFullYear(),
       depreciationAmount: Number(result.depreciation_amount ?? result.depreciationAmount) || 0,
       newBookValue: Number(result.new_book_value ?? result.newBookValue) || 0,
+    };
+  }
+
+  async dispose(id: string, data: { disposalDate: Date; disposalPrice: number; disposalReason?: string; status?: 'disposed' | 'sold' }): Promise<Asset & { disposalGainLoss: number; bookValueAtDisposal: number }> {
+    const result = await api.disposeAsset(id, {
+      disposal_date: data.disposalDate.toISOString().split('T')[0],
+      disposal_price: data.disposalPrice,
+      disposal_reason: data.disposalReason,
+      status: data.status,
+    }) as Record<string, unknown>;
+    const asset = sanitizeAsset(result);
+
+    // Convert depreciation schedule if present
+    if (result.depreciation_schedule && Array.isArray(result.depreciation_schedule)) {
+      asset.depreciationSchedule = (result.depreciation_schedule as Record<string, unknown>[]).map(
+        entry => sanitizeDepreciationEntry(entry)
+      );
+    }
+
+    return {
+      ...asset,
+      disposalGainLoss: Number(result.disposal_gain_loss ?? 0),
+      bookValueAtDisposal: Number(result.book_value_at_disposal ?? 0),
     };
   }
 }

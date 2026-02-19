@@ -477,6 +477,13 @@ class ApiClient {
     });
   }
 
+  async disposeAsset(id: string, data: { disposal_date: string; disposal_price: number; disposal_reason?: string; status?: string }) {
+    return this.request<unknown>(`/assets/${id}/dispose`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   // James Actions (audit trail)
   async getJamesActions(filters?: { project_id?: string; action_type?: string; limit?: number }) {
     const params = new URLSearchParams();

@@ -13,6 +13,7 @@ export { AssetList } from './AssetList'
 export { AssetForm } from './AssetForm'
 export { AssetDialog } from './AssetDialog'
 export { AssetDetail } from './AssetDetail'
+export { AssetDisposalDialog } from './AssetDisposalDialog'
 export { DepreciationTable } from './DepreciationTable'
 
 // Re-export types for convenience
@@ -20,4 +21,5 @@ export type { AssetListProps } from './AssetList'
 export type { AssetFormProps } from './AssetForm'
 export type { AssetDialogProps } from './AssetDialog'
 export type { AssetDetailProps } from './AssetDetail'
+export type { AssetDisposalDialogProps } from './AssetDisposalDialog'
 export type { DepreciationTableProps } from './DepreciationTable'

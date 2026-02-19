@@ -20,7 +20,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Trash2, Plus, Search, Loader2, FileText } from 'lucide-react'
+import { Trash2, Plus, Search, Loader2, FileText, PackageMinus } from 'lucide-react'
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog'
 import { attachmentService } from '@/services/attachmentService'
 
@@ -29,6 +29,8 @@ export interface AssetListProps {
   onAddAsset?: () => void
   /** Callback when an asset is selected for editing */
   onEditAsset?: (asset: Asset) => void
+  /** Callback when dispose button is clicked on an active asset */
+  onDisposeAsset?: (asset: Asset) => void
   /** Additional CSS classes */
   className?: string
   /** Trigger to refresh the asset list */
@@ -111,6 +113,7 @@ function getCurrentBookValue(asset: Asset): number {
 export function AssetList({
   onAddAsset,
   onEditAsset,
+  onDisposeAsset,
   className,
   refreshTrigger,
 }: AssetListProps) {
@@ -246,6 +249,7 @@ export function AssetList({
                   <TableHead>AfA</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="w-[40px]"></TableHead>
+                  <TableHead className="w-[40px]"></TableHead>
                   <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -302,6 +306,23 @@ export function AssetList({
                           title="View attached bill"
                         >
                           <FileText className="h-4 w-4 text-muted-foreground hover:text-primary" />
+                        </Button>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {item.status === 'active' && onDisposeAsset && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onDisposeAsset(item)
+                          }}
+                          title="Dispose asset"
+                          aria-label="Dispose"
+                        >
+                          <PackageMinus className="h-4 w-4 text-muted-foreground hover:text-destructive" />
                         </Button>
                       )}
                     </TableCell>

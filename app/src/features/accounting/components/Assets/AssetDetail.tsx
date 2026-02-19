@@ -273,6 +273,12 @@ export function AssetDetail({
                   <div className="font-medium">{formatCurrency(asset.disposalPrice)}</div>
                 </div>
               )}
+              {asset.disposalReason && (
+                <div>
+                  <div className="text-sm text-muted-foreground">Reason</div>
+                  <div className="font-medium capitalize">{asset.disposalReason}</div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
