@@ -67,6 +67,10 @@ interface ClientRow {
   contact_info: string | null;
   notes: string | null;
   status: string;
+  address_street: string | null;
+  address_zip: string | null;
+  address_city: string | null;
+  address_country: string | null;
 }
 
 // ============================================================================
@@ -142,8 +146,15 @@ function rowToInvoiceData(
       name: client?.name || "Unknown Client",
       company: client?.company || undefined,
       email: client?.email || undefined,
-      // Address would need to be parsed from contact_info or a separate field
-      address: parseClientAddress(client?.contact_info),
+      // Use dedicated address columns first, fall back to contact_info JSON
+      address: client?.address_street
+        ? {
+            street: client.address_street,
+            zip: client.address_zip || "",
+            city: client.address_city || "",
+            country: client.address_country || undefined,
+          }
+        : parseClientAddress(client?.contact_info),
     },
     items: items.map((item) => ({
       description: item.description,
