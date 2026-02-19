@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
-import express from 'express';
+import Database from 'better-sqlite3';
 import request from 'supertest';
 import {
   createTestDb,
@@ -11,39 +11,47 @@ import {
   insertTestIncome,
   insertTestClient,
 } from '../../test/setup.js';
-import { setCurrentTestDb, getCurrentTestDb, closeCurrentTestDb } from '../../test/db-mock.js';
 
-vi.mock('../../database.js', () => ({
-  getDb: () => {
-    const { getCurrentTestDb } = require('../../test/db-mock.js');
-    return getCurrentTestDb();
+let testDb: Database.Database;
+
+vi.mock('../../database.js', () => {
+  let _db: Database.Database | null = null;
+  return {
+    getDb: () => {
+      if (!_db) throw new Error('Test DB not initialized');
+      return _db;
+    },
+    generateId: () => crypto.randomUUID(),
+    getCurrentTimestamp: () => new Date().toISOString(),
+    __setTestDb: (db: Database.Database) => { _db = db; },
+  };
+});
+
+// Mock cache
+vi.mock('../../cache.js', () => ({
+  cache: {
+    get: vi.fn(() => null),
+    set: vi.fn(),
+    invalidate: vi.fn(),
   },
-  generateId: () => crypto.randomUUID(),
-  getCurrentTimestamp: () => new Date().toISOString(),
+  cacheKey: (...parts: unknown[]) => parts.join(':'),
+  TTL: { INCOME: 300000 },
 }));
 
+import { createTestApp } from '../../test/app.js';
 import incomeRouter from '../income.js';
 
-function buildApp() {
-  const app = express();
-  app.use(express.json());
-  app.use('/api/income', incomeRouter);
-  app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    res.status(err.statusCode ?? 500).json({ error: { code: err.code, message: err.message } });
-  });
-  return app;
-}
+const app = createTestApp(incomeRouter, '/api/income');
 
 describe('Income API', () => {
-  let app: express.Express;
-
-  beforeEach(() => {
-    setCurrentTestDb(createTestDb());
+  beforeEach(async () => {
+    testDb = createTestDb();
+    const dbModule = (await import('../../database.js')) as any;
+    dbModule.__setTestDb(testDb);
     resetIdCounter();
-    app = buildApp();
   });
 
-  afterAll(() => { closeCurrentTestDb(); vi.restoreAllMocks(); });
+  afterAll(() => { if (testDb) testDb.close(); vi.restoreAllMocks(); });
 
   describe('GET /api/income', () => {
     it('returns empty array when no income exists', async () => {
@@ -53,7 +61,7 @@ describe('Income API', () => {
     });
 
     it('returns all income sorted by date descending', async () => {
-      const db = getCurrentTestDb();
+      const db = testDb;
       insertTestIncome(db, { date: '2024-01-01', description: 'Jan' });
       insertTestIncome(db, { date: '2024-03-01', description: 'Mar' });
       insertTestIncome(db, { date: '2024-02-01', description: 'Feb' });
@@ -66,7 +74,7 @@ describe('Income API', () => {
     });
 
     it('filters by date range', async () => {
-      const db = getCurrentTestDb();
+      const db = testDb;
       insertTestIncome(db, { date: '2024-01-15' });
       insertTestIncome(db, { date: '2024-06-15' });
       insertTestIncome(db, { date: '2024-12-15' });
@@ -77,7 +85,7 @@ describe('Income API', () => {
     });
 
     it('filters by client_id', async () => {
-      const db = getCurrentTestDb();
+      const db = testDb;
       const clientId = insertTestClient(db);
       insertTestIncome(db, { client_id: clientId });
       insertTestIncome(db, {});
@@ -88,7 +96,7 @@ describe('Income API', () => {
     });
 
     it('filters by ust_reported status', async () => {
-      const db = getCurrentTestDb();
+      const db = testDb;
       insertTestIncome(db, { ust_reported: 0 });
       insertTestIncome(db, { ust_reported: 1 });
 
@@ -153,7 +161,7 @@ describe('Income API', () => {
 
   describe('PATCH /api/income/:id', () => {
     it('recalculates VAT when net_amount changes', async () => {
-      const db = getCurrentTestDb();
+      const db = testDb;
       const id = insertTestIncome(db, { net_amount: 1000, vat_rate: 19, vat_amount: 190, gross_amount: 1190 });
 
       const res = await request(app).patch(`/api/income/${id}`).send({ net_amount: 2000 });
@@ -163,7 +171,7 @@ describe('Income API', () => {
     });
 
     it('recalculates VAT when vat_rate changes', async () => {
-      const db = getCurrentTestDb();
+      const db = testDb;
       const id = insertTestIncome(db, { net_amount: 1000, vat_rate: 19, vat_amount: 190, gross_amount: 1190 });
 
       const res = await request(app).patch(`/api/income/${id}`).send({ vat_rate: 7 });
@@ -178,7 +186,7 @@ describe('Income API', () => {
 
   describe('DELETE /api/income/:id', () => {
     it('deletes an income record', async () => {
-      const db = getCurrentTestDb();
+      const db = testDb;
       const id = insertTestIncome(db);
       const res = await request(app).delete(`/api/income/${id}`);
       expect(res.status).toBe(200);
@@ -192,7 +200,7 @@ describe('Income API', () => {
 
   describe('POST /api/income/mark-reported', () => {
     it('marks multiple as USt reported', async () => {
-      const db = getCurrentTestDb();
+      const db = testDb;
       const id1 = insertTestIncome(db);
       const id2 = insertTestIncome(db);
 

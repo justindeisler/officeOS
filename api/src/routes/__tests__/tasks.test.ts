@@ -21,16 +21,29 @@ import {
 
 let testDb: Database.Database;
 
-vi.mock('../database.js', () => {
+vi.mock('../../database.js', () => {
+  let _db: Database.Database | null = null;
   return {
     getDb: () => {
-      if (!testDb) throw new Error('Test DB not initialized');
-      return testDb;
+      if (!_db) throw new Error('Test DB not initialized');
+      return _db;
     },
     generateId: () => crypto.randomUUID(),
     getCurrentTimestamp: () => new Date().toISOString(),
+    __setTestDb: (db: Database.Database) => { _db = db; },
   };
 });
+
+// Mock cache
+vi.mock('../../cache.js', () => ({
+  cache: {
+    get: vi.fn(() => null),
+    set: vi.fn(),
+    invalidate: vi.fn(),
+  },
+  cacheKey: (...parts: unknown[]) => parts.join(':'),
+  TTL: { TASKS: 300000 },
+}));
 
 import { createTestApp } from '../../test/app.js';
 import tasksRouter from '../tasks.js';
@@ -53,8 +66,10 @@ function insertTestPrd(db: Database.Database, overrides: { id?: string; status?:
 // ============================================================================
 
 describe('Tasks API', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     testDb = createTestDb();
+    const dbModule = (await import('../../database.js')) as any;
+    dbModule.__setTestDb(testDb);
     resetIdCounter();
   });
 

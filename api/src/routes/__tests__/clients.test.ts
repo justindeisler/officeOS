@@ -1,7 +1,7 @@
 /**
  * Clients API Route Tests
  *
- * Tests client CRUD operations and filtering.
+ * Tests client CRUD operations, filtering, and address fields.
  */
 
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
@@ -84,6 +84,33 @@ describe('Clients API', () => {
       expect(res.body).toHaveLength(1);
       expect(res.body[0].name).toBe('Active Client');
     });
+
+    it('returns address as null when no address set', async () => {
+      insertTestClient(testDb, { name: 'No Address' });
+
+      const res = await request(app).get('/api/clients');
+      expect(res.status).toBe(200);
+      expect(res.body[0].address).toBeNull();
+    });
+
+    it('returns nested address object when address is set', async () => {
+      insertTestClient(testDb, {
+        name: 'Address Client',
+        address_street: 'Hauptstraße 1',
+        address_zip: '10115',
+        address_city: 'Berlin',
+        address_country: 'Deutschland',
+      });
+
+      const res = await request(app).get('/api/clients');
+      expect(res.status).toBe(200);
+      expect(res.body[0].address).toEqual({
+        street: 'Hauptstraße 1',
+        zip: '10115',
+        city: 'Berlin',
+        country: 'Deutschland',
+      });
+    });
   });
 
   // ==========================================================================
@@ -103,6 +130,23 @@ describe('Clients API', () => {
       expect(res.body.name).toBe('Test Client');
       expect(res.body.email).toBe('test@example.com');
       expect(res.body.company).toBe('Test Corp');
+    });
+
+    it('returns nested address object', async () => {
+      const id = insertTestClient(testDb, {
+        name: 'Addressed Client',
+        address_street: 'Musterstr. 5',
+        address_zip: '80333',
+        address_city: 'München',
+      });
+
+      const res = await request(app).get(`/api/clients/${id}`);
+      expect(res.status).toBe(200);
+      expect(res.body.address).toMatchObject({
+        street: 'Musterstr. 5',
+        zip: '80333',
+        city: 'München',
+      });
     });
 
     it('returns 404 for non-existent client', async () => {
@@ -127,7 +171,7 @@ describe('Clients API', () => {
       expect(res.body.status).toBe('active');
     });
 
-    it('creates a client with all fields', async () => {
+    it('creates a client with all scalar fields', async () => {
       const res = await request(app)
         .post('/api/clients')
         .send({
@@ -145,6 +189,42 @@ describe('Clients API', () => {
       expect(res.body.notes).toBe('Important client');
     });
 
+    it('creates a client with nested address object', async () => {
+      const res = await request(app)
+        .post('/api/clients')
+        .send({
+          name: 'Address Client',
+          address: {
+            street: 'Berliner Str. 10',
+            zip: '10117',
+            city: 'Berlin',
+            country: 'Deutschland',
+          },
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.address).toEqual({
+        street: 'Berliner Str. 10',
+        zip: '10117',
+        city: 'Berlin',
+        country: 'Deutschland',
+      });
+    });
+
+    it('does not include address_ flat fields in response', async () => {
+      const res = await request(app)
+        .post('/api/clients')
+        .send({
+          name: 'Clean Response',
+          address: { street: 'Test 1', zip: '12345', city: 'Teststadt' },
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.address_street).toBeUndefined();
+      expect(res.body.address_zip).toBeUndefined();
+      expect(res.body.address_city).toBeUndefined();
+    });
+
     it('rejects missing name', async () => {
       const res = await request(app)
         .post('/api/clients')
@@ -159,7 +239,7 @@ describe('Clients API', () => {
   // ==========================================================================
 
   describe('PATCH /api/clients/:id', () => {
-    it('updates client fields', async () => {
+    it('updates client scalar fields', async () => {
       const id = insertTestClient(testDb, { name: 'Original Name' });
 
       const res = await request(app)
@@ -169,6 +249,29 @@ describe('Clients API', () => {
       expect(res.status).toBe(200);
       expect(res.body.name).toBe('Updated Name');
       expect(res.body.email).toBe('updated@test.com');
+    });
+
+    it('updates address via nested object', async () => {
+      const id = insertTestClient(testDb, { name: 'Client' });
+
+      const res = await request(app)
+        .patch(`/api/clients/${id}`)
+        .send({
+          address: {
+            street: 'Neue Straße 99',
+            zip: '50667',
+            city: 'Köln',
+            country: 'Deutschland',
+          },
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.address).toMatchObject({
+        street: 'Neue Straße 99',
+        zip: '50667',
+        city: 'Köln',
+        country: 'Deutschland',
+      });
     });
 
     it('partially updates client', async () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@/test/utils'
+import { render, screen, waitFor } from '@/test/utils'
 import { AssetList } from './AssetList'
 import {
   createMockAsset,
@@ -264,18 +264,19 @@ describe('AssetList', () => {
         deleteAsset,
       })
 
-      // Mock window.confirm to return true
-      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
-
       const { user } = render(<AssetList />)
 
+      // Click the delete button to open the confirm dialog
       const deleteButton = screen.getByRole('button', { name: /delete/i })
       await user.click(deleteButton)
 
-      expect(confirmSpy).toHaveBeenCalled()
-      expect(deleteAsset).toHaveBeenCalledWith(asset.id)
+      // Component uses ConfirmDeleteDialog — find and click the confirm button
+      const confirmButton = await screen.findByRole('button', { name: /delete/i })
+      await user.click(confirmButton)
 
-      confirmSpy.mockRestore()
+      await waitFor(() => {
+        expect(deleteAsset).toHaveBeenCalledWith(asset.id)
+      })
     })
 
     it('shows add asset button', () => {

@@ -11,55 +11,55 @@
 
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import Database from 'better-sqlite3';
-import express from 'express';
 import request from 'supertest';
 import {
   createTestDb,
   resetIdCounter,
   insertTestExpense,
 } from '../../test/setup.js';
-import { setCurrentTestDb, getCurrentTestDb, closeCurrentTestDb } from '../../test/db-mock.js';
+
+let testDb: Database.Database;
+
+// Mock cache to avoid cross-test leakage
+vi.mock('../../cache.js', () => ({
+  cache: {
+    get: vi.fn(() => null),
+    set: vi.fn(),
+    invalidate: vi.fn(),
+  },
+  cacheKey: (...parts: unknown[]) => parts.join(':'),
+  TTL: { EXPENSES: 300000, INCOME: 300000 },
+}));
 
 // Mock database module to use test DB
 vi.mock('../../database.js', () => {
+  let _db: Database.Database | null = null;
   return {
     getDb: () => {
-      // Dynamic import to get current value at call time
-      const { getCurrentTestDb } = require('../../test/db-mock.js');
-      return getCurrentTestDb();
+      if (!_db) throw new Error('Test DB not initialized');
+      return _db;
     },
     generateId: () => crypto.randomUUID(),
     getCurrentTimestamp: () => new Date().toISOString(),
+    __setTestDb: (db: Database.Database) => { _db = db; },
   };
 });
 
-// Import router AFTER mock
+import { createTestApp } from '../../test/app.js';
 import expensesRouter from '../expenses.js';
 
-function buildApp() {
-  const app = express();
-  app.use(express.json());
-  app.use('/api/expenses', expensesRouter);
-  app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    res.status(err.statusCode ?? 500).json({
-      error: { code: err.code ?? 'INTERNAL_ERROR', message: err.message },
-    });
-  });
-  return app;
-}
+const app = createTestApp(expensesRouter, '/api/expenses');
 
 describe('Expenses API', () => {
-  let app: express.Express;
-
-  beforeEach(() => {
-    const db = createTestDb();
-    setCurrentTestDb(db);
+  beforeEach(async () => {
+    testDb = createTestDb();
+    const dbModule = (await import('../../database.js')) as any;
+    dbModule.__setTestDb(testDb);
     resetIdCounter();
-    app = buildApp();
   });
 
   afterAll(() => {
-    closeCurrentTestDb();
+    if (testDb) testDb.close();
     vi.restoreAllMocks();
   });
 
@@ -75,7 +75,7 @@ describe('Expenses API', () => {
     });
 
     it('returns all expenses sorted by date descending', async () => {
-      const db = getCurrentTestDb();
+      const db = testDb;
       insertTestExpense(db, { date: '2024-01-01', description: 'First' });
       insertTestExpense(db, { date: '2024-03-15', description: 'Third' });
       insertTestExpense(db, { date: '2024-02-01', description: 'Second' });
@@ -89,7 +89,7 @@ describe('Expenses API', () => {
     });
 
     it('filters by date range', async () => {
-      const db = getCurrentTestDb();
+      const db = testDb;
       insertTestExpense(db, { date: '2024-01-15' });
       insertTestExpense(db, { date: '2024-03-15' });
       insertTestExpense(db, { date: '2024-06-15' });
@@ -104,7 +104,7 @@ describe('Expenses API', () => {
     });
 
     it('filters by category', async () => {
-      const db = getCurrentTestDb();
+      const db = testDb;
       insertTestExpense(db, { category: 'software' });
       insertTestExpense(db, { category: 'hardware' });
       insertTestExpense(db, { category: 'software' });
@@ -118,7 +118,7 @@ describe('Expenses API', () => {
     });
 
     it('filters by vendor (partial match)', async () => {
-      const db = getCurrentTestDb();
+      const db = testDb;
       insertTestExpense(db, { vendor: 'Amazon Web Services' });
       insertTestExpense(db, { vendor: 'Google Cloud' });
       insertTestExpense(db, { vendor: 'Amazon Prime' });
@@ -132,7 +132,7 @@ describe('Expenses API', () => {
     });
 
     it('filters by USt period', async () => {
-      const db = getCurrentTestDb();
+      const db = testDb;
       insertTestExpense(db, { ust_period: '2024-Q1' });
       insertTestExpense(db, { ust_period: '2024-Q2' });
       insertTestExpense(db, { ust_period: '2024-Q1' });
@@ -175,7 +175,7 @@ describe('Expenses API', () => {
 
   describe('GET /api/expenses/:id', () => {
     it('returns a single expense', async () => {
-      const db = getCurrentTestDb();
+      const db = testDb;
       const id = insertTestExpense(db, {
         description: 'Adobe CC',
         net_amount: 47.59,
@@ -307,7 +307,7 @@ describe('Expenses API', () => {
 
   describe('PATCH /api/expenses/:id', () => {
     it('updates basic fields', async () => {
-      const db = getCurrentTestDb();
+      const db = testDb;
       const id = insertTestExpense(db, { description: 'Original', vendor: 'Old' });
 
       const res = await request(app).patch(`/api/expenses/${id}`).send({
@@ -320,7 +320,7 @@ describe('Expenses API', () => {
     });
 
     it('recalculates VAT when net_amount changes', async () => {
-      const db = getCurrentTestDb();
+      const db = testDb;
       const id = insertTestExpense(db, {
         net_amount: 100, vat_rate: 19, vat_amount: 19, gross_amount: 119,
       });
@@ -333,7 +333,7 @@ describe('Expenses API', () => {
     });
 
     it('recalculates VAT when vat_rate changes', async () => {
-      const db = getCurrentTestDb();
+      const db = testDb;
       const id = insertTestExpense(db, {
         net_amount: 100, vat_rate: 19, vat_amount: 19, gross_amount: 119,
       });
@@ -359,7 +359,7 @@ describe('Expenses API', () => {
 
   describe('DELETE /api/expenses/:id', () => {
     it('deletes an expense', async () => {
-      const db = getCurrentTestDb();
+      const db = testDb;
       const id = insertTestExpense(db);
 
       const res = await request(app).delete(`/api/expenses/${id}`);
@@ -382,7 +382,7 @@ describe('Expenses API', () => {
 
   describe('POST /api/expenses/mark-reported', () => {
     it('marks multiple expenses as USt reported', async () => {
-      const db = getCurrentTestDb();
+      const db = testDb;
       const id1 = insertTestExpense(db);
       const id2 = insertTestExpense(db);
       const id3 = insertTestExpense(db);

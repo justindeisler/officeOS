@@ -15,16 +15,6 @@ let testDb: Database.Database;
  * Kept in sync with actual migrations.
  */
 const SCHEMA = `
-  CREATE TABLE IF NOT EXISTS projects (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    description TEXT,
-    status TEXT DEFAULT 'active',
-    color TEXT,
-    created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now'))
-  );
-
   CREATE TABLE IF NOT EXISTS clients (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -38,8 +28,35 @@ const SCHEMA = `
     password_hash TEXT,
     role TEXT DEFAULT 'client',
     last_login_at TEXT,
-    assigned_projects TEXT
+    assigned_projects TEXT,
+    address_street TEXT,
+    address_zip TEXT,
+    address_city TEXT,
+    address_country TEXT DEFAULT 'Deutschland'
   );
+
+  CREATE TABLE IF NOT EXISTS projects (
+    id TEXT PRIMARY KEY,
+    client_id TEXT REFERENCES clients(id),
+    name TEXT NOT NULL,
+    description TEXT,
+    status TEXT DEFAULT 'active',
+    budget_amount REAL,
+    budget_currency TEXT DEFAULT 'EUR',
+    start_date TEXT,
+    target_end_date TEXT,
+    actual_end_date TEXT,
+    area TEXT DEFAULT 'freelance',
+    markdown_path TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
+    client_visible BOOLEAN DEFAULT 0,
+    assigned_client_ids TEXT,
+    codebase_path TEXT,
+    github_repo TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_projects_area ON projects(area);
+  CREATE INDEX IF NOT EXISTS idx_projects_client ON projects(client_id);
 
   CREATE TABLE IF NOT EXISTS tasks (
     id TEXT PRIMARY KEY,
@@ -65,6 +82,8 @@ const SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
   CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
+  CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date);
+  CREATE INDEX IF NOT EXISTS idx_tasks_area ON tasks(area);
 
   CREATE TABLE IF NOT EXISTS subtasks (
     id TEXT PRIMARY KEY,
@@ -75,6 +94,34 @@ const SCHEMA = `
     created_at TEXT DEFAULT (datetime('now'))
   );
   CREATE INDEX IF NOT EXISTS idx_subtasks_task_id ON subtasks(task_id);
+
+  CREATE TABLE IF NOT EXISTS tags (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    color TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS task_tags (
+    task_id TEXT REFERENCES tasks(id) ON DELETE CASCADE,
+    tag_id TEXT REFERENCES tags(id) ON DELETE CASCADE,
+    PRIMARY KEY (task_id, tag_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS time_entries (
+    id TEXT PRIMARY KEY,
+    task_id TEXT REFERENCES tasks(id),
+    project_id TEXT REFERENCES projects(id),
+    client_id TEXT REFERENCES clients(id),
+    category TEXT NOT NULL,
+    description TEXT,
+    start_time TEXT NOT NULL,
+    end_time TEXT,
+    duration_minutes INTEGER,
+    is_running INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_time_entries_date ON time_entries(start_time);
+  CREATE INDEX IF NOT EXISTS idx_time_entries_project ON time_entries(project_id);
 
   CREATE TABLE IF NOT EXISTS invoices (
     id TEXT PRIMARY KEY,
@@ -95,6 +142,7 @@ const SCHEMA = `
     pdf_path TEXT
   );
   CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
+  CREATE INDEX IF NOT EXISTS idx_invoices_client ON invoices(client_id);
 
   CREATE TABLE IF NOT EXISTS invoice_items (
     id TEXT PRIMARY KEY,
@@ -104,6 +152,26 @@ const SCHEMA = `
     unit TEXT DEFAULT 'hours',
     unit_price DECIMAL(10,2) NOT NULL,
     amount DECIMAL(10,2) NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS captures (
+    id TEXT PRIMARY KEY,
+    content TEXT NOT NULL,
+    type TEXT DEFAULT 'note',
+    processed INTEGER DEFAULT 0,
+    processed_to TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    processing_status TEXT DEFAULT 'pending',
+    processed_by TEXT,
+    artifact_type TEXT,
+    artifact_id TEXT,
+    source TEXT DEFAULT 'manual',
+    metadata TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS income (
@@ -143,12 +211,13 @@ const SCHEMA = `
     receipt_path TEXT,
     ust_period TEXT,
     ust_reported INTEGER DEFAULT 0,
+    deductible_percent INTEGER DEFAULT 100,
     vorsteuer_claimed INTEGER DEFAULT 0,
-    deductible_percent REAL DEFAULT 100,
     is_recurring INTEGER DEFAULT 0,
     recurring_frequency TEXT,
     is_gwg INTEGER DEFAULT 0,
-    asset_id TEXT,
+    asset_id TEXT REFERENCES assets(id),
+    attachment_id TEXT REFERENCES attachments(id) ON DELETE SET NULL,
     created_at TEXT NOT NULL
   );
 
@@ -156,29 +225,18 @@ const SCHEMA = `
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT,
+    category TEXT NOT NULL,
     purchase_date TEXT NOT NULL,
-    vendor TEXT,
     purchase_price REAL NOT NULL,
-    vat_paid REAL DEFAULT 0,
-    gross_price REAL DEFAULT 0,
-    afa_method TEXT DEFAULT 'linear',
-    afa_years INTEGER DEFAULT 3,
-    afa_start_date TEXT,
-    afa_annual_amount REAL DEFAULT 0,
-    useful_life_years INTEGER DEFAULT 3,
+    useful_life_years INTEGER NOT NULL,
     depreciation_method TEXT DEFAULT 'linear',
     salvage_value REAL DEFAULT 0,
     current_value REAL,
     status TEXT DEFAULT 'active',
+    created_at TEXT NOT NULL,
     disposal_date TEXT,
     disposal_price REAL,
-    euer_line INTEGER DEFAULT 30,
-    euer_category TEXT DEFAULT 'depreciation',
-    category TEXT NOT NULL,
-    inventory_number TEXT,
-    location TEXT,
-    bill_path TEXT,
-    created_at TEXT DEFAULT (datetime('now'))
+    disposal_reason TEXT
   );
 
   CREATE TABLE IF NOT EXISTS depreciation_schedule (
@@ -217,7 +275,228 @@ const SCHEMA = `
     markdown_path TEXT,
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now')),
-    suggestion_id TEXT
+    suggestion_id TEXT REFERENCES suggestions(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS suggestions (
+    id TEXT PRIMARY KEY,
+    project_id TEXT,
+    project_name TEXT,
+    type TEXT CHECK(type IN ('improvement', 'feature', 'fix', 'refactor', 'security')) NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    priority INTEGER DEFAULT 2,
+    status TEXT CHECK(status IN ('pending', 'approved', 'rejected', 'implemented')) DEFAULT 'pending',
+    prd_id TEXT,
+    task_id TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    decided_at TEXT,
+    FOREIGN KEY (project_id) REFERENCES projects(id),
+    FOREIGN KEY (prd_id) REFERENCES prds(id),
+    FOREIGN KEY (task_id) REFERENCES tasks(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS suggestion_comments (
+    id TEXT PRIMARY KEY,
+    suggestion_id TEXT NOT NULL,
+    author TEXT NOT NULL DEFAULT 'Justin Deisler',
+    comment_text TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (suggestion_id) REFERENCES suggestions(id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_suggestion_comments_suggestion_id ON suggestion_comments(suggestion_id);
+
+  CREATE TABLE IF NOT EXISTS james_actions (
+    id TEXT PRIMARY KEY,
+    action_type TEXT NOT NULL,
+    description TEXT NOT NULL,
+    project_id TEXT,
+    task_id TEXT,
+    suggestion_id TEXT,
+    prd_id TEXT,
+    metadata TEXT,
+    created_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS james_tasks (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT,
+    status TEXT CHECK(status IN ('backlog', 'queue', 'in_progress', 'done')) DEFAULT 'backlog',
+    priority INTEGER DEFAULT 2,
+    source TEXT,
+    source_id TEXT,
+    started_at TEXT,
+    completed_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS james_automations (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    schedule TEXT NOT NULL,
+    schedule_human TEXT,
+    type TEXT DEFAULT 'cron',
+    enabled INTEGER DEFAULT 1,
+    last_run TEXT,
+    next_run TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS github_activity (
+    id TEXT PRIMARY KEY,
+    project_id TEXT REFERENCES projects(id),
+    type TEXT CHECK(type IN ('commit', 'pr', 'issue')) NOT NULL,
+    repo_name TEXT NOT NULL,
+    sha TEXT,
+    number INTEGER,
+    title TEXT,
+    description TEXT,
+    author TEXT,
+    url TEXT,
+    created_at TEXT NOT NULL,
+    closed_at TEXT,
+    merged_at TEXT,
+    additions INTEGER,
+    deletions INTEGER,
+    estimated_minutes INTEGER,
+    imported_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_github_activity_project ON github_activity(project_id);
+  CREATE INDEX IF NOT EXISTS idx_github_activity_type ON github_activity(type);
+  CREATE INDEX IF NOT EXISTS idx_github_activity_repo ON github_activity(repo_name);
+  CREATE INDEX IF NOT EXISTS idx_github_activity_created ON github_activity(created_at);
+  CREATE INDEX IF NOT EXISTS idx_github_activity_sha ON github_activity(sha);
+
+  CREATE TABLE IF NOT EXISTS github_sync_log (
+    id TEXT PRIMARY KEY,
+    repo_name TEXT NOT NULL,
+    sync_type TEXT CHECK(sync_type IN ('manual', 'scheduled')) NOT NULL DEFAULT 'manual',
+    started_at TEXT NOT NULL DEFAULT (datetime('now')),
+    completed_at TEXT,
+    commits_imported INTEGER DEFAULT 0,
+    prs_imported INTEGER DEFAULT 0,
+    issues_imported INTEGER DEFAULT 0,
+    errors TEXT,
+    status TEXT CHECK(status IN ('running', 'completed', 'failed')) NOT NULL DEFAULT 'running'
+  );
+  CREATE INDEX IF NOT EXISTS idx_github_sync_log_repo ON github_sync_log(repo_name);
+
+  CREATE TABLE IF NOT EXISTS attachments (
+    id TEXT PRIMARY KEY,
+    expense_id TEXT REFERENCES expenses(id) ON DELETE SET NULL,
+    original_filename TEXT NOT NULL,
+    stored_filename TEXT NOT NULL,
+    stored_path TEXT NOT NULL,
+    file_size INTEGER NOT NULL,
+    mime_type TEXT NOT NULL,
+    thumbnail_path TEXT,
+    checksum TEXT,
+    uploaded_at TEXT NOT NULL DEFAULT (datetime('now')),
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_attachments_expense_id ON attachments(expense_id);
+  CREATE INDEX IF NOT EXISTS idx_attachments_checksum ON attachments(checksum);
+
+  CREATE TABLE IF NOT EXISTS ocr_extractions (
+    id TEXT PRIMARY KEY,
+    attachment_id TEXT NOT NULL REFERENCES attachments(id) ON DELETE CASCADE,
+    expense_id TEXT REFERENCES expenses(id) ON DELETE SET NULL,
+    provider TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    vendor_name TEXT,
+    vendor_confidence REAL,
+    invoice_number TEXT,
+    invoice_number_confidence REAL,
+    invoice_date TEXT,
+    invoice_date_confidence REAL,
+    net_amount REAL,
+    net_amount_confidence REAL,
+    vat_rate REAL,
+    vat_rate_confidence REAL,
+    vat_amount REAL,
+    vat_amount_confidence REAL,
+    gross_amount REAL,
+    gross_amount_confidence REAL,
+    currency TEXT DEFAULT 'EUR',
+    currency_confidence REAL,
+    raw_text TEXT,
+    raw_response TEXT,
+    line_items TEXT,
+    processing_time_ms INTEGER,
+    error_message TEXT,
+    is_credit_note INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_ocr_extractions_attachment_id ON ocr_extractions(attachment_id);
+  CREATE INDEX IF NOT EXISTS idx_ocr_extractions_expense_id ON ocr_extractions(expense_id);
+
+  CREATE TABLE IF NOT EXISTS vendor_mappings (
+    id TEXT PRIMARY KEY,
+    ocr_name TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    default_category TEXT,
+    default_vat_rate INTEGER,
+    use_count INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_vendor_mappings_ocr_name ON vendor_mappings(ocr_name);
+
+  CREATE TABLE IF NOT EXISTS social_media_posts (
+    id TEXT PRIMARY KEY,
+    platform TEXT CHECK(platform IN ('linkedin', 'instagram')) NOT NULL,
+    status TEXT CHECK(status IN ('suggested', 'approved', 'scheduled', 'published', 'rejected')) DEFAULT 'suggested',
+    content_text TEXT NOT NULL,
+    visual_path TEXT,
+    visual_type TEXT,
+    scheduled_date TEXT,
+    published_date TEXT,
+    source TEXT,
+    metadata TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_social_media_posts_platform ON social_media_posts(platform);
+  CREATE INDEX IF NOT EXISTS idx_social_media_posts_status ON social_media_posts(status);
+  CREATE INDEX IF NOT EXISTS idx_social_media_posts_scheduled_date ON social_media_posts(scheduled_date);
+
+  CREATE TABLE IF NOT EXISTS api_usage (
+    id TEXT PRIMARY KEY,
+    service TEXT NOT NULL,
+    operation TEXT,
+    timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+    cost_eur REAL,
+    metadata TEXT,
+    usage_quantity REAL,
+    usage_unit TEXT,
+    input_quantity REAL,
+    output_quantity REAL,
+    success INTEGER DEFAULT 1,
+    source TEXT,
+    error_message TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_api_usage_timestamp ON api_usage(timestamp);
+  CREATE INDEX IF NOT EXISTS idx_api_usage_service ON api_usage(service);
+  CREATE INDEX IF NOT EXISTS idx_api_usage_service_timestamp ON api_usage(service, timestamp);
+
+  CREATE TABLE IF NOT EXISTS weekly_reviews (
+    id TEXT PRIMARY KEY,
+    week_start TEXT NOT NULL,
+    accomplishments TEXT,
+    challenges TEXT,
+    learnings TEXT,
+    next_week_focus TEXT,
+    energy_level TEXT,
+    stress_level TEXT,
+    notes TEXT,
+    metrics TEXT,
+    markdown_path TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
   );
 `;
 
@@ -332,18 +611,26 @@ export function insertTestClient(
     email: string;
     company: string;
     contact_info: string;
+    address_street: string;
+    address_zip: string;
+    address_city: string;
+    address_country: string;
   }> = {}
 ): string {
   const id = overrides.id ?? testId('client');
   db.prepare(
-    `INSERT INTO clients (id, name, email, company, contact_info, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`
+    `INSERT INTO clients (id, name, email, company, contact_info, address_street, address_zip, address_city, address_country, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`
   ).run(
     id,
     overrides.name ?? 'Test Client',
     overrides.email ?? 'test@example.com',
     overrides.company ?? 'Test Corp',
-    overrides.contact_info ?? null
+    overrides.contact_info ?? null,
+    overrides.address_street ?? null,
+    overrides.address_zip ?? null,
+    overrides.address_city ?? null,
+    overrides.address_country ?? 'Deutschland'
   );
   return id;
 }
@@ -523,18 +810,14 @@ export function insertTestAsset(
     salvage_value: number;
     current_value: number;
     status: string;
-    vendor: string;
-    gross_price: number;
-    vat_paid: number;
   }> = {}
 ): string {
   const id = overrides.id ?? testId('asset');
   const purchasePrice = overrides.purchase_price ?? 3000;
   db.prepare(
     `INSERT INTO assets (id, name, description, category, purchase_date, purchase_price,
-     useful_life_years, depreciation_method, salvage_value, current_value, status, vendor,
-     gross_price, vat_paid, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+     useful_life_years, depreciation_method, salvage_value, current_value, status, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
   ).run(
     id,
     overrides.name ?? 'Test Asset',
@@ -546,10 +829,7 @@ export function insertTestAsset(
     overrides.depreciation_method ?? 'linear',
     overrides.salvage_value ?? 0,
     overrides.current_value ?? purchasePrice,
-    overrides.status ?? 'active',
-    overrides.vendor ?? 'Test Vendor',
-    overrides.gross_price ?? purchasePrice * 1.19,
-    overrides.vat_paid ?? purchasePrice * 0.19
+    overrides.status ?? 'active'
   );
   return id;
 }

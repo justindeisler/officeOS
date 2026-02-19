@@ -21,19 +21,32 @@ import {
 
 let testDb: Database.Database;
 
-vi.mock('../database.js', () => {
+vi.mock('../../database.js', () => {
+  let _db: Database.Database | null = null;
   return {
     getDb: () => {
-      if (!testDb) throw new Error('Test DB not initialized');
-      return testDb;
+      if (!_db) throw new Error('Test DB not initialized');
+      return _db;
     },
     generateId: () => crypto.randomUUID(),
     getCurrentTimestamp: () => new Date().toISOString(),
+    __setTestDb: (db: Database.Database) => { _db = db; },
   };
 });
 
+// Mock cache to avoid cross-test leakage
+vi.mock('../../cache.js', () => ({
+  cache: {
+    get: vi.fn(() => null),
+    set: vi.fn(),
+    invalidate: vi.fn(),
+  },
+  cacheKey: (...parts: unknown[]) => parts.join(':'),
+  TTL: { INVOICES: 600000 },
+}));
+
 // Mock PDF service - we don't want to actually generate PDFs in tests
-vi.mock('../services/pdfService.js', () => ({
+vi.mock('../../services/pdfService.js', () => ({
   generateInvoicePdf: vi.fn().mockResolvedValue('/mock/path/invoice.pdf'),
   generateInvoicePdfBuffer: vi.fn().mockResolvedValue(Buffer.from('mock-pdf')),
   getInvoicePdfPath: vi.fn((path: string) => `/full${path}`),
@@ -59,8 +72,10 @@ const app = createTestApp(invoicesRouter, '/api/invoices');
 // ============================================================================
 
 describe('Invoices API', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     testDb = createTestDb();
+    const dbModule = (await import('../../database.js')) as any;
+    dbModule.__setTestDb(testDb);
     resetIdCounter();
   });
 
@@ -511,7 +526,8 @@ describe('Invoices API', () => {
 
       expect(res.status).toBe(201);
       const items = res.body.items;
-      expect(items[0].amount).toBeCloseTo(3.5 * 99.99, 2);
+      // API rounds to 2 decimal places: Math.round(3.5 * 99.99 * 100) / 100 = 349.97
+      expect(items[0].amount).toBeCloseTo(349.97, 2);
       expect(items[1].amount).toBeCloseTo(0.01, 2);
     });
   });

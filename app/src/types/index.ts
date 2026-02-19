@@ -34,9 +34,15 @@ export interface Client {
   name: string;
   email?: string;
   company?: string;
-  contactInfo?: string;
+  contactInfo?: string;  // phone/misc contact info
   notes?: string;
   status: "active" | "inactive" | "archived";
+  address?: {
+    street?: string;
+    zip?: string;
+    city?: string;
+    country?: string;
+  };
   createdAt: string;
   updatedAt: string;
 }

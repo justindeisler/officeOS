@@ -47,18 +47,17 @@ function insertDepreciation(
   const existingAsset = db.prepare('SELECT id FROM assets WHERE id = ?').get(assetId);
   if (!existingAsset) {
     db.prepare(
-      `INSERT INTO assets (id, name, purchase_date, vendor, purchase_price, gross_price, afa_years, afa_start_date, afa_annual_amount, category)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO assets (id, name, purchase_date, purchase_price, useful_life_years, depreciation_method, salvage_value, current_value, category, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
     ).run(
       assetId,
       'Test Asset',
       `${overrides.year}-01-01`,
-      'Test Vendor',
       overrides.depreciation_amount * 3,
-      overrides.depreciation_amount * 3 * 1.19,
       3,
-      `${overrides.year}-01-01`,
-      overrides.depreciation_amount,
+      'linear',
+      0,
+      overrides.depreciation_amount * 3,
       'equipment'
     );
   }

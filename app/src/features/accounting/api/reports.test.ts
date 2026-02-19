@@ -10,22 +10,18 @@ import { getEuerReport, getEuerLineDetails } from './reports'
 import * as assetsApi from './assets'
 import { EUER_LINES, HOMEOFFICE_PAUSCHALE } from '../types'
 
-// Mock the database module
+// Mock isTauri to return true so getEuerReport uses the database path
+vi.mock('@/api', () => ({
+  isTauri: () => true,
+  accountingClient: { request: vi.fn() },
+}))
+
+// Mock the database module — getDb returns object with select() that returns empty arrays
 vi.mock('./db', () => ({
-  db: {
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          orderBy: vi.fn(() => Promise.resolve([])),
-        })),
-      })),
-    })),
-    update: vi.fn(() => ({
-      set: vi.fn(() => ({
-        where: vi.fn(() => Promise.resolve()),
-      })),
-    })),
-  },
+  getDb: vi.fn().mockResolvedValue({
+    select: vi.fn().mockResolvedValue([]),
+    execute: vi.fn().mockResolvedValue([]),
+  }),
 }))
 
 // Mock assets API

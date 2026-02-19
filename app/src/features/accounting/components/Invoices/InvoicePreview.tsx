@@ -1,29 +1,26 @@
 /**
  * InvoicePreview Component
  *
- * Displays a formatted preview of an invoice for printing or PDF export.
- * Shows invoice header, line items, totals, and payment information.
+ * Displays a formatted, document-like preview of an invoice for printing
+ * or PDF export. Mirrors the Puppeteer-generated PDF template in design
+ * and structure, including sender/client address and tax info.
  */
 
 import { useState } from 'react'
 import type { Invoice, InvoiceStatus } from '../../types'
+import type { Client } from '@/types'
+import type { BusinessProfile } from '@/types'
 import { cn } from '@/lib/utils'
 import { api, isWebBuild } from '@/lib/api'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { Printer, Download, X, Loader2 } from 'lucide-react'
+import { useSettingsStore } from '@/stores/settingsStore'
 
 export interface InvoicePreviewProps {
   /** Invoice to preview */
   invoice: Invoice
+  /** Optional full client object (with address) */
+  client?: Client | null
   /** Callback when print button is clicked */
   onPrint?: () => void
   /** Callback when download button is clicked */
@@ -34,9 +31,8 @@ export interface InvoicePreviewProps {
   className?: string
 }
 
-/**
- * Format number as German currency
- */
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('de-DE', {
     style: 'currency',
@@ -44,9 +40,6 @@ function formatCurrency(amount: number): string {
   }).format(amount)
 }
 
-/**
- * Format date in German locale
- */
 function formatDate(date: Date): string {
   return new Intl.DateTimeFormat('de-DE', {
     day: '2-digit',
@@ -55,58 +48,60 @@ function formatDate(date: Date): string {
   }).format(date)
 }
 
-/**
- * Get status badge variant and label
- */
-function getStatusBadge(status: InvoiceStatus): { variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string } {
-  switch (status) {
-    case 'draft':
-      return { variant: 'secondary', label: 'Draft' }
-    case 'sent':
-      return { variant: 'default', label: 'Sent' }
-    case 'paid':
-      return { variant: 'outline', label: 'Paid' }
-    case 'overdue':
-      return { variant: 'destructive', label: 'Overdue' }
-    case 'cancelled':
-      return { variant: 'secondary', label: 'Cancelled' }
-    default:
-      return { variant: 'secondary', label: status }
-  }
+function addDays(date: Date, days: number): Date {
+  const d = new Date(date)
+  d.setDate(d.getDate() + days)
+  return d
 }
+
+function getUnitLabel(unit: string): string {
+  const map: Record<string, string> = {
+    hours: 'Std.',
+    hour: 'Std.',
+    hrs: 'Std.',
+    days: 'Tage',
+    day: 'Tag',
+    pieces: 'Stk.',
+    piece: 'Stk.',
+    pcs: 'Stk.',
+    units: 'Einh.',
+    unit: 'Einh.',
+    pauschal: 'pauschal',
+    flat: 'pauschal',
+  }
+  return map[unit?.toLowerCase?.()] ?? unit ?? ''
+}
+
+const STATUS_CONFIG: Record<InvoiceStatus, { label: string; classes: string }> = {
+  draft:     { label: 'Entwurf',    classes: 'bg-gray-100 text-gray-600' },
+  sent:      { label: 'Versendet', classes: 'bg-blue-100 text-blue-700' },
+  paid:      { label: 'Bezahlt',   classes: 'bg-green-100 text-green-700' },
+  overdue:   { label: 'Überfällig',classes: 'bg-red-100 text-red-700' },
+  cancelled: { label: 'Storniert', classes: 'bg-gray-100 text-gray-500' },
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export function InvoicePreview({
   invoice,
+  client,
   onPrint,
   onDownload,
   onClose,
   className,
 }: InvoicePreviewProps) {
-  const statusBadge = getStatusBadge(invoice.status)
   const [isDownloading, setIsDownloading] = useState(false)
+  const { businessProfile } = useSettingsStore()
+  const profile: BusinessProfile | undefined = businessProfile ?? undefined
 
-  /**
-   * Handle PDF download
-   */
+  const statusCfg = STATUS_CONFIG[invoice.status] ?? STATUS_CONFIG.draft
+
   const handleDownload = async () => {
-    // If a custom onDownload handler is provided, use it
-    if (onDownload) {
-      onDownload()
-      return
-    }
-
-    // Only available in web build
-    if (!isWebBuild()) {
-      // For Tauri builds, we could use print-to-PDF
-      window.print()
-      return
-    }
-
+    if (onDownload) { onDownload(); return }
+    if (!isWebBuild()) { window.print(); return }
     setIsDownloading(true)
     try {
       const blob = await api.downloadInvoicePdf(invoice.id)
-
-      // Create download link
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
@@ -122,137 +117,273 @@ export function InvoicePreview({
     }
   }
 
-  /**
-   * Handle print
-   */
   const handlePrint = () => {
-    if (onPrint) {
-      onPrint()
-    } else {
-      window.print()
-    }
+    if (onPrint) { onPrint() } else { window.print() }
   }
 
+  // Derive due date (14 days) if not set
+  const dueDate = invoice.dueDate ?? addDays(invoice.invoiceDate, 14)
+
   return (
-    <div className={cn('space-y-6 p-6', className)}>
-      {/* Action Bar */}
+    <div className={cn('space-y-4 p-4', className)}>
+
+      {/* ── Action Bar ───────────────────────────────────────── */}
       <div className="flex items-center justify-between print:hidden">
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={handlePrint}>
             <Printer className="mr-2 h-4 w-4" />
-            Print
+            Drucken
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDownload}
-            disabled={isDownloading}
-          >
-            {isDownloading ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Download className="mr-2 h-4 w-4" />
-            )}
-            Download PDF
+          <Button variant="outline" size="sm" onClick={handleDownload} disabled={isDownloading}>
+            {isDownloading
+              ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              : <Download className="mr-2 h-4 w-4" />}
+            PDF herunterladen
           </Button>
         </div>
         <Button variant="ghost" size="icon" onClick={onClose}>
           <X className="h-4 w-4" />
-          <span className="sr-only">Close</span>
+          <span className="sr-only">Schließen</span>
         </Button>
       </div>
 
-      {/* Invoice Document */}
-      <div className="rounded-lg border bg-white p-8 shadow-sm print:border-0 print:shadow-none">
-        {/* Header */}
-        <div className="mb-8 flex items-start justify-between">
+      {/* ── Document ─────────────────────────────────────────── */}
+      <div
+        className="rounded-xl border bg-white shadow-sm print:border-0 print:shadow-none overflow-hidden"
+        style={{ fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif" }}
+      >
+
+        {/* ─── Header strip ─────────────────────────────────── */}
+        <div
+          className="flex items-start justify-between px-8 py-6"
+          style={{ background: '#f0f4f8', borderBottom: '2px solid #1e3a5f' }}
+        >
+          {/* Brand */}
           <div>
-            <h1 className="text-2xl font-bold">Invoice</h1>
-            <p className="text-xl font-semibold text-muted-foreground">
+            <div
+              className="inline-flex items-center justify-center w-10 h-10 rounded-lg text-white font-bold text-base mb-2"
+              style={{ background: '#1e3a5f' }}
+            >
+              {profile?.fullName
+                ? profile.fullName.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase()
+                : 'JD'}
+            </div>
+            <div className="text-xl font-bold leading-tight" style={{ color: '#1e3a5f' }}>
+              {profile?.fullName ?? 'Justin Deisler'}
+            </div>
+            {profile?.jobTitle && (
+              <div className="text-sm text-gray-500">{profile.jobTitle}</div>
+            )}
+          </div>
+
+          {/* Title + number */}
+          <div className="text-right">
+            <div className="text-3xl font-bold uppercase tracking-wide" style={{ color: '#1e3a5f' }}>
+              Rechnung
+            </div>
+            <div
+              className="inline-block mt-2 px-3 py-1 rounded text-sm font-semibold border"
+              style={{ background: 'white', color: '#1e3a5f', borderColor: '#c3d4e8' }}
+            >
               {invoice.invoiceNumber}
-            </p>
+            </div>
           </div>
-          <Badge variant={statusBadge.variant} className="text-sm">
-            {statusBadge.label}
-          </Badge>
         </div>
 
-        {/* Dates */}
-        <div className="mb-8 grid gap-4 md:grid-cols-2">
+        <div className="px-8 py-6 space-y-6">
+
+          {/* ─── Address block ────────────────────────────────── */}
+          <div className="flex justify-between gap-8">
+
+            {/* Recipient */}
+            <div className="flex-1">
+              {/* Sender strip (window envelope format) */}
+              <div className="text-xs text-gray-400 pb-1 mb-2 border-b border-gray-200 truncate">
+                {profile?.fullName} · {profile?.street} · {profile?.postalCode} {profile?.city}
+              </div>
+              <div className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: '#1e3a5f' }}>
+                Rechnungsempfänger
+              </div>
+              <div className="text-sm leading-relaxed">
+                <div className="font-bold text-base">{client?.name ?? '—'}</div>
+                {client?.company && <div>{client.company}</div>}
+                {client?.address?.street && <div>{client.address.street}</div>}
+                {(client?.address?.zip || client?.address?.city) && (
+                  <div>{[client.address.zip, client.address.city].filter(Boolean).join(' ')}</div>
+                )}
+                {client?.address?.country && <div>{client.address.country}</div>}
+                {client?.email && <div className="text-gray-500 mt-1">{client.email}</div>}
+              </div>
+            </div>
+
+            {/* Sender */}
+            <div className="text-right">
+              <div className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: '#1e3a5f' }}>
+                Absender
+              </div>
+              <div className="text-xs leading-relaxed text-gray-600">
+                <div className="font-semibold text-sm text-gray-800">{profile?.fullName ?? '—'}</div>
+                {profile?.jobTitle && <div>{profile.jobTitle}</div>}
+                {profile?.street && <div>{profile.street}</div>}
+                {(profile?.postalCode || profile?.city) && (
+                  <div>{[profile?.postalCode, profile?.city].filter(Boolean).join(' ')}</div>
+                )}
+                {profile?.email && <div className="mt-1">{profile.email}</div>}
+                {profile?.phone && <div>{profile.phone}</div>}
+                {(profile?.vatId || profile?.taxId) && <div className="mt-1" />}
+                {profile?.vatId && <div>USt-IdNr.: {profile.vatId}</div>}
+                {profile?.taxId && <div>St.-Nr.: {profile.taxId}</div>}
+              </div>
+            </div>
+          </div>
+
+          {/* ─── Meta grid ────────────────────────────────────── */}
+          <div
+            className="grid grid-cols-4 gap-4 rounded-lg p-4"
+            style={{ background: '#f0f4f8', border: '1px solid #c3d4e8' }}
+          >
+            {[
+              { label: 'Rechnungsdatum', value: formatDate(invoice.invoiceDate) },
+              { label: 'Leistungsdatum', value: formatDate(invoice.invoiceDate) },
+              { label: 'Fällig am',      value: formatDate(dueDate) },
+              {
+                label: 'Status',
+                value: (
+                  <span
+                    className={cn('inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wide', statusCfg.classes)}
+                  >
+                    {statusCfg.label}
+                  </span>
+                ),
+              },
+            ].map(({ label, value }) => (
+              <div key={label}>
+                <div className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#2d5282' }}>
+                  {label}
+                </div>
+                <div className="text-sm font-semibold text-gray-800">{value}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* ─── Line items ───────────────────────────────────── */}
           <div>
-            <p className="text-sm text-muted-foreground">Invoice Date</p>
-            <p className="font-medium">{formatDate(invoice.invoiceDate)}</p>
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr style={{ background: '#1e3a5f' }}>
+                  {['Beschreibung', 'Menge', 'Einheit', 'Einzelpreis', 'Betrag'].map((h, i) => (
+                    <th
+                      key={h}
+                      className={cn(
+                        'px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-white',
+                        i === 0 ? 'text-left w-[44%]' :
+                        i === 1 || i === 2 ? 'text-center w-[10%]' : 'text-right w-[18%]'
+                      )}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {invoice.items.map((item, idx) => (
+                  <tr
+                    key={item.id ?? idx}
+                    style={{ background: idx % 2 === 0 ? 'white' : '#f9fafb' }}
+                  >
+                    <td className="px-3 py-3 font-medium">{item.description}</td>
+                    <td className="px-3 py-3 text-center text-gray-600">{item.quantity}</td>
+                    <td className="px-3 py-3 text-center text-gray-600">{getUnitLabel(item.unit)}</td>
+                    <td className="px-3 py-3 text-right">{formatCurrency(item.unitPrice)}</td>
+                    <td className="px-3 py-3 text-right font-semibold">{formatCurrency(item.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{ borderTop: '2px solid #1e3a5f' }} />
           </div>
-          <div>
-            <p className="text-sm text-muted-foreground">Due Date</p>
-            <p className="font-medium">{formatDate(invoice.dueDate)}</p>
-          </div>
-        </div>
 
-        {/* Line Items */}
-        <div className="mb-8">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[40%]">Description</TableHead>
-                <TableHead className="text-right">Qty</TableHead>
-                <TableHead>Unit</TableHead>
-                <TableHead className="text-right">Unit Price</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {invoice.items.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell>{item.description}</TableCell>
-                  <TableCell className="text-right">{item.quantity}</TableCell>
-                  <TableCell>{item.unit === 'hours' ? 'hrs' : item.unit}</TableCell>
-                  <TableCell className="text-right">
-                    {formatCurrency(item.unitPrice)}
-                  </TableCell>
-                  <TableCell className="text-right font-medium">
-                    {formatCurrency(item.amount)}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+          {/* ─── Totals ───────────────────────────────────────── */}
+          <div className="flex justify-end">
+            <div className="w-64 overflow-hidden rounded-lg border border-gray-200">
+              <div className="flex justify-between px-4 py-2.5 text-sm">
+                <span className="text-gray-600">Nettobetrag</span>
+                <span className="font-semibold">{formatCurrency(invoice.subtotal)}</span>
+              </div>
+              <div className="flex justify-between px-4 py-2.5 text-sm border-t border-gray-100">
+                <span className="text-gray-500">USt. {invoice.vatRate}%</span>
+                <span className="font-medium text-gray-600">{formatCurrency(invoice.vatAmount)}</span>
+              </div>
+              <div
+                className="flex justify-between px-4 py-3 text-sm font-bold"
+                style={{ background: '#1e3a5f', color: 'white' }}
+              >
+                <span>Gesamtbetrag</span>
+                <span>{formatCurrency(invoice.total)}</span>
+              </div>
+            </div>
+          </div>
 
-        {/* Totals */}
-        <div className="mb-8 ml-auto max-w-xs space-y-2">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Subtotal</span>
-            <span>{formatCurrency(invoice.subtotal)}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">VAT ({invoice.vatRate}%)</span>
-            <span>{formatCurrency(invoice.vatAmount)}</span>
-          </div>
-          <div className="flex justify-between border-t pt-2 font-semibold">
-            <span>Total</span>
-            <span>{formatCurrency(invoice.total)}</span>
-          </div>
-        </div>
+          {/* ─── Payment info ─────────────────────────────────── */}
+          {profile?.bankIban && (
+            <div className="rounded-lg border border-gray-200 bg-gray-50 px-5 py-4">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-1.5 h-1.5 rounded-full" style={{ background: '#1e3a5f' }} />
+                <span className="text-xs font-bold uppercase tracking-widest" style={{ color: '#1e3a5f' }}>
+                  Zahlungsinformationen
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-x-8 gap-y-1.5 text-xs">
+                {[
+                  ['Empfänger', profile?.bankAccountHolder || profile?.fullName],
+                  ['Bank', profile?.bankName],
+                  ['IBAN', profile?.bankIban?.replace(/(.{4})/g, '$1 ').trim()],
+                  ['BIC', profile?.bankBic],
+                  ['Verwendungszweck', invoice.invoiceNumber],
+                ].filter(([, v]) => v).map(([label, value]) => (
+                  <div key={label as string} className="flex gap-2">
+                    <span className="text-gray-400 min-w-[90px]">{label}</span>
+                    <span
+                      className="font-medium text-gray-700"
+                      style={{ fontFamily: "monospace", letterSpacing: label === 'IBAN' ? '0.5px' : undefined }}
+                    >
+                      {value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
-        {/* Payment Information (for paid invoices) */}
-        {invoice.status === 'paid' && invoice.paymentDate && (
-          <div className="mb-8 rounded-lg bg-green-50 p-4 dark:bg-green-900/20">
-            <p className="font-medium text-green-800 dark:text-green-400">
-              Paid on {formatDate(invoice.paymentDate)}
-              {invoice.paymentMethod && ` via ${invoice.paymentMethod}`}
-            </p>
-          </div>
-        )}
+          {/* ─── Notes ────────────────────────────────────────── */}
+          {invoice.notes && (
+            <div
+              className="rounded-r-lg py-3 px-4 text-sm"
+              style={{ borderLeft: '3px solid #1e3a5f', background: '#f0f4f8' }}
+            >
+              <div className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#1e3a5f' }}>
+                Hinweise
+              </div>
+              <div className="text-gray-600 leading-relaxed">{invoice.notes}</div>
+            </div>
+          )}
 
-        {/* Notes */}
-        {invoice.notes && (
-          <div className="border-t pt-4">
-            <p className="text-sm text-muted-foreground">Notes</p>
-            <p className="mt-1">{invoice.notes}</p>
+          {/* ─── Footer ───────────────────────────────────────── */}
+          <div className="flex justify-between pt-4 border-t border-gray-200 text-xs text-gray-400">
+            <div>
+              <span className="font-semibold" style={{ color: '#1e3a5f' }}>{profile?.fullName}</span>
+              {' · '}
+              {[profile?.street, [profile?.postalCode, profile?.city].filter(Boolean).join(' ')].filter(Boolean).join(' · ')}
+              {profile?.email && ` · ${profile.email}`}
+            </div>
+            <div className="text-right">
+              {profile?.taxId && <div>Steuernummer: {profile.taxId}</div>}
+              {profile?.vatId && <div>USt-IdNr.: {profile.vatId}</div>}
+            </div>
           </div>
-        )}
-      </div>
+
+        </div>{/* /content */}
+      </div>{/* /document */}
     </div>
   )
 }

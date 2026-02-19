@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, within } from '@/test/utils'
+import { render, screen, within, waitFor } from '@/test/utils'
 import { IncomeList } from './IncomeList'
 import { createMockIncome, createMockIncomes } from '@/test/mocks/data/accounting'
 import type { Income } from '../../types'
@@ -187,18 +187,19 @@ describe('IncomeList', () => {
         deleteIncome,
       })
 
-      // Mock window.confirm to return true
-      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
-
       const { user } = render(<IncomeList />)
 
+      // Click the delete button to open the confirm dialog
       const deleteButton = screen.getByRole('button', { name: /delete/i })
       await user.click(deleteButton)
 
-      expect(confirmSpy).toHaveBeenCalled()
-      expect(deleteIncome).toHaveBeenCalledWith(income.id)
+      // Component uses ConfirmDeleteDialog — find and click the confirm button
+      const confirmButton = await screen.findByRole('button', { name: /delete/i })
+      await user.click(confirmButton)
 
-      confirmSpy.mockRestore()
+      await waitFor(() => {
+        expect(deleteIncome).toHaveBeenCalledWith(income.id)
+      })
     })
 
     it('shows add income button', () => {

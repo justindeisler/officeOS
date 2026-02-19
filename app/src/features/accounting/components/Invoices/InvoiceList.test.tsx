@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@/test/utils'
+import { render, screen, waitFor } from '@/test/utils'
 import { InvoiceList } from './InvoiceList'
 import {
   createMockInvoice,
@@ -255,18 +255,19 @@ describe('InvoiceList', () => {
         deleteInvoice,
       })
 
-      // Mock window.confirm to return true
-      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
-
       const { user } = render(<InvoiceList />)
 
       const deleteButton = screen.getByRole('button', { name: /delete/i })
       await user.click(deleteButton)
 
-      expect(confirmSpy).toHaveBeenCalled()
-      expect(deleteInvoice).toHaveBeenCalledWith(invoice.id)
+      // Component uses ConfirmDeleteDialog, not window.confirm
+      // Find and click the confirm button in the dialog
+      const confirmButton = await screen.findByRole('button', { name: /delete/i })
+      await user.click(confirmButton)
 
-      confirmSpy.mockRestore()
+      await waitFor(() => {
+        expect(deleteInvoice).toHaveBeenCalledWith(invoice.id)
+      })
     })
 
     it('shows add invoice button', () => {

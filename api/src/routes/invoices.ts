@@ -518,6 +518,9 @@ router.post("/:id/send", asyncHandler(async (req, res) => {
 
   db.prepare("UPDATE invoices SET status = 'sent' WHERE id = ?").run(id);
 
+  // Regenerate PDF to reflect updated status
+  await generateAndSavePdf(db, id);
+
   const invoice = db.prepare("SELECT * FROM invoices WHERE id = ?").get(id);
   res.json(invoice);
 }));
@@ -597,6 +600,9 @@ router.post("/:id/pay", validateBody(PayInvoiceSchema), asyncHandler(async (req,
       "Auto-created income record for paid invoice"
     );
   }
+
+  // Regenerate PDF to reflect paid status (shows "Bezahlt" watermark + correct status)
+  await generateAndSavePdf(db, id);
 
   const invoice = db.prepare("SELECT * FROM invoices WHERE id = ?").get(id);
   res.json(invoice);

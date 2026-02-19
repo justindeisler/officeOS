@@ -395,7 +395,7 @@ export const GenerateSuggestionsSchema = z.object({
   projectName: z.string().min(1, 'projectName is required'),
   projectPath: z.string().optional(),
   deepMode: z.boolean().optional().default(false),
-  count: z.coerce.number().int().min(1).max(3).optional().default(3),
+  count: z.coerce.number().int().min(1).optional().default(3).transform(n => Math.min(n, 3)),
 }).strip();
 
 export type GenerateSuggestions = z.infer<typeof GenerateSuggestionsSchema>;

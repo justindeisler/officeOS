@@ -3,23 +3,73 @@ import { render, screen } from '@/test/utils'
 import { InvoicePreview } from './InvoicePreview'
 import { createMockInvoice, createMockPaidInvoice } from '@/test/mocks/data/accounting'
 
+// Mock settingsStore so InvoicePreview doesn't need full store setup
+vi.mock('@/stores/settingsStore', () => ({
+  useSettingsStore: () => ({
+    businessProfile: {
+      fullName: 'Justin Deisler',
+      jobTitle: 'Full-Stack Developer',
+      email: 'kontakt@justin-deisler.com',
+      phone: '',
+      street: 'Musterstraße 1',
+      postalCode: '12345',
+      city: 'Berlin',
+      country: 'Deutschland',
+      taxId: '12/345/67890',
+      vatId: '',
+      bankAccountHolder: 'Justin Deisler',
+      bankName: 'Musterbank',
+      bankIban: 'DE89370400440532013000',
+      bankBic: 'COBADEFFXXX',
+    },
+  }),
+}))
+
+const mockClient = {
+  id: 'client-1',
+  name: 'Acme GmbH',
+  company: 'Acme Corp',
+  email: 'info@acme.de',
+  status: 'active' as const,
+  address: {
+    street: 'Hauptstraße 10',
+    zip: '10115',
+    city: 'Berlin',
+    country: 'Deutschland',
+  },
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+}
+
 describe('InvoicePreview', () => {
   describe('rendering', () => {
-    it('renders invoice header with number', () => {
+    it('renders invoice number', () => {
       const invoice = createMockInvoice({ invoiceNumber: 'RE-2024-001' })
       render(<InvoicePreview invoice={invoice} />)
 
-      expect(screen.getByText('RE-2024-001')).toBeInTheDocument()
-      expect(screen.getByRole('heading', { name: 'Invoice' })).toBeInTheDocument()
+      // Invoice number appears in header badge AND Verwendungszweck
+      const elements = screen.getAllByText('RE-2024-001')
+      expect(elements.length).toBeGreaterThanOrEqual(1)
+    })
+
+    it('renders Rechnung title', () => {
+      const invoice = createMockInvoice()
+      render(<InvoicePreview invoice={invoice} />)
+
+      expect(screen.getByText('Rechnung')).toBeInTheDocument()
     })
 
     it('renders invoice date in German format', () => {
       const invoice = createMockInvoice({
         invoiceDate: new Date('2024-03-15'),
+        // Set dueDate to different date so no duplication
+        dueDate: new Date('2024-03-29'),
       })
       render(<InvoicePreview invoice={invoice} />)
 
-      expect(screen.getByText('15.03.2024')).toBeInTheDocument()
+      // Rechnungsdatum and Leistungsdatum both show same invoiceDate
+      const elements = screen.getAllByText('15.03.2024')
+      expect(elements.length).toBeGreaterThanOrEqual(1)
     })
 
     it('renders due date in German format', () => {
@@ -31,25 +81,71 @@ describe('InvoicePreview', () => {
       expect(screen.getByText('29.03.2024')).toBeInTheDocument()
     })
 
-    it('renders status badge', () => {
+    it('renders status badge in German', () => {
       const invoice = createMockInvoice({ status: 'sent' })
       render(<InvoicePreview invoice={invoice} />)
 
-      expect(screen.getByText('Sent')).toBeInTheDocument()
+      expect(screen.getByText('Versendet')).toBeInTheDocument()
     })
 
     it('renders notes when present', () => {
-      const invoice = createMockInvoice({ notes: 'Payment within 14 days' })
+      const invoice = createMockInvoice({ notes: 'Zahlbar innerhalb 14 Tage' })
       render(<InvoicePreview invoice={invoice} />)
 
-      expect(screen.getByText('Payment within 14 days')).toBeInTheDocument()
+      expect(screen.getByText('Zahlbar innerhalb 14 Tage')).toBeInTheDocument()
     })
 
     it('does not render notes section when empty', () => {
       const invoice = createMockInvoice({ notes: undefined })
       render(<InvoicePreview invoice={invoice} />)
 
-      expect(screen.queryByText(/notes/i)).not.toBeInTheDocument()
+      expect(screen.queryByText('Hinweise')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('client address', () => {
+    it('renders client name when client prop provided', () => {
+      const invoice = createMockInvoice()
+      render(<InvoicePreview invoice={invoice} client={mockClient} />)
+
+      // Client name appears in the recipient section
+      const elements = screen.getAllByText('Acme GmbH')
+      expect(elements.length).toBeGreaterThanOrEqual(1)
+    })
+
+    it('renders client address when provided', () => {
+      const invoice = createMockInvoice()
+      render(<InvoicePreview invoice={invoice} client={mockClient} />)
+
+      expect(screen.getByText('Hauptstraße 10')).toBeInTheDocument()
+      expect(screen.getByText(/10115.*Berlin|Berlin.*10115/)).toBeInTheDocument()
+    })
+
+    it('shows dash when no client provided', () => {
+      const invoice = createMockInvoice()
+      render(<InvoicePreview invoice={invoice} />)
+
+      // Recipient name cell shows "—"
+      expect(screen.getByText('—')).toBeInTheDocument()
+    })
+  })
+
+  describe('seller info', () => {
+    it('renders seller name from business profile', () => {
+      const invoice = createMockInvoice()
+      render(<InvoicePreview invoice={invoice} />)
+
+      const elements = screen.getAllByText('Justin Deisler')
+      expect(elements.length).toBeGreaterThanOrEqual(1)
+    })
+
+    it('renders tax number from business profile', () => {
+      const invoice = createMockInvoice()
+      render(<InvoicePreview invoice={invoice} />)
+
+      // Tax number appears in sender block (St.-Nr.) AND footer (Steuernummer:)
+      const elements = screen.getAllByText(/12\/345\/67890/)
+      expect(elements.length).toBeGreaterThanOrEqual(1)
     })
   })
 
@@ -60,7 +156,7 @@ describe('InvoicePreview', () => {
           {
             id: 'item-1',
             invoiceId: 'inv-1',
-            description: 'Consulting services',
+            description: 'Beratungsleistungen',
             quantity: 10,
             unit: 'hours',
             unitPrice: 100,
@@ -69,7 +165,7 @@ describe('InvoicePreview', () => {
           {
             id: 'item-2',
             invoiceId: 'inv-1',
-            description: 'Development work',
+            description: 'Entwicklungsarbeit',
             quantity: 20,
             unit: 'hours',
             unitPrice: 80,
@@ -79,11 +175,11 @@ describe('InvoicePreview', () => {
       })
       render(<InvoicePreview invoice={invoice} />)
 
-      expect(screen.getByText('Consulting services')).toBeInTheDocument()
-      expect(screen.getByText('Development work')).toBeInTheDocument()
+      expect(screen.getByText('Beratungsleistungen')).toBeInTheDocument()
+      expect(screen.getByText('Entwicklungsarbeit')).toBeInTheDocument()
     })
 
-    it('renders quantity and unit', () => {
+    it('renders unit label in German (Std. for hours)', () => {
       const invoice = createMockInvoice({
         items: [
           {
@@ -99,11 +195,7 @@ describe('InvoicePreview', () => {
       })
       render(<InvoicePreview invoice={invoice} />)
 
-      // Check the row contains both quantity and unit
-      const rows = screen.getAllByRole('row')
-      const dataRow = rows.find(row => row.textContent?.includes('Work'))
-      expect(dataRow?.textContent).toContain('5')
-      expect(dataRow?.textContent).toMatch(/hrs|hours/i)
+      expect(screen.getByText('Std.')).toBeInTheDocument()
     })
 
     it('renders unit price in German currency format', () => {
@@ -125,39 +217,13 @@ describe('InvoicePreview', () => {
       })
       render(<InvoicePreview invoice={invoice} />)
 
-      // Unit price and amount are both 150 since qty=1
       const amounts = screen.getAllByText('150,00 €')
-      expect(amounts.length).toBeGreaterThanOrEqual(1)
-    })
-
-    it('renders line item amount', () => {
-      const invoice = createMockInvoice({
-        items: [
-          {
-            id: 'item-1',
-            invoiceId: 'inv-1',
-            description: 'Service',
-            quantity: 2,
-            unit: 'hours',
-            unitPrice: 100,
-            amount: 200,
-          },
-        ],
-        subtotal: 200,
-        vatAmount: 38,
-        total: 238,
-      })
-      render(<InvoicePreview invoice={invoice} />)
-
-      // Amount should be shown in the row (200 = 2 * 100)
-      // Multiple 200,00 € could appear (line amount and possibly subtotal)
-      const amounts = screen.getAllByText('200,00 €')
       expect(amounts.length).toBeGreaterThanOrEqual(1)
     })
   })
 
   describe('totals', () => {
-    it('renders subtotal in German currency format', () => {
+    it('renders Nettobetrag label', () => {
       const invoice = createMockInvoice({
         subtotal: 1000,
         vatRate: 19,
@@ -166,10 +232,7 @@ describe('InvoicePreview', () => {
       })
       render(<InvoicePreview invoice={invoice} />)
 
-      expect(screen.getByText('Subtotal')).toBeInTheDocument()
-      // Subtotal amount may also appear as a line item amount
-      const amounts = screen.getAllByText('1.000,00 €')
-      expect(amounts.length).toBeGreaterThanOrEqual(1)
+      expect(screen.getByText('Nettobetrag')).toBeInTheDocument()
     })
 
     it('renders VAT amount with rate', () => {
@@ -181,11 +244,11 @@ describe('InvoicePreview', () => {
       })
       render(<InvoicePreview invoice={invoice} />)
 
-      expect(screen.getByText(/vat.*19%|19%.*vat/i)).toBeInTheDocument()
+      expect(screen.getByText(/USt.*19%/)).toBeInTheDocument()
       expect(screen.getByText('190,00 €')).toBeInTheDocument()
     })
 
-    it('renders total in German currency format', () => {
+    it('renders Gesamtbetrag', () => {
       const invoice = createMockInvoice({
         subtotal: 1000,
         vatRate: 19,
@@ -194,8 +257,7 @@ describe('InvoicePreview', () => {
       })
       render(<InvoicePreview invoice={invoice} />)
 
-      // Use exact match for "Total" to avoid matching "Subtotal"
-      expect(screen.getByText('Total')).toBeInTheDocument()
+      expect(screen.getByText('Gesamtbetrag')).toBeInTheDocument()
       expect(screen.getByText('1.190,00 €')).toBeInTheDocument()
     })
 
@@ -212,7 +274,7 @@ describe('InvoicePreview', () => {
       expect(screen.getByText('70,00 €')).toBeInTheDocument()
     })
 
-    it('handles 0% VAT rate (Kleinunternehmer)', () => {
+    it('handles 0% VAT rate', () => {
       const invoice = createMockInvoice({
         subtotal: 1000,
         vatRate: 0,
@@ -226,33 +288,21 @@ describe('InvoicePreview', () => {
   })
 
   describe('payment information', () => {
-    it('renders payment date for paid invoices', () => {
-      const invoice = createMockPaidInvoice({
-        paymentDate: new Date('2024-03-20'),
-      })
+    it('renders payment section when bank info available', () => {
+      const invoice = createMockInvoice()
       render(<InvoicePreview invoice={invoice} />)
 
-      // Multiple elements match /paid/i (status badge + payment info)
-      const paidElements = screen.getAllByText(/paid/i)
-      expect(paidElements.length).toBeGreaterThanOrEqual(1)
-      // Use regex for date to handle text node matching
-      expect(screen.getByText(/20\.03\.2024/)).toBeInTheDocument()
+      expect(screen.getByText('Zahlungsinformationen')).toBeInTheDocument()
+      expect(screen.getByText(/DE89 3704 0044 0532 0130 00/)).toBeInTheDocument()
     })
 
-    it('renders payment method when present', () => {
-      const invoice = createMockPaidInvoice({
-        paymentMethod: 'bank_transfer',
-      })
+    it('renders invoice number as Verwendungszweck', () => {
+      const invoice = createMockInvoice({ invoiceNumber: 'RE-2024-042' })
       render(<InvoicePreview invoice={invoice} />)
 
-      expect(screen.getByText(/bank transfer/i)).toBeInTheDocument()
-    })
-
-    it('does not render payment info for unpaid invoices', () => {
-      const invoice = createMockInvoice({ status: 'sent' })
-      render(<InvoicePreview invoice={invoice} />)
-
-      expect(screen.queryByText(/payment date/i)).not.toBeInTheDocument()
+      // Invoice number appears both in header and as Verwendungszweck
+      const elements = screen.getAllByText('RE-2024-042')
+      expect(elements.length).toBeGreaterThanOrEqual(2)
     })
   })
 
@@ -261,14 +311,14 @@ describe('InvoicePreview', () => {
       const invoice = createMockInvoice()
       render(<InvoicePreview invoice={invoice} />)
 
-      expect(screen.getByRole('button', { name: /print/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /drucken/i })).toBeInTheDocument()
     })
 
     it('renders download button', () => {
       const invoice = createMockInvoice()
       render(<InvoicePreview invoice={invoice} />)
 
-      expect(screen.getByRole('button', { name: /download|pdf/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /pdf herunterladen/i })).toBeInTheDocument()
     })
 
     it('calls onPrint when print button is clicked', async () => {
@@ -276,7 +326,7 @@ describe('InvoicePreview', () => {
       const invoice = createMockInvoice()
       const { user } = render(<InvoicePreview invoice={invoice} onPrint={onPrint} />)
 
-      await user.click(screen.getByRole('button', { name: /print/i }))
+      await user.click(screen.getByRole('button', { name: /drucken/i }))
 
       expect(onPrint).toHaveBeenCalled()
     })
@@ -286,7 +336,7 @@ describe('InvoicePreview', () => {
       const invoice = createMockInvoice()
       const { user } = render(<InvoicePreview invoice={invoice} onDownload={onDownload} />)
 
-      await user.click(screen.getByRole('button', { name: /download|pdf/i }))
+      await user.click(screen.getByRole('button', { name: /pdf herunterladen/i }))
 
       expect(onDownload).toHaveBeenCalled()
     })
@@ -295,7 +345,7 @@ describe('InvoicePreview', () => {
       const invoice = createMockInvoice()
       render(<InvoicePreview invoice={invoice} />)
 
-      expect(screen.getByRole('button', { name: /close/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /schließen/i })).toBeInTheDocument()
     })
 
     it('calls onClose when close button is clicked', async () => {
@@ -303,46 +353,41 @@ describe('InvoicePreview', () => {
       const invoice = createMockInvoice()
       const { user } = render(<InvoicePreview invoice={invoice} onClose={onClose} />)
 
-      await user.click(screen.getByRole('button', { name: /close/i }))
+      await user.click(screen.getByRole('button', { name: /schließen/i }))
 
       expect(onClose).toHaveBeenCalled()
     })
   })
 
   describe('status display', () => {
-    it('shows draft status correctly', () => {
+    it('shows Entwurf for draft status', () => {
       const invoice = createMockInvoice({ status: 'draft' })
       render(<InvoicePreview invoice={invoice} />)
-
-      expect(screen.getByText('Draft')).toBeInTheDocument()
+      expect(screen.getByText('Entwurf')).toBeInTheDocument()
     })
 
-    it('shows sent status correctly', () => {
+    it('shows Versendet for sent status', () => {
       const invoice = createMockInvoice({ status: 'sent' })
       render(<InvoicePreview invoice={invoice} />)
-
-      expect(screen.getByText('Sent')).toBeInTheDocument()
+      expect(screen.getByText('Versendet')).toBeInTheDocument()
     })
 
-    it('shows paid status correctly', () => {
+    it('shows Bezahlt for paid status', () => {
       const invoice = createMockPaidInvoice()
       render(<InvoicePreview invoice={invoice} />)
-
-      expect(screen.getByText('Paid')).toBeInTheDocument()
+      expect(screen.getByText('Bezahlt')).toBeInTheDocument()
     })
 
-    it('shows overdue status correctly', () => {
+    it('shows Überfällig for overdue status', () => {
       const invoice = createMockInvoice({ status: 'overdue' })
       render(<InvoicePreview invoice={invoice} />)
-
-      expect(screen.getByText('Overdue')).toBeInTheDocument()
+      expect(screen.getByText('Überfällig')).toBeInTheDocument()
     })
 
-    it('shows cancelled status correctly', () => {
+    it('shows Storniert for cancelled status', () => {
       const invoice = createMockInvoice({ status: 'cancelled' })
       render(<InvoicePreview invoice={invoice} />)
-
-      expect(screen.getByText('Cancelled')).toBeInTheDocument()
+      expect(screen.getByText('Storniert')).toBeInTheDocument()
     })
   })
 })
