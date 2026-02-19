@@ -130,28 +130,17 @@
     }
 
     .address-content {
-      font-size: 10pt;
-      line-height: 1.65;
-      color: var(--ink);
-    }
-
-    .address-content .company-name {
-      font-size: 11pt;
-      font-weight: 700;
-      display: block;
-      margin-bottom: 2px;
-    }
-
-    .address-right .address-content {
       font-size: 9pt;
       line-height: 1.7;
       color: var(--ink-soft);
     }
 
-    .address-right .address-content .company-name {
+    .address-content .company-name {
       font-size: 10pt;
       font-weight: 600;
       color: var(--ink);
+      display: block;
+      margin-bottom: 2px;
     }
 
     /* ── Meta Grid ───────────────────────────────────────────────────── */
@@ -470,6 +459,7 @@
 
         <!-- LEFT: Recipient -->
         <div class="address-left">
+          <div class="address-label">Empfänger</div>
           <div class="address-content">
             {{#if client.company}}
               <span class="company-name">{{client.company}}</span>
