@@ -38,6 +38,63 @@ export interface CreateSocialMediaPost {
   status?: string;
 }
 
+// ── Memory types ─────────────────────────────────────────────────────
+
+export interface MemoryAgent {
+  id: string;
+  name: string;
+  emoji: string;
+  coreFiles: string[];
+  entryCount: number;
+  tierBreakdown: Record<string, number>;
+  healthScore: number;
+}
+
+export interface MemoryFile {
+  path: string;
+  name: string;
+  size: number;
+  lastModified: string;
+  exists: boolean;
+  encrypted: boolean;
+  tier: number;
+  label: string | null;
+  description: string | null;
+  tags: string[];
+  isShared: boolean;
+  category: string;
+}
+
+export interface MemoryHealthWarning {
+  type: "stale" | "bloated" | "missing" | "duplicate";
+  message: string;
+  filePath?: string;
+  severity: "low" | "medium" | "high";
+}
+
+export interface MemoryHealthReport {
+  agents: Array<{
+    agent: string;
+    score: number;
+    warnings: MemoryHealthWarning[];
+    fileCount: number;
+  }>;
+  duplicates: MemoryHealthWarning[];
+}
+
+export interface MemorySearchResult {
+  query: string;
+  resultCount: number;
+  results: Array<{
+    agentId: string;
+    agentName: string;
+    filePath: string;
+    fileName: string;
+    snippet: string;
+    matchCount: number;
+  }>;
+}
+
 class ApiClient {
   private async request<T>(path: string, options?: RequestInit): Promise<T> {
     return adminClient.request<T>(path, options);
@@ -928,6 +985,64 @@ class ApiClient {
       byPlatform: Array<{ platform: string; status: string; count: number }>;
       upcoming: SocialMediaPost[];
     }>('/social-media/stats');
+  }
+
+  // ── Memory ──────────────────────────────────────────────────────────
+
+  async getMemoryAgents() {
+    return this.request<MemoryAgent[]>('/memory/agents');
+  }
+
+  async getMemoryFiles(agentId: string) {
+    return this.request<{ agentId: string; files: MemoryFile[] }>(
+      `/memory/agents/${agentId}/files`
+    );
+  }
+
+  async getMemoryFileContent(agentId: string, filePath: string) {
+    return this.request<{
+      path: string;
+      name: string;
+      content: string;
+      encrypted: boolean;
+    }>(`/memory/agents/${agentId}/files/content?path=${encodeURIComponent(filePath)}`);
+  }
+
+  async updateMemoryFileContent(agentId: string, filePath: string, content: string) {
+    return this.request<{ success: boolean; path: string }>(
+      `/memory/agents/${agentId}/files/content`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ path: filePath, content }),
+      }
+    );
+  }
+
+  async updateMemoryFileMetadata(
+    agentId: string,
+    data: {
+      path: string;
+      tier?: 1 | 2 | 3;
+      label?: string;
+      tags?: string[];
+      description?: string;
+      is_shared?: boolean;
+    }
+  ) {
+    return this.request<unknown>(`/memory/agents/${agentId}/files/metadata`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getMemoryHealth() {
+    return this.request<MemoryHealthReport>('/memory/health');
+  }
+
+  async searchMemory(query: string, agents?: string[]) {
+    const params = new URLSearchParams({ q: query });
+    if (agents?.length) params.set('agents', agents.join(','));
+    return this.request<MemorySearchResult>(`/memory/search?${params.toString()}`);
   }
 }
 

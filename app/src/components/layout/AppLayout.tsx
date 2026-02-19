@@ -26,6 +26,7 @@ import {
   DollarSign,
   Share2,
   Building2,
+  HardDrive,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -82,6 +83,7 @@ const baseNavigation: NavItem[] = [
       { name: "Token Usage", href: "/james-brain/usage", icon: BarChart3 },
       { name: "API Costs", href: "/james-brain/api-costs", icon: DollarSign },
       { name: "Second Brain", href: "/second-brain", icon: Brain },
+      { name: "Memory", href: "/james-brain/memory", icon: HardDrive },
     ],
   },
 ];

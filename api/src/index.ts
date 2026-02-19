@@ -50,6 +50,7 @@ import socialMediaRouter from "./routes/social-media.js";
 import tagsRouter from "./routes/tags.js";
 import cacheRouter from "./routes/cache.js";
 import officeRouter from "./routes/office.js";
+import memoryRouter from "./routes/memory.js";
 
 // Environment validation — fail fast if critical vars are missing or weak
 // (Full validation logic in startup-validation.ts)
@@ -179,6 +180,9 @@ app.use("/api/cache", authMiddleware, cacheRouter);
 
 // Office visualization routes (protected)
 app.use("/api/office", authMiddleware, officeRouter);
+
+// Memory management routes (protected)
+app.use("/api/memory", authMiddleware, memoryRouter);
 
 // 404 handler for unmatched API routes (must come after all API routes, before static files)
 app.all("/api/*", notFoundHandler);
