@@ -7,6 +7,8 @@ import { getDb, generateId, getCurrentTimestamp } from "../database.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { NotFoundError, ValidationError } from "../errors.js";
 import { cache, cacheKey, TTL } from "../cache.js";
+import { validateBody } from "../middleware/validateBody.js";
+import { CreateProjectSchema, UpdateProjectSchema } from "../schemas/index.js";
 
 const router = Router();
 
@@ -56,7 +58,7 @@ router.get("/:id", asyncHandler(async (req, res) => {
 }));
 
 // Create project
-router.post("/", asyncHandler(async (req, res) => {
+router.post("/", validateBody(CreateProjectSchema), asyncHandler(async (req, res) => {
   const db = getDb();
   const {
     name,
@@ -87,7 +89,7 @@ router.post("/", asyncHandler(async (req, res) => {
 }));
 
 // Update project
-router.patch("/:id", asyncHandler(async (req, res) => {
+router.patch("/:id", validateBody(UpdateProjectSchema), asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
 

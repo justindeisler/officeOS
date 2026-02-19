@@ -7,6 +7,8 @@
 import { Router, type Request, type Response } from "express";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { NotFoundError, ValidationError } from "../errors.js";
+import { validateBody } from "../middleware/validateBody.js";
+import { CreateVendorMappingSchema } from "../schemas/index.js";
 import {
   getAllVendorMappings,
   saveVendorMapping,
@@ -31,6 +33,7 @@ router.get(
  */
 router.post(
   "/",
+  validateBody(CreateVendorMappingSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { ocr_name, display_name, default_category, default_vat_rate } = req.body;
 

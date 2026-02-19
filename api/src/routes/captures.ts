@@ -8,6 +8,8 @@ import { getDb, generateId, getCurrentTimestamp } from "../database.js";
 import { createLogger } from "../logger.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { NotFoundError, ValidationError } from "../errors.js";
+import { validateBody } from "../middleware/validateBody.js";
+import { CreateCaptureSchema, ProcessCaptureSchema } from "../schemas/index.js";
 
 const router = Router();
 const log = createLogger("captures");
@@ -59,7 +61,7 @@ router.get("/:id", asyncHandler(async (req, res) => {
 }));
 
 // Create capture
-router.post("/", asyncHandler(async (req, res) => {
+router.post("/", validateBody(CreateCaptureSchema), asyncHandler(async (req, res) => {
   const db = getDb();
   const { content, type = "note" } = req.body;
 
@@ -80,7 +82,7 @@ router.post("/", asyncHandler(async (req, res) => {
 }));
 
 // Mark capture as processed
-router.post("/:id/process", asyncHandler(async (req, res) => {
+router.post("/:id/process", validateBody(ProcessCaptureSchema), asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
   const { processed_to, processed_by, artifact_type, artifact_id } = req.body;

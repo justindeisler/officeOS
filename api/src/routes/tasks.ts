@@ -8,6 +8,8 @@ import { createLogger } from "../logger.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { NotFoundError, ValidationError } from "../errors.js";
 import { cache, cacheKey, TTL } from "../cache.js";
+import { validateBody } from "../middleware/validateBody.js";
+import { CreateTaskSchema, UpdateTaskSchema, ReorderTasksSchema, MoveTaskSchema } from "../schemas/index.js";
 
 const router = Router();
 const log = createLogger("tasks");
@@ -91,7 +93,7 @@ router.get("/:id", asyncHandler(async (req, res) => {
 }));
 
 // Create task
-router.post("/", asyncHandler(async (req, res) => {
+router.post("/", validateBody(CreateTaskSchema), asyncHandler(async (req, res) => {
   const db = getDb();
   const {
     title,
@@ -124,7 +126,7 @@ router.post("/", asyncHandler(async (req, res) => {
 }));
 
 // Update task
-router.patch("/:id", asyncHandler(async (req, res) => {
+router.patch("/:id", validateBody(UpdateTaskSchema), asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
 
@@ -171,7 +173,7 @@ router.patch("/:id", asyncHandler(async (req, res) => {
 }));
 
 // Reorder tasks within a column (bulk update sort_order)
-router.post("/reorder", asyncHandler(async (req, res) => {
+router.post("/reorder", validateBody(ReorderTasksSchema), asyncHandler(async (req, res) => {
   const db = getDb();
   const { taskIds, status } = req.body;
 
@@ -221,7 +223,7 @@ router.post("/reorder", asyncHandler(async (req, res) => {
 }));
 
 // Move task to a new column and position
-router.post("/:id/move", asyncHandler(async (req, res) => {
+router.post("/:id/move", validateBody(MoveTaskSchema), asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
   const { status, targetIndex } = req.body;

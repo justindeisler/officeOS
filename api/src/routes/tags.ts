@@ -17,6 +17,8 @@ import { getDb, generateId } from "../database.js";
 import { createLogger } from "../logger.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { NotFoundError, ValidationError, ConflictError } from "../errors.js";
+import { validateBody } from "../middleware/validateBody.js";
+import { CreateTagSchema, UpdateTagSchema, SyncTaskTagsSchema, BulkTaskTagsSchema } from "../schemas/index.js";
 
 const router = Router();
 const log = createLogger("tags");
@@ -31,7 +33,7 @@ router.get("/", asyncHandler(async (_req, res) => {
 }));
 
 // Create tag
-router.post("/", asyncHandler(async (req, res) => {
+router.post("/", validateBody(CreateTagSchema), asyncHandler(async (req, res) => {
   const db = getDb();
   const { name, color } = req.body;
 
@@ -60,7 +62,7 @@ router.post("/", asyncHandler(async (req, res) => {
 }));
 
 // Update tag
-router.put("/:id", asyncHandler(async (req, res) => {
+router.put("/:id", validateBody(UpdateTagSchema), asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
   const { name, color } = req.body;
@@ -123,7 +125,7 @@ router.delete("/:id", asyncHandler(async (req, res) => {
 
 // Bulk get tags for multiple tasks (efficient for Kanban board)
 // NOTE: Must be before /tasks/:taskId to avoid route conflict
-router.post("/tasks/bulk", asyncHandler(async (req, res) => {
+router.post("/tasks/bulk", validateBody(BulkTaskTagsSchema), asyncHandler(async (req, res) => {
   const db = getDb();
   const { taskIds } = req.body;
 
@@ -156,7 +158,7 @@ router.post("/tasks/bulk", asyncHandler(async (req, res) => {
 
 // Sync tags for a task (replace all tags with given set)
 // NOTE: Must be before /tasks/:taskId/:tagId to avoid route conflict
-router.post("/tasks/:taskId/sync", asyncHandler(async (req, res) => {
+router.post("/tasks/:taskId/sync", validateBody(SyncTaskTagsSchema), asyncHandler(async (req, res) => {
   const db = getDb();
   const { taskId } = req.params;
   const { tagIds } = req.body;

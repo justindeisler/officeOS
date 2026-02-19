@@ -6,6 +6,8 @@ import { Router } from "express";
 import { getDb, generateId, getCurrentTimestamp } from "../database.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { NotFoundError, ValidationError } from "../errors.js";
+import { validateBody } from "../middleware/validateBody.js";
+import { CreatePrdSchema, UpdatePrdSchema } from "../schemas/index.js";
 
 const router = Router();
 
@@ -109,7 +111,7 @@ router.get("/:id", asyncHandler(async (req, res) => {
 }));
 
 // Create PRD
-router.post("/", asyncHandler(async (req, res) => {
+router.post("/", validateBody(CreatePrdSchema), asyncHandler(async (req, res) => {
   const db = getDb();
   const {
     projectId, featureName, version = "1.0", author = "Justin", assignee,
@@ -150,7 +152,7 @@ router.post("/", asyncHandler(async (req, res) => {
 }));
 
 // Update PRD
-router.put("/:id", asyncHandler(async (req, res) => {
+router.put("/:id", validateBody(UpdatePrdSchema), asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
 

@@ -6,6 +6,8 @@ import { Router } from "express";
 import { getDb, generateId, getCurrentTimestamp } from "../database.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { ValidationError } from "../errors.js";
+import { validateBody } from "../middleware/validateBody.js";
+import { CreateJamesActionSchema } from "../schemas/index.js";
 
 const router = Router();
 
@@ -34,7 +36,7 @@ router.get("/", asyncHandler(async (req, res) => {
 }));
 
 // Log a new action
-router.post("/", asyncHandler(async (req, res) => {
+router.post("/", validateBody(CreateJamesActionSchema), asyncHandler(async (req, res) => {
   const db = getDb();
   const {
     action_type,

@@ -11,6 +11,8 @@ import { getDb, generateId, getCurrentTimestamp } from "../database.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { ValidationError, NotFoundError } from "../errors.js";
 import { createLogger } from "../logger.js";
+import { validateBody } from "../middleware/validateBody.js";
+import { CreateSocialPostSchema, UpdateSocialPostSchema } from "../schemas/index.js";
 
 const router = Router();
 const log = createLogger("social-media");
@@ -89,7 +91,7 @@ router.get("/posts/:id", asyncHandler(async (req, res) => {
 
 // ─── Create Post ───────────────────────────────────────────────────
 
-router.post("/posts", asyncHandler(async (req, res) => {
+router.post("/posts", validateBody(CreateSocialPostSchema), asyncHandler(async (req, res) => {
   const db = getDb();
   const {
     platform,
@@ -140,7 +142,7 @@ router.post("/posts", asyncHandler(async (req, res) => {
 
 // ─── Update Post ───────────────────────────────────────────────────
 
-router.patch("/posts/:id", asyncHandler(async (req, res) => {
+router.patch("/posts/:id", validateBody(UpdateSocialPostSchema), asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
   const now = getCurrentTimestamp();

@@ -8,6 +8,8 @@ import { promisify } from "util";
 import { getDb, generateId, getCurrentTimestamp } from "../database.js";
 import { createLogger } from "../logger.js";
 import { detectAccess } from "../services/accessDetection.js";
+import { validateBody } from "../middleware/validateBody.js";
+import { CreateSuggestionSchema, UpdateSuggestionSchema, ImplementSuggestionSchema, GenerateSuggestionsSchema, AddCommentSchema } from "../schemas/index.js";
 
 const router = Router();
 const log = createLogger("suggestions");
@@ -127,7 +129,7 @@ const GENERATE_SCRIPT = process.env.GENERATE_SCRIPT || "/home/jd-server-admin/cl
  * POST /api/suggestions/generate
  * Analyze a project and generate improvement suggestions using AI.
  */
-router.post("/generate", async (req, res) => {
+router.post("/generate", validateBody(GenerateSuggestionsSchema), async (req, res) => {
   const db = getDb();
   const { source, projectId, projectName, projectPath, deepMode = false, count = 3 } = req.body;
 
@@ -522,7 +524,7 @@ router.get("/:id/comments", (req, res) => {
 });
 
 // Add a comment to a suggestion
-router.post("/:id/comments", (req, res) => {
+router.post("/:id/comments", validateBody(AddCommentSchema), (req, res) => {
   const db = getDb();
   const { id } = req.params;
   const { comment_text } = req.body;
@@ -633,7 +635,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // Create suggestion (James creates these)
-router.post("/", (req, res) => {
+router.post("/", validateBody(CreateSuggestionSchema), (req, res) => {
   const db = getDb();
   const {
     project_id,
@@ -706,7 +708,7 @@ router.post("/:id/reject", (req, res) => {
 });
 
 // Mark as implemented (links PRD and task)
-router.post("/:id/implement", (req, res) => {
+router.post("/:id/implement", validateBody(ImplementSuggestionSchema), (req, res) => {
   const db = getDb();
   const { id } = req.params;
   const { prd_id, task_id } = req.body;
@@ -725,7 +727,7 @@ router.post("/:id/implement", (req, res) => {
 });
 
 // Update suggestion (for restore, etc.)
-router.patch("/:id", (req, res) => {
+router.patch("/:id", validateBody(UpdateSuggestionSchema), (req, res) => {
   const db = getDb();
   const { id } = req.params;
   const { status } = req.body;

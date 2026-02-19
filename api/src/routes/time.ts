@@ -6,6 +6,8 @@ import { Router } from "express";
 import { getDb, generateId, getCurrentTimestamp } from "../database.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { NotFoundError, ValidationError, ConflictError } from "../errors.js";
+import { validateBody } from "../middleware/validateBody.js";
+import { LogTimeSchema, StartTimerSchema } from "../schemas/index.js";
 
 const router = Router();
 
@@ -83,7 +85,7 @@ router.get("/", asyncHandler(async (req, res) => {
 }));
 
 // Log time (past work)
-router.post("/log", asyncHandler(async (req, res) => {
+router.post("/log", validateBody(LogTimeSchema), asyncHandler(async (req, res) => {
   const db = getDb();
   const { category, duration_minutes, task_id, project_id, client_id, description, start_time } = req.body;
 
@@ -105,7 +107,7 @@ router.post("/log", asyncHandler(async (req, res) => {
 }));
 
 // Start timer
-router.post("/start", asyncHandler(async (req, res) => {
+router.post("/start", validateBody(StartTimerSchema), asyncHandler(async (req, res) => {
   const db = getDb();
   const { category, task_id, project_id, client_id, description } = req.body;
 

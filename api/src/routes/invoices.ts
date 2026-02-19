@@ -9,6 +9,8 @@ import { getDb, generateId, getCurrentTimestamp } from "../database.js";
 import { createLogger } from "../logger.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { NotFoundError, ValidationError, AppError } from "../errors.js";
+import { validateBody } from "../middleware/validateBody.js";
+import { CreateInvoiceSchema, UpdateInvoiceSchema, PayInvoiceSchema } from "../schemas/index.js";
 import {
   generateInvoicePdf,
   generateInvoicePdfBuffer,
@@ -288,7 +290,7 @@ router.get("/:id", asyncHandler(async (req, res) => {
 /**
  * Create a new invoice
  */
-router.post("/", asyncHandler(async (req, res) => {
+router.post("/", validateBody(CreateInvoiceSchema), asyncHandler(async (req, res) => {
   const db = getDb();
   const {
     client_id,
@@ -377,7 +379,7 @@ router.post("/", asyncHandler(async (req, res) => {
 /**
  * Update an invoice
  */
-router.patch("/:id", asyncHandler(async (req, res) => {
+router.patch("/:id", validateBody(UpdateInvoiceSchema), asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
 
@@ -520,7 +522,7 @@ router.post("/:id/send", asyncHandler(async (req, res) => {
 /**
  * Mark invoice as paid
  */
-router.post("/:id/pay", asyncHandler(async (req, res) => {
+router.post("/:id/pay", validateBody(PayInvoiceSchema), asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
   const { payment_date, payment_method } = req.body;

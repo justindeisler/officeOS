@@ -7,6 +7,8 @@
 
 import { Router, type Request, type Response } from "express";
 import { getDb } from "../database.js";
+import { validateBody } from "../middleware/validateBody.js";
+import { UpdateSettingSchema } from "../schemas/index.js";
 
 const router = Router();
 
@@ -152,13 +154,9 @@ function formatIban(iban: string): string {
 /**
  * Set a specific setting
  */
-router.put("/:key", (req: Request, res: Response) => {
+router.put("/:key", validateBody(UpdateSettingSchema), (req: Request, res: Response) => {
   const { key } = req.params;
   const { value } = req.body;
-  
-  if (value === undefined) {
-    return res.status(400).json({ error: "Value is required" });
-  }
   
   const db = getDb();
   const stringValue = typeof value === 'string' ? value : JSON.stringify(value);

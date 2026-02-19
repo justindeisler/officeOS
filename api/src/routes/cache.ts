@@ -6,6 +6,8 @@
 
 import { Router } from "express";
 import { cache } from "../cache.js";
+import { validateBody } from "../middleware/validateBody.js";
+import { CacheInvalidateSchema } from "../schemas/index.js";
 
 const router = Router();
 
@@ -31,11 +33,8 @@ router.post("/clear", (_req, res) => {
  * Invalidate cache entries matching a pattern.
  * Body: { pattern: "tasks:*" }
  */
-router.post("/invalidate", (req, res) => {
+router.post("/invalidate", validateBody(CacheInvalidateSchema), (req, res) => {
   const { pattern } = req.body;
-  if (!pattern || typeof pattern !== "string") {
-    return res.status(400).json({ error: "pattern is required" });
-  }
   const count = cache.invalidate(pattern);
   res.json({ success: true, invalidated: count });
 });

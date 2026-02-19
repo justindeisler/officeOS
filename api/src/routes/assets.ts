@@ -8,6 +8,8 @@ import { Router, type Request, type Response } from "express";
 import { getDb, generateId, getCurrentTimestamp } from "../database.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { NotFoundError, ValidationError } from "../errors.js";
+import { validateBody } from "../middleware/validateBody.js";
+import { CreateAssetSchema, UpdateAssetSchema, DepreciateAssetSchema } from "../schemas/index.js";
 
 const router = Router();
 
@@ -27,6 +29,9 @@ interface AssetRow {
   salvage_value: number;
   current_value: number | null;
   status: string;
+  disposal_date: string | null;
+  disposal_price: number | null;
+  disposal_reason: string | null;
   created_at: string;
 }
 
@@ -200,7 +205,7 @@ router.get("/:id/schedule", asyncHandler(async (req: Request, res: Response) => 
   res.json(schedule);
 }));
 
-router.post("/", asyncHandler(async (req: Request, res: Response) => {
+router.post("/", validateBody(CreateAssetSchema), asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();
   const {
     name,
@@ -251,7 +256,7 @@ router.post("/", asyncHandler(async (req: Request, res: Response) => {
   });
 }));
 
-router.patch("/:id", asyncHandler(async (req: Request, res: Response) => {
+router.patch("/:id", validateBody(UpdateAssetSchema), asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();
   const { id } = req.params;
 
@@ -337,7 +342,7 @@ router.delete("/:id", asyncHandler(async (req: Request, res: Response) => {
   res.json({ success: true, message: `Asset "${existing.name}" deleted` });
 }));
 
-router.post("/:id/depreciate", asyncHandler(async (req: Request, res: Response) => {
+router.post("/:id/depreciate", validateBody(DepreciateAssetSchema), asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();
   const { id } = req.params;
   const { year } = req.body;
@@ -367,6 +372,83 @@ router.post("/:id/depreciate", asyncHandler(async (req: Request, res: Response) 
     year: targetYear,
     depreciation_amount: entry.depreciation_amount,
     new_book_value: entry.book_value,
+  });
+}));
+
+// ============================================================================
+// Dispose Asset
+// ============================================================================
+
+router.post("/:id/dispose", asyncHandler(async (req: Request, res: Response) => {
+  const db = getDb();
+  const { id } = req.params;
+  const { disposal_date, disposal_price, disposal_reason, status: requestedStatus } = req.body;
+
+  if (!disposal_date) {
+    throw new ValidationError("disposal_date is required");
+  }
+  if (disposal_price === undefined || disposal_price === null) {
+    throw new ValidationError("disposal_price is required (use 0 for scrapped/donated)");
+  }
+
+  const asset = db.prepare("SELECT * FROM assets WHERE id = ?").get(id) as
+    | AssetRow
+    | undefined;
+
+  if (!asset) {
+    throw new NotFoundError("Asset", id);
+  }
+
+  if (asset.status !== "active") {
+    throw new ValidationError(`Asset is already ${asset.status}, cannot dispose`);
+  }
+
+  // Calculate book value at disposal date
+  const disposalYear = new Date(disposal_date).getFullYear();
+  const entry = db.prepare(
+    `SELECT book_value FROM depreciation_schedule 
+     WHERE asset_id = ? AND year <= ? 
+     ORDER BY year DESC LIMIT 1`
+  ).get(id, disposalYear) as { book_value: number } | undefined;
+
+  const bookValue = entry?.book_value ?? asset.purchase_price;
+
+  // Calculate gain/loss
+  const gainLoss = Math.round((disposal_price - bookValue) * 100) / 100;
+
+  // Determine status: 'sold' if price > 0, 'disposed' if scrapped/donated
+  // Allow explicit status override from frontend
+  const newStatus = requestedStatus || (disposal_price > 0 ? "sold" : "disposed");
+
+  // Update asset
+  db.prepare(
+    `UPDATE assets SET 
+       status = ?, 
+       disposal_date = ?, 
+       disposal_price = ?, 
+       disposal_reason = ?,
+       current_value = ?
+     WHERE id = ?`
+  ).run(
+    newStatus,
+    disposal_date,
+    disposal_price,
+    disposal_reason || null,
+    bookValue,
+    id
+  );
+
+  const updated = db.prepare("SELECT * FROM assets WHERE id = ?").get(id) as AssetRow;
+  const schedule = db.prepare(
+    "SELECT * FROM depreciation_schedule WHERE asset_id = ? ORDER BY year"
+  ).all(id) as DepreciationRow[];
+
+  res.json({
+    ...updated,
+    current_value: bookValue,
+    depreciation_schedule: schedule,
+    disposal_gain_loss: gainLoss,
+    book_value_at_disposal: bookValue,
   });
 }));
 

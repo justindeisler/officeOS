@@ -9,6 +9,8 @@ import { getDb, generateId, getCurrentTimestamp } from "../database.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { NotFoundError, ValidationError } from "../errors.js";
 import { cache, cacheKey, TTL } from "../cache.js";
+import { validateBody } from "../middleware/validateBody.js";
+import { CreateIncomeSchema, UpdateIncomeSchema, MarkIncomeReportedSchema } from "../schemas/index.js";
 
 const router = Router();
 
@@ -107,7 +109,7 @@ router.get("/:id", asyncHandler(async (req: Request, res: Response) => {
 /**
  * Create a new income record
  */
-router.post("/", asyncHandler(async (req: Request, res: Response) => {
+router.post("/", validateBody(CreateIncomeSchema), asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();
   const {
     date,
@@ -166,7 +168,7 @@ router.post("/", asyncHandler(async (req: Request, res: Response) => {
 /**
  * Update an income record
  */
-router.patch("/:id", asyncHandler(async (req: Request, res: Response) => {
+router.patch("/:id", validateBody(UpdateIncomeSchema), asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();
   const { id } = req.params;
 
@@ -244,7 +246,7 @@ router.delete("/:id", asyncHandler(async (req: Request, res: Response) => {
 /**
  * Mark multiple income records as USt reported
  */
-router.post("/mark-reported", asyncHandler(async (req: Request, res: Response) => {
+router.post("/mark-reported", validateBody(MarkIncomeReportedSchema), asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();
   const { ids, ust_period } = req.body;
 

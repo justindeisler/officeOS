@@ -6,6 +6,8 @@ import { Router } from "express";
 import { getDb, generateId, getCurrentTimestamp } from "../database.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { NotFoundError, ValidationError } from "../errors.js";
+import { validateBody } from "../middleware/validateBody.js";
+import { CreateAutomationSchema, UpdateAutomationSchema } from "../schemas/index.js";
 
 const router = Router();
 
@@ -32,7 +34,7 @@ router.get("/:id", asyncHandler(async (req, res) => {
 }));
 
 // Create automation
-router.post("/", asyncHandler(async (req, res) => {
+router.post("/", validateBody(CreateAutomationSchema), asyncHandler(async (req, res) => {
   const db = getDb();
   const {
     name,
@@ -65,7 +67,7 @@ router.post("/", asyncHandler(async (req, res) => {
 }));
 
 // Update automation
-router.patch("/:id", asyncHandler(async (req, res) => {
+router.patch("/:id", validateBody(UpdateAutomationSchema), asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
   const now = getCurrentTimestamp();

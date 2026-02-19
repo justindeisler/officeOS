@@ -4,6 +4,8 @@ import { getDb } from '../database.js';
 import { createLogger } from '../logger.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { NotFoundError, ValidationError, AuthError, ForbiddenError } from '../errors.js';
+import { validateBody } from '../middleware/validateBody.js';
+import { ClientCreateTaskSchema, ClientUpdateTaskSchema } from '../schemas/index.js';
 
 const router = Router();
 const log = createLogger('client-dashboard');
@@ -132,7 +134,7 @@ router.get('/tasks/:taskId', requireClientAuth, asyncHandler(async (req: Request
 }));
 
 // Create task request (now creates a capture for inbox review)
-router.post('/tasks', requireClientAuth, asyncHandler(async (req: Request, res: Response) => {
+router.post('/tasks', requireClientAuth, validateBody(ClientCreateTaskSchema), asyncHandler(async (req: Request, res: Response) => {
   const { project_id, title, description } = req.body;
   const client = (req as any).client;
   const assignedProjects = client.assignedProjects || [];
@@ -210,7 +212,7 @@ router.get('/pending-requests', requireClientAuth, asyncHandler(async (req: Requ
 }));
 
 // Update task (client can only update tasks they created and only before AI processing)
-router.patch('/tasks/:taskId', requireClientAuth, asyncHandler(async (req: Request, res: Response) => {
+router.patch('/tasks/:taskId', requireClientAuth, validateBody(ClientUpdateTaskSchema), asyncHandler(async (req: Request, res: Response) => {
   const { taskId } = req.params;
   const { title, description } = req.body;
   const client = (req as any).client;

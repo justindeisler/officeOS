@@ -6,6 +6,8 @@
  */
 
 import { Router } from "express";
+import { validateBody } from "../middleware/validateBody.js";
+import { UpdateAgentStatusSchema } from "../schemas/index.js";
 
 const router = Router();
 
@@ -247,7 +249,7 @@ router.get("/agent/:id", (req, res) => {
  * PUT /api/office/agent/:id/status
  * Update an agent's status (called by Clawdbot gateway)
  */
-router.put("/agent/:id/status", (req, res) => {
+router.put("/agent/:id/status", validateBody(UpdateAgentStatusSchema), (req, res) => {
   ensureInitialized();
 
   const { id } = req.params;

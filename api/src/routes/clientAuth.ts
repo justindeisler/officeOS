@@ -5,6 +5,8 @@ import { getDb } from '../database.js';
 import { createLogger } from '../logger.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { ValidationError, AuthError, NotFoundError } from '../errors.js';
+import { validateBody } from '../middleware/validateBody.js';
+import { ClientLoginSchema } from '../schemas/index.js';
 
 const router = Router();
 const log = createLogger('client-auth');
@@ -26,7 +28,7 @@ interface ClientRow {
 }
 
 // Client login
-router.post('/login', asyncHandler(async (req: Request, res: Response) => {
+router.post('/login', validateBody(ClientLoginSchema), asyncHandler(async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
   if (!email || !password) {

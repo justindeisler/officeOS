@@ -9,6 +9,8 @@ import { Router } from "express";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { createLogger } from "../logger.js";
+import { validateBody } from "../middleware/validateBody.js";
+import { LoginSchema } from "../schemas/index.js";
 
 const router = Router();
 const log = createLogger("auth");
@@ -49,7 +51,7 @@ if (Object.keys(USERS).length === 0) {
 }
 
 // Login
-router.post("/login", async (req, res) => {
+router.post("/login", validateBody(LoginSchema), async (req, res) => {
   const { username, password, rememberMe } = req.body;
 
   if (!username || !password) {

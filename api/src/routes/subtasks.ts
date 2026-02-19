@@ -7,6 +7,8 @@ import { getDb, generateId, getCurrentTimestamp } from "../database.js";
 import { createLogger } from "../logger.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { NotFoundError, ValidationError } from "../errors.js";
+import { validateBody } from "../middleware/validateBody.js";
+import { CreateSubtaskSchema, UpdateSubtaskSchema, ReorderSubtasksSchema, SubtaskCountsSchema } from "../schemas/index.js";
 
 const router = Router();
 const log = createLogger("subtasks");
@@ -28,7 +30,7 @@ router.get("/tasks/:taskId/subtasks", asyncHandler(async (req, res) => {
 }));
 
 // Create subtask
-router.post("/tasks/:taskId/subtasks", asyncHandler(async (req, res) => {
+router.post("/tasks/:taskId/subtasks", validateBody(CreateSubtaskSchema), asyncHandler(async (req, res) => {
   const db = getDb();
   const { taskId } = req.params;
   const { title } = req.body;
@@ -62,7 +64,7 @@ router.post("/tasks/:taskId/subtasks", asyncHandler(async (req, res) => {
 }));
 
 // Update subtask
-router.patch("/subtasks/:id", asyncHandler(async (req, res) => {
+router.patch("/subtasks/:id", validateBody(UpdateSubtaskSchema), asyncHandler(async (req, res) => {
   const db = getDb();
   const { id } = req.params;
 
@@ -141,7 +143,7 @@ router.delete("/subtasks/:id", asyncHandler(async (req, res) => {
 }));
 
 // Reorder subtasks
-router.post("/tasks/:taskId/subtasks/reorder", asyncHandler(async (req, res) => {
+router.post("/tasks/:taskId/subtasks/reorder", validateBody(ReorderSubtasksSchema), asyncHandler(async (req, res) => {
   const db = getDb();
   const { taskId } = req.params;
   const { subtaskIds } = req.body;
@@ -179,7 +181,7 @@ router.post("/tasks/:taskId/subtasks/reorder", asyncHandler(async (req, res) => 
 }));
 
 // Get subtask counts for multiple tasks (bulk endpoint for efficiency)
-router.post("/subtasks/counts", asyncHandler(async (req, res) => {
+router.post("/subtasks/counts", validateBody(SubtaskCountsSchema), asyncHandler(async (req, res) => {
   const db = getDb();
   const { taskIds } = req.body;
 
