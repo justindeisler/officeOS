@@ -41,9 +41,38 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // Only precache essentials (~1 MB instead of ~3.6 MB).
+        // Lazy vendor chunks (recharts, markdown, framer-motion, etc.) are
+        // loaded on-demand via runtimeCaching below.
+        globPatterns: ['**/*.html', '**/*.css', '**/vendor-react-*.js', '**/vendor-router-*.js', '**/vendor-icons-*.js', '**/index-*.js'],
+        // Don't precache large lazy vendor chunks, images, or font files
+        globIgnores: ['**/vendor-recharts-*', '**/vendor-markdown-*', '**/vendor-framer-motion-*', '**/vendor-dnd-*', '**/vendor-forms-*', '**/vendor-radix-*', '**/vendor-floating-ui-*', '**/vendor-date-fns-*'],
         cleanupOutdatedCaches: true,
         runtimeCaching: [
+          {
+            // Lazy-loaded JS chunks (page chunks + vendor chunks not in precache)
+            urlPattern: /\/assets\/.*\.js$/i,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'lazy-chunks-cache',
+              expiration: {
+                maxEntries: 100,
+                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
+              }
+            }
+          },
+          {
+            // Web fonts (woff2)
+            urlPattern: /\/assets\/.*\.woff2$/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'fonts-cache',
+              expiration: {
+                maxEntries: 20,
+                maxAgeSeconds: 60 * 60 * 24 * 365 // 1 year
+              }
+            }
+          },
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',
@@ -168,6 +197,12 @@ export default defineConfig({
             return "vendor-router";
           }
 
+          // Lucide React icons — bundle all used icons into one chunk
+          // instead of 30+ tiny individual files (< 0.5 kB each)
+          if (id.includes("node_modules/lucide-react")) {
+            return "vendor-icons";
+          }
+
           // Recharts + D3 dependencies — only needed by chart pages
           if (
             id.includes("node_modules/recharts") ||
@@ -192,9 +227,9 @@ export default defineConfig({
           }
 
           // Markdown ecosystem — only SecondBrainPage
-          // Note: react-markdown depends on react/react-dom but those are
-          // already in vendor-react, so we only chunk the markdown-specific
-          // parsing/rendering libraries here (no circular dependency).
+          // react-markdown is NOT included here — it imports from react
+          // which would create a circular chunk dependency with vendor-react.
+          // Instead, react-markdown falls into the page chunk that uses it.
           if (
             id.includes("node_modules/remark-") ||
             id.includes("node_modules/rehype-") ||
@@ -217,12 +252,9 @@ export default defineConfig({
           ) {
             return "vendor-markdown";
           }
-
-          // react-markdown itself (kept separate from parsing libs to avoid
-          // circular dependency with vendor-react)
-          if (id.includes("node_modules/react-markdown")) {
-            return "vendor-markdown";
-          }
+          // react-markdown deliberately excluded from vendor-markdown
+          // to avoid circular dependency: vendor-react → vendor-markdown → vendor-react.
+          // It will be code-split into the lazy-loaded page chunk that imports it.
 
           // Form handling
           if (

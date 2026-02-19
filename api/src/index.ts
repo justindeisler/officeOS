@@ -5,6 +5,9 @@
 // Load environment variables first (before any other imports)
 import "dotenv/config";
 
+// Validate secrets immediately after env loading, before any app setup
+import { validateStartupSecrets } from "./startup-validation.js";
+
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -48,33 +51,9 @@ import tagsRouter from "./routes/tags.js";
 import cacheRouter from "./routes/cache.js";
 import officeRouter from "./routes/office.js";
 
-// Environment validation — fail fast if critical vars are missing
-function validateEnvironment() {
-  const required = ['JWT_SECRET'];
-  const missing = required.filter(key => !process.env[key]);
-
-  if (missing.length > 0) {
-    logger.fatal({ missing }, 'Missing required environment variables. Check your .env file.');
-    process.exit(1);
-  }
-
-  // Warn if JWT_SECRET looks like a default/example value
-  const jwtSecret = process.env.JWT_SECRET!;
-  const suspiciousDefaults = [
-    'your-secret-key',
-    'change-in-production',
-    'secret',
-    'password',
-    'example',
-  ];
-  if (jwtSecret.length < 32 || suspiciousDefaults.some(d => jwtSecret.toLowerCase().includes(d))) {
-    logger.warn('JWT_SECRET appears weak or default-like. Use a strong random value (32+ chars). Generate one with: openssl rand -base64 32');
-  }
-
-  logger.info('Environment validation passed');
-}
-
-validateEnvironment();
+// Environment validation — fail fast if critical vars are missing or weak
+// (Full validation logic in startup-validation.ts)
+validateStartupSecrets();
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -118,8 +97,26 @@ const authLimiter = rateLimit({
 app.use("/api/", limiter);
 app.use("/api/auth/login", authLimiter);
 
-// CORS and body parsing
-app.use(cors());
+// CORS — restrict to known origins only (no wildcard)
+const allowedOrigins = [
+  "https://pa.justin-deisler.com",
+  // Development origins
+  "http://localhost:3005",
+  "http://localhost:3006",
+  "http://127.0.0.1:3005",
+  "http://127.0.0.1:3006",
+];
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (same-origin, curl, mobile apps)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error(`CORS: origin '${origin}' not allowed`));
+    }
+  },
+  credentials: true,
+}));
 app.use(express.json());
 
 // Request logging

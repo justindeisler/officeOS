@@ -1,0 +1,137 @@
+# ============================================================================
+# Gitleaks Configuration — Shared Base
+# ============================================================================
+# Custom rules supplement gitleaks built-in detection.
+# Copy or symlink to .gitleaks.toml in each repo.
+# ============================================================================
+
+[extend]
+# Use gitleaks default rules as baseline
+# (gitleaks v8+ includes 100+ built-in rules automatically)
+
+# --- Custom Rules ---
+
+[[rules]]
+id = "anthropic-api-key"
+description = "Anthropic API Key (sk-ant-*)"
+regex = '''sk-ant-[a-zA-Z0-9_\-]{20,}'''
+keywords = ["sk-ant-"]
+
+[[rules]]
+id = "openai-api-key"
+description = "OpenAI API Key (sk-*)"
+regex = '''sk-[a-zA-Z0-9]{20,}'''
+keywords = ["sk-"]
+
+[[rules]]
+id = "aws-access-key"
+description = "AWS Access Key ID"
+regex = '''AKIA[0-9A-Z]{16}'''
+keywords = ["AKIA"]
+
+[[rules]]
+id = "github-pat"
+description = "GitHub Personal Access Token"
+regex = '''ghp_[a-zA-Z0-9]{36}'''
+keywords = ["ghp_"]
+
+[[rules]]
+id = "github-server-token"
+description = "GitHub Server-to-Server Token"
+regex = '''ghs_[a-zA-Z0-9]{36}'''
+keywords = ["ghs_"]
+
+[[rules]]
+id = "github-refresh-token"
+description = "GitHub Refresh Token"
+regex = '''ghr_[a-zA-Z0-9]{36}'''
+keywords = ["ghr_"]
+
+[[rules]]
+id = "password-assignment"
+description = "Password assignment in code"
+regex = '''(?i)password\s*[=:]\s*['"][^'"]{8,}['"]'''
+keywords = ["password"]
+
+[[rules]]
+id = "secret-assignment"
+description = "Secret assignment in code"
+regex = '''(?i)secret\s*[=:]\s*['"][^'"]{8,}['"]'''
+keywords = ["secret"]
+
+[[rules]]
+id = "api-key-assignment"
+description = "API key assignment in code"
+regex = '''(?i)api[_\-]?key\s*[=:]\s*['"][^'"]{16,}['"]'''
+keywords = ["api_key", "api-key", "apikey"]
+
+[[rules]]
+id = "token-assignment"
+description = "Token assignment in code"
+regex = '''(?i)token\s*[=:]\s*['"][^'"]{16,}['"]'''
+keywords = ["token"]
+
+[[rules]]
+id = "bearer-token"
+description = "Bearer token in code"
+regex = '''(?i)bearer\s+[a-zA-Z0-9\-_\.]{20,}'''
+keywords = ["bearer"]
+
+[[rules]]
+id = "private-key"
+description = "Private Key"
+regex = '''-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----'''
+keywords = ["PRIVATE KEY"]
+
+[[rules]]
+id = "buildable-token"
+description = "Buildable/BU Token"
+regex = '''bu_[a-zA-Z0-9]{30,}'''
+keywords = ["bu_"]
+
+# --- Global Allowlist ---
+
+[allowlist]
+description = "Global allowlist"
+
+paths = [
+    '''node_modules/''',
+    '''\.next/''',
+    '''dist/''',
+    '''build/''',
+    '''venv/''',
+    '''\.venv/''',
+    '''__pycache__/''',
+    '''\.git/''',
+    '''\.env\.example''',
+    '''\.env\.example\..*''',
+    '''secrets-patterns\.txt''',
+    '''secrets-allowlist\.txt''',
+    '''gitleaks\.toml''',
+    '''package-lock\.json''',
+    '''yarn\.lock''',
+    '''pnpm-lock\.yaml''',
+    '''\.test\.(ts|tsx|js|jsx)$''',
+    '''\.spec\.(ts|tsx|js|jsx)$''',
+    '''_test\.py$''',
+    '''test_.*\.py$''',
+    '''/tests/''',
+    '''/__tests__/''',
+    '''/test/''',
+    '''/fixtures/''',
+    '''/mocks/''',
+]
+
+regexTarget = "line"
+regexes = [
+    '''gitleaks:allow''',
+    '''# noqa: secrets''',
+    '''nolint:secrets''',
+    '''placeholder''',
+    '''changeme''',
+    '''your[-_]?(secret|key|token|password)''',
+    '''example[-_]?(key|secret|token)''',
+    '''YOUR_''',
+    '''REPLACE_WITH_''',
+    '''xxxxxxxxxxx''',
+]

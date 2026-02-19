@@ -1,4 +1,5 @@
-import { Shield, HardDrive, Clock, RefreshCw, Download, FileDown } from "lucide-react";
+import { useState, useRef } from "react";
+import { Shield, HardDrive, Clock, RefreshCw, Download, FileDown, RotateCcw, Upload, AlertTriangle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -15,9 +16,13 @@ interface BackupSectionProps {
   isBackingUp: boolean;
   isDownloadingBackup: boolean;
   isExportingJson: boolean;
+  isRestoring: boolean;
+  isImportingBackup: boolean;
   onTriggerBackup: () => void;
   onDownloadBackup: () => void;
   onExportJson: () => void;
+  onRestoreBackup: (filename: string) => void;
+  onImportBackupFile: (file: File) => void;
 }
 
 export function BackupSection({
@@ -25,10 +30,49 @@ export function BackupSection({
   isBackingUp,
   isDownloadingBackup,
   isExportingJson,
+  isRestoring,
+  isImportingBackup,
   onTriggerBackup,
   onDownloadBackup,
   onExportJson,
+  onRestoreBackup,
+  onImportBackupFile,
 }: BackupSectionProps) {
+  const [confirmRestore, setConfirmRestore] = useState<string | null>(null);
+  const [confirmImport, setConfirmImport] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleRestoreClick = (filename: string) => {
+    setConfirmRestore(filename);
+  };
+
+  const handleConfirmRestore = () => {
+    if (confirmRestore) {
+      onRestoreBackup(confirmRestore);
+      setConfirmRestore(null);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setConfirmImport(file);
+    }
+    // Reset input so the same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleConfirmImport = () => {
+    if (confirmImport) {
+      onImportBackupFile(confirmImport);
+      setConfirmImport(null);
+    }
+  };
+
+  const isBusy = isRestoring || isImportingBackup;
+
   return (
     <Card>
       <CardHeader>
@@ -109,9 +153,118 @@ export function BackupSection({
                         year: "numeric",
                       })}
                     </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      disabled={isBusy}
+                      onClick={() => handleRestoreClick(backup.filename)}
+                    >
+                      <RotateCcw className="h-3 w-3 mr-1" />
+                      Restore
+                    </Button>
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Restore Confirmation Dialog */}
+        {confirmRestore && (
+          <div className="rounded-lg border border-amber-500/50 bg-amber-50 dark:bg-amber-950/20 p-4 space-y-3">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <h4 className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                  Confirm Restore
+                </h4>
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  This will replace your current database with the backup{" "}
+                  <code className="font-mono bg-amber-100 dark:bg-amber-900/40 px-1 rounded">
+                    {confirmRestore}
+                  </code>.
+                  A safety backup of your current data will be created first.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 pl-7">
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleConfirmRestore}
+                disabled={isBusy}
+              >
+                {isRestoring ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                    Restoring...
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                    Yes, Restore
+                  </>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setConfirmRestore(null)}
+                disabled={isBusy}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Import Confirmation Dialog */}
+        {confirmImport && (
+          <div className="rounded-lg border border-amber-500/50 bg-amber-50 dark:bg-amber-950/20 p-4 space-y-3">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <h4 className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                  Confirm Import
+                </h4>
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  This will replace your current database with the uploaded file{" "}
+                  <code className="font-mono bg-amber-100 dark:bg-amber-900/40 px-1 rounded">
+                    {confirmImport.name}
+                  </code>{" "}
+                  ({(confirmImport.size / 1024).toFixed(1)} KB).
+                  A safety backup of your current data will be created first.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 pl-7">
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleConfirmImport}
+                disabled={isBusy}
+              >
+                {isImportingBackup ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                    Importing...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-3.5 w-3.5 mr-1.5" />
+                    Yes, Import
+                  </>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setConfirmImport(null)}
+                disabled={isBusy}
+              >
+                Cancel
+              </Button>
             </div>
           </div>
         )}
@@ -121,7 +274,7 @@ export function BackupSection({
           <Button
             variant="default"
             onClick={onTriggerBackup}
-            disabled={isBackingUp}
+            disabled={isBackingUp || isBusy}
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${isBackingUp ? "animate-spin" : ""}`} />
             {isBackingUp ? "Backing up..." : "Create Backup"}
@@ -130,7 +283,7 @@ export function BackupSection({
           <Button
             variant="outline"
             onClick={onDownloadBackup}
-            disabled={isDownloadingBackup || !backupStatus?.lastBackup}
+            disabled={isDownloadingBackup || !backupStatus?.lastBackup || isBusy}
           >
             <Download className="h-4 w-4 mr-2" />
             {isDownloadingBackup ? "Downloading..." : "Download Backup"}
@@ -139,11 +292,29 @@ export function BackupSection({
           <Button
             variant="outline"
             onClick={onExportJson}
-            disabled={isExportingJson}
+            disabled={isExportingJson || isBusy}
           >
             <FileDown className="h-4 w-4 mr-2" />
             {isExportingJson ? "Exporting..." : "Export JSON"}
           </Button>
+
+          <Button
+            variant="outline"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isBusy}
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            {isImportingBackup ? "Importing..." : "Import Backup"}
+          </Button>
+
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".enc,.json,.backup,.db"
+            className="hidden"
+            onChange={handleFileSelect}
+          />
         </div>
 
         <p className="text-xs text-muted-foreground">
@@ -152,6 +323,10 @@ export function BackupSection({
           <strong>Download Backup:</strong> Download the latest encrypted backup file.
           <br />
           <strong>Export JSON:</strong> Download all data as unencrypted JSON (for portability).
+          <br />
+          <strong>Import Backup:</strong> Upload an encrypted (.enc) or JSON backup file to restore.
+          <br />
+          <strong>Restore:</strong> Revert to a previous server-side backup. A safety backup is always created first.
         </p>
       </CardContent>
     </Card>

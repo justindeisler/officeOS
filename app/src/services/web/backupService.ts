@@ -124,3 +124,55 @@ export async function getAvailableTables(): Promise<string[]> {
   const resp = await adminClient.get<{ tables: string[] }>("/backups/tables");
   return resp.tables;
 }
+
+// ============================================================================
+// Restore & Import
+// ============================================================================
+
+export interface RestoreResult {
+  success: boolean;
+  restoredFrom: string;
+  safetyBackup: string;
+  tablesRestored: number;
+  totalRecords: number;
+  error?: string;
+}
+
+/**
+ * Get all available backups (not just recent 7)
+ */
+export async function getAllBackups(): Promise<BackupInfo[]> {
+  const resp = await adminClient.get<{ backups: BackupInfo[] }>("/backups/list");
+  return resp.backups;
+}
+
+/**
+ * Restore from a server-side backup file
+ */
+export async function restoreFromBackup(filename: string): Promise<RestoreResult> {
+  return adminClient.post<RestoreResult>(`/backups/restore/${encodeURIComponent(filename)}`);
+}
+
+/**
+ * Import and restore from an uploaded backup file
+ */
+export async function importBackupFile(file: File): Promise<RestoreResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const token = (await import("@/api")).getAdminToken();
+  const baseUrl = (await import("@/api")).API_BASE;
+
+  const response = await fetch(`${baseUrl}/backups/import`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({ error: "Import failed" }));
+    throw new Error(data.error || "Import failed");
+  }
+
+  return response.json();
+}

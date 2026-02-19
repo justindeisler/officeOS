@@ -51,6 +51,8 @@ export function useSettings() {
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [isDownloadingBackup, setIsDownloadingBackup] = useState(false);
   const [isExportingJson, setIsExportingJson] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [isImportingBackup, setIsImportingBackup] = useState(false);
 
   // Sync profile form with store when loaded
   useEffect(() => {
@@ -128,6 +130,46 @@ export function useSettings() {
       toast.error("Failed to export data");
     } finally {
       setIsExportingJson(false);
+    }
+  };
+
+  const handleRestoreBackup = async (filename: string) => {
+    setIsRestoring(true);
+    try {
+      const result = await webBackupApi.restoreFromBackup(filename);
+      if (result.success) {
+        toast.success(
+          `Restored from ${result.restoredFrom}: ${result.totalRecords} records across ${result.tablesRestored} tables`
+        );
+        await loadBackupStatus();
+      } else {
+        toast.error(result.error || "Restore failed");
+      }
+    } catch (error) {
+      console.error("Restore failed:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to restore backup");
+    } finally {
+      setIsRestoring(false);
+    }
+  };
+
+  const handleImportBackupFile = async (file: File) => {
+    setIsImportingBackup(true);
+    try {
+      const result = await webBackupApi.importBackupFile(file);
+      if (result.success) {
+        toast.success(
+          `Imported from ${result.restoredFrom}: ${result.totalRecords} records across ${result.tablesRestored} tables`
+        );
+        await loadBackupStatus();
+      } else {
+        toast.error(result.error || "Import failed");
+      }
+    } catch (error) {
+      console.error("Import failed:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to import backup");
+    } finally {
+      setIsImportingBackup(false);
     }
   };
 
@@ -263,6 +305,8 @@ export function useSettings() {
     isBackingUp,
     isDownloadingBackup,
     isExportingJson,
+    isRestoring,
+    isImportingBackup,
 
     // Handlers
     handleSaveWorkspacePath,
@@ -274,6 +318,8 @@ export function useSettings() {
     handleTriggerBackup,
     handleDownloadBackup,
     handleExportJson,
+    handleRestoreBackup,
+    handleImportBackupFile,
     handleExportData,
     handleImportData,
     handleClearAllData,

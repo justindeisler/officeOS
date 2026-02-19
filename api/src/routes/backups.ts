@@ -2,14 +2,18 @@
  * Backup & Export API Routes
  *
  * GET  /api/backups/status     - Get backup status and history
+ * GET  /api/backups/list       - List all available backups
  * POST /api/backups/trigger     - Manually trigger a backup
  * GET  /api/backups/download    - Download latest encrypted backup
  * GET  /api/backups/export      - Export all data as JSON
  * GET  /api/backups/export/csv/:table - Export a single table as CSV
  * GET  /api/backups/tables      - List available table names
+ * POST /api/backups/restore/:filename - Restore from a server-side backup
+ * POST /api/backups/import      - Restore from an uploaded backup file
  */
 
 import { Router, type Request, type Response } from "express";
+import multer from "multer";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import {
   getBackupStatus,
@@ -19,9 +23,18 @@ import {
   exportAllTablesJson,
   exportTableCsv,
   getAvailableTables,
+  getAllBackups,
+  restoreFromBackup,
+  restoreFromUpload,
   runDailyBackup,
 } from "../services/backup.js";
 import { createLogger } from "../logger.js";
+
+// Multer config for file upload (memory storage, max 50MB)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 },
+});
 
 const router = Router();
 const log = createLogger("backups");
@@ -160,6 +173,79 @@ router.get(
   "/tables",
   asyncHandler(async (_req: Request, res: Response) => {
     res.json({ tables: getAvailableTables() });
+  })
+);
+
+/**
+ * GET /list - List all available backups (not just recent 7)
+ */
+router.get(
+  "/list",
+  asyncHandler(async (_req: Request, res: Response) => {
+    const backups = getAllBackups();
+    res.json({ backups });
+  })
+);
+
+/**
+ * POST /restore/:filename - Restore from a server-side backup
+ */
+router.post(
+  "/restore/:filename",
+  asyncHandler(async (req: Request, res: Response) => {
+    const { filename } = req.params;
+
+    if (!filename) {
+      return res.status(400).json({ error: "Filename is required" });
+    }
+
+    log.info({ filename }, "Restore requested via API");
+
+    try {
+      const result = restoreFromBackup(filename);
+      res.json(result);
+    } catch (err) {
+      log.error({ err, filename }, "Restore failed");
+      const message = err instanceof Error ? err.message : "Restore failed";
+      const status = message.includes("not found") ? 404
+        : message.includes("Invalid") ? 400
+        : 500;
+      res.status(status).json({
+        success: false,
+        error: message,
+      });
+    }
+  })
+);
+
+/**
+ * POST /import - Restore from an uploaded backup file
+ */
+router.post(
+  "/import",
+  upload.single("file"),
+  asyncHandler(async (req: Request, res: Response) => {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: "No file uploaded. Send a file with field name 'file'.",
+      });
+    }
+
+    const { buffer, originalname } = req.file;
+    log.info({ originalname, size: buffer.length }, "Import upload received");
+
+    try {
+      const result = restoreFromUpload(buffer, originalname);
+      res.json(result);
+    } catch (err) {
+      log.error({ err, originalname }, "Import failed");
+      const message = err instanceof Error ? err.message : "Import failed";
+      res.status(500).json({
+        success: false,
+        error: message,
+      });
+    }
   })
 );
 

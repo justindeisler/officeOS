@@ -460,3 +460,262 @@ export function runDailyBackup(options?: {
 export function getAvailableTables(): string[] {
   return [...ALL_TABLES];
 }
+
+// ============================================================================
+// Restore Functions
+// ============================================================================
+
+export interface RestoreResult {
+  success: boolean;
+  restoredFrom: string;
+  safetyBackup: string;
+  tablesRestored: number;
+  totalRecords: number;
+  error?: string;
+}
+
+/**
+ * Get all backup files (not just recent 7)
+ */
+export function getAllBackups(backupDir?: string): BackupInfo[] {
+  const dir = backupDir || DEFAULT_BACKUP_DIR;
+
+  if (!existsSync(dir)) {
+    return [];
+  }
+
+  const files = readdirSync(dir)
+    .filter((f) => f.startsWith("pa-backup-") && f.endsWith(".enc"))
+    .sort()
+    .reverse();
+
+  return files.map((filename) => {
+    const filepath = join(dir, filename);
+    const stat = statSync(filepath);
+    const dateMatch = filename.match(/pa-backup-(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})/);
+    const date = dateMatch
+      ? dateMatch[1].replace(/T(\d{2})-(\d{2})-(\d{2})/, "T$1:$2:$3") + ".000Z"
+      : stat.mtime.toISOString();
+
+    return {
+      filename,
+      filepath,
+      date,
+      sizeBytes: stat.size,
+      encrypted: true,
+    };
+  });
+}
+
+/**
+ * Decrypt a backup file and return the parsed ExportData
+ */
+export function decryptBackupFile(filepath: string, keyPath?: string): ExportData {
+  const key = loadEncryptionKey(keyPath);
+  const encryptedContent = readFileSync(filepath, "utf-8");
+  const jsonStr = decrypt(encryptedContent, key);
+  const data = JSON.parse(jsonStr) as ExportData;
+
+  // Validate checksum
+  const tablesStr = JSON.stringify(data.tables);
+  const expectedChecksum = calculateChecksum(tablesStr);
+  if (data.checksum && data.checksum !== expectedChecksum) {
+    throw new Error("Backup data checksum mismatch — file may be corrupted");
+  }
+
+  return data;
+}
+
+/**
+ * Try to decrypt uploaded content; if it fails, try parsing as raw JSON ExportData
+ */
+export function parseBackupContent(content: Buffer, keyPath?: string): ExportData {
+  const contentStr = content.toString("utf-8");
+
+  // Check if it's an encrypted file
+  if (contentStr.trimStart().startsWith(MAGIC_HEADER)) {
+    const key = loadEncryptionKey(keyPath);
+    const jsonStr = decrypt(contentStr, key);
+    const data = JSON.parse(jsonStr) as ExportData;
+    return data;
+  }
+
+  // Try parsing as raw JSON export
+  try {
+    const data = JSON.parse(contentStr) as ExportData;
+    if (data.tables && data.version) {
+      return data;
+    }
+    throw new Error("Invalid backup format: missing 'tables' or 'version' field");
+  } catch (err) {
+    if (err instanceof SyntaxError) {
+      throw new Error("Unrecognized backup format: not encrypted and not valid JSON");
+    }
+    throw err;
+  }
+}
+
+/**
+ * Create a safety backup of the current database (as JSON export, encrypted)
+ */
+function createSafetyBackup(backupDir?: string, keyPath?: string): string {
+  const dir = ensureBackupDir(backupDir);
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  const filename = `pa-pre-restore-${timestamp}.enc`;
+  const filepath = join(dir, filename);
+
+  const key = loadEncryptionKey(keyPath);
+  const exportData = exportAllTablesJson();
+  const jsonStr = JSON.stringify(exportData, null, 2);
+  const encryptedContent = encrypt(jsonStr, key);
+
+  writeFileSync(filepath, encryptedContent, { mode: 0o600 });
+  log.info({ filename, records: exportData.totalRecords }, "Safety backup created before restore");
+
+  return filename;
+}
+
+/**
+ * Restore the database from parsed ExportData
+ * This replaces all table contents with the backup data.
+ */
+function restoreFromExportData(exportData: ExportData): { tablesRestored: number; totalRecords: number } {
+  const db = getDb();
+  let tablesRestored = 0;
+  let totalRecords = 0;
+
+  // Run everything in a transaction for atomicity
+  const restoreTransaction = db.transaction(() => {
+    // Disable foreign keys temporarily for the restore
+    db.pragma("foreign_keys = OFF");
+
+    for (const table of ALL_TABLES) {
+      const rows = exportData.tables[table];
+      if (!rows || !Array.isArray(rows)) continue;
+
+      // Clear existing data
+      try {
+        db.prepare(`DELETE FROM ${table}`).run();
+      } catch (err) {
+        log.warn({ table, err }, "Could not clear table (may not exist)");
+        continue;
+      }
+
+      if (rows.length === 0) {
+        tablesRestored++;
+        continue;
+      }
+
+      // Insert rows
+      const columns = Object.keys(rows[0] as Record<string, unknown>);
+      const placeholders = columns.map(() => "?").join(", ");
+      const insertSql = `INSERT INTO ${table} (${columns.join(", ")}) VALUES (${placeholders})`;
+
+      try {
+        const insertStmt = db.prepare(insertSql);
+        for (const row of rows) {
+          const values = columns.map((col) => (row as Record<string, unknown>)[col] ?? null);
+          insertStmt.run(...values);
+        }
+        tablesRestored++;
+        totalRecords += rows.length;
+      } catch (err) {
+        log.warn({ table, err, rowCount: rows.length }, "Error restoring table rows — skipping");
+      }
+    }
+
+    // Re-enable foreign keys
+    db.pragma("foreign_keys = ON");
+  });
+
+  restoreTransaction();
+
+  // Verify DB integrity after restore
+  const integrityResult = db.pragma("integrity_check") as Array<{ integrity_check: string }>;
+  if (integrityResult[0]?.integrity_check !== "ok") {
+    throw new Error(`Database integrity check failed after restore: ${JSON.stringify(integrityResult)}`);
+  }
+
+  return { tablesRestored, totalRecords };
+}
+
+/**
+ * Restore from a named server-side backup file
+ */
+export function restoreFromBackup(filename: string, options?: {
+  backupDir?: string;
+  keyPath?: string;
+}): RestoreResult {
+  const dir = options?.backupDir || DEFAULT_BACKUP_DIR;
+
+  // Security: prevent path traversal
+  const sanitized = basename(filename);
+  if (sanitized !== filename || filename.includes("..")) {
+    throw new Error("Invalid backup filename");
+  }
+
+  const filepath = join(dir, sanitized);
+  if (!existsSync(filepath)) {
+    throw new Error(`Backup file not found: ${sanitized}`);
+  }
+
+  log.info({ filename: sanitized }, "Starting restore from server backup");
+
+  // 1. Create safety backup
+  const safetyBackup = createSafetyBackup(options?.backupDir, options?.keyPath);
+
+  try {
+    // 2. Decrypt and parse the backup
+    const exportData = decryptBackupFile(filepath, options?.keyPath);
+
+    // 3. Restore the data
+    const { tablesRestored, totalRecords } = restoreFromExportData(exportData);
+
+    log.info({ filename: sanitized, tablesRestored, totalRecords, safetyBackup }, "Restore completed successfully");
+
+    return {
+      success: true,
+      restoredFrom: sanitized,
+      safetyBackup,
+      tablesRestored,
+      totalRecords,
+    };
+  } catch (err) {
+    log.error({ err, filename: sanitized }, "Restore failed — safety backup available");
+    throw err;
+  }
+}
+
+/**
+ * Restore from uploaded file content
+ */
+export function restoreFromUpload(fileBuffer: Buffer, originalFilename: string, options?: {
+  keyPath?: string;
+  backupDir?: string;
+}): RestoreResult {
+  log.info({ originalFilename, size: fileBuffer.length }, "Starting restore from uploaded file");
+
+  // 1. Create safety backup
+  const safetyBackup = createSafetyBackup(options?.backupDir, options?.keyPath);
+
+  try {
+    // 2. Parse the uploaded content (auto-detects encrypted vs raw JSON)
+    const exportData = parseBackupContent(fileBuffer, options?.keyPath);
+
+    // 3. Restore the data
+    const { tablesRestored, totalRecords } = restoreFromExportData(exportData);
+
+    log.info({ originalFilename, tablesRestored, totalRecords, safetyBackup }, "Restore from upload completed");
+
+    return {
+      success: true,
+      restoredFrom: originalFilename,
+      safetyBackup,
+      tablesRestored,
+      totalRecords,
+    };
+  } catch (err) {
+    log.error({ err, originalFilename }, "Restore from upload failed — safety backup available");
+    throw err;
+  }
+}

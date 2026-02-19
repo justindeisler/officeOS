@@ -49,10 +49,8 @@ function downloadBlobInBrowser(bytes: Uint8Array, filename: string, mimeType: st
 import { DatevSettings } from './DatevSettings'
 import type { DatevExportPreview, DatevExportResult } from '../../types/datev'
 import type { Income, Expense } from '../../types'
-import { generateDatevCsv } from '../../utils/datev-csv'
+import { generateDatevCsv, generateCsvContent, encodeToLatin1, generateDatevFilename } from '../../utils/datev-csv'
 import { generateDatevXml, generateDatevXmlContent } from '../../utils/datev-xml'
-import { encodeToLatin1 } from '../../utils/datev-csv'
-import { generateDatevFilename } from '../../utils/datev-csv'
 
 // ============================================================================
 // TYPES
@@ -164,8 +162,6 @@ export const DatevExportDialog: FC<DatevExportDialogProps> = ({
 
       if (exportOptions.format === 'csv') {
         exportResult = generateDatevCsv(incomeData, expenseData, exportOptions)
-        // Generate CSV content
-        const { generateCsvContent } = await import('../../utils/datev-csv')
         content = generateCsvContent(exportResult.records)
         mimeType = 'text/csv'
         encoding = 'iso-8859-1'

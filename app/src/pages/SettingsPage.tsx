@@ -60,9 +60,13 @@ export function SettingsPage() {
           isBackingUp={settings.isBackingUp}
           isDownloadingBackup={settings.isDownloadingBackup}
           isExportingJson={settings.isExportingJson}
+          isRestoring={settings.isRestoring}
+          isImportingBackup={settings.isImportingBackup}
           onTriggerBackup={settings.handleTriggerBackup}
           onDownloadBackup={settings.handleDownloadBackup}
           onExportJson={settings.handleExportJson}
+          onRestoreBackup={settings.handleRestoreBackup}
+          onImportBackupFile={settings.handleImportBackupFile}
         />
       )}
 
