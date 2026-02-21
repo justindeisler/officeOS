@@ -21,8 +21,10 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Trash2, Plus, Search, Loader2, FileText, Download } from 'lucide-react'
+import { Trash2, Plus, Search, Loader2, FileText, Download, Lock } from 'lucide-react'
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog'
+import { usePeriodLocks } from '../../hooks/usePeriodLocks'
+import { isRecordLocked } from '../../utils/isRecordLocked'
 
 export interface ExpenseListProps {
   /** Callback when add expense button is clicked */
@@ -71,6 +73,7 @@ export function ExpenseList({
     refresh,
   } = useExpenses()
 
+  const { periods } = usePeriodLocks()
   const [searchTerm, setSearchTerm] = useState('')
   const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null)
 
@@ -186,6 +189,7 @@ export function ExpenseList({
             <Table className="min-w-[800px]">
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[32px]"></TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Vendor</TableHead>
                   <TableHead>Description</TableHead>
@@ -198,12 +202,19 @@ export function ExpenseList({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredExpenses.map((item) => (
+                {filteredExpenses.map((item) => {
+                  const locked = isRecordLocked(item.date, periods)
+                  return (
                   <TableRow
                     key={item.id}
                     className="cursor-pointer hover:bg-muted/50"
                     onClick={() => handleRowClick(item)}
                   >
+                    <TableCell className="w-[32px] px-2">
+                      {locked && (
+                        <Lock className="h-3.5 w-3.5 text-red-400" aria-label="Gesperrt" title="Zeitraum gesperrt" />
+                      )}
+                    </TableCell>
                     <TableCell className="font-medium">
                       {formatDate(item.date)}
                     </TableCell>
@@ -313,17 +324,22 @@ export function ExpenseList({
                       )}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={(e) => handleDelete(e, item.id)}
-                        aria-label="Delete"
-                      >
-                        <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-                      </Button>
+                      {locked ? (
+                        <span className="text-xs text-muted-foreground" title="Zeitraum gesperrt">—</span>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => handleDelete(e, item.id)}
+                          aria-label="Delete"
+                        >
+                          <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
-                ))}
+                  )
+                })}
               </TableBody>
             </Table>
           </div>

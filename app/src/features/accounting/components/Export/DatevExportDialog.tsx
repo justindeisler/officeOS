@@ -51,6 +51,8 @@ import type { DatevExportPreview, DatevExportResult } from '../../types/datev'
 import type { Income, Expense } from '../../types'
 import { generateDatevCsv, generateCsvContent, encodeToLatin1, generateDatevFilename } from '../../utils/datev-csv'
 import { generateDatevXml, generateDatevXmlContent } from '../../utils/datev-xml'
+import { api } from '@/lib/api'
+import { isWebBuild } from '@/api'
 
 // ============================================================================
 // TYPES
@@ -110,6 +112,7 @@ export const DatevExportDialog: FC<DatevExportDialogProps> = ({
   const [preview, setPreview] = useState<DatevExportPreview | null>(null)
   const [result, setResult] = useState<DatevExportResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [serverValidation, setServerValidation] = useState<{ warnings: string[]; errors: string[] } | null>(null)
 
   // Calculate preview when options change
   useEffect(() => {
@@ -149,9 +152,55 @@ export const DatevExportDialog: FC<DatevExportDialogProps> = ({
 
     setIsExporting(true)
     setError(null)
+    setServerValidation(null)
 
     try {
-      // Cast to full types — props use a subset of Income/Expense fields
+      // Use server-side DATEV export in web mode
+      if (isWebBuild()) {
+        const startDate = exportOptions.startDate.toISOString().split('T')[0]
+        const endDate = exportOptions.endDate.toISOString().split('T')[0]
+
+        const serverResult = await api.generateDatevExport({
+          start_date: startDate,
+          end_date: endDate,
+          chart_of_accounts: exportOptions.chartOfAccounts,
+          consultant_number: exportOptions.consultantNumber || undefined,
+          client_number: exportOptions.clientNumber || undefined,
+          include_income: exportOptions.includeIncome,
+          include_expenses: exportOptions.includeExpenses,
+          include_depreciation: exportOptions.includeDepreciation,
+        })
+
+        if (serverResult.errors && serverResult.errors.length > 0) {
+          setServerValidation({ errors: serverResult.errors, warnings: serverResult.warnings })
+          throw new Error(serverResult.errors.join('\n'))
+        }
+
+        if (serverResult.warnings.length > 0) {
+          setServerValidation({ errors: [], warnings: serverResult.warnings })
+        }
+
+        if (serverResult.csv && serverResult.filename) {
+          // Download the CSV
+          const bytes = encodeToLatin1(serverResult.csv)
+          downloadBlobInBrowser(bytes, serverResult.filename, 'text/csv')
+        }
+
+        // Create a compatible result object
+        setResult({
+          records: [],
+          recordCount: serverResult.recordCount,
+          startDate: exportOptions.startDate,
+          endDate: exportOptions.endDate,
+          chartOfAccounts: exportOptions.chartOfAccounts,
+          format: 'csv',
+          errors: [],
+          warnings: serverResult.warnings,
+        })
+        return
+      }
+
+      // Fallback: client-side generation (Tauri desktop mode)
       const incomeData = incomes as unknown as Income[]
       const expenseData = expenses as unknown as Expense[]
 
@@ -176,10 +225,8 @@ export const DatevExportDialog: FC<DatevExportDialogProps> = ({
         throw new Error(exportResult.errors.join('\n'))
       }
 
-      // Generate filename
       const filename = generateDatevFilename(exportOptions, exportOptions.format)
 
-      // Encode content to bytes
       let bytes: Uint8Array
       if (encoding === 'iso-8859-1') {
         bytes = encodeToLatin1(content)
@@ -188,7 +235,6 @@ export const DatevExportDialog: FC<DatevExportDialogProps> = ({
       }
 
       if (isTauri()) {
-        // Desktop mode: use Tauri save dialog + file system API
         const { save, writeFile } = await getTauriModules()
 
         const filePath = await save({
@@ -201,14 +247,9 @@ export const DatevExportDialog: FC<DatevExportDialogProps> = ({
           ],
         })
 
-        if (!filePath) {
-          // User cancelled the dialog
-          return
-        }
-
+        if (!filePath) return
         await writeFile(filePath, bytes)
       } else {
-        // Browser mode: trigger download via blob URL
         downloadBlobInBrowser(bytes, filename, mimeType)
       }
 
@@ -331,6 +372,18 @@ export const DatevExportDialog: FC<DatevExportDialogProps> = ({
               </div>
             )}
 
+            {/* Server Validation Results */}
+            {serverValidation && serverValidation.warnings.length > 0 && !error && (
+              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md" role="status">
+                <p className="text-sm font-medium text-yellow-800 mb-1">Server-Validierung:</p>
+                <ul className="text-sm text-yellow-700 list-disc list-inside">
+                  {serverValidation.warnings.map((w, i) => (
+                    <li key={i}>{w}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {/* Error Message */}
             {error && (
               <div
@@ -339,6 +392,13 @@ export const DatevExportDialog: FC<DatevExportDialogProps> = ({
                 aria-live="assertive"
               >
                 <p className="text-sm text-red-800">{error}</p>
+                {serverValidation?.errors && serverValidation.errors.length > 0 && (
+                  <ul className="mt-2 text-sm text-red-700 list-disc list-inside">
+                    {serverValidation.errors.map((e, i) => (
+                      <li key={i}>{e}</li>
+                    ))}
+                  </ul>
+                )}
               </div>
             )}
           </div>

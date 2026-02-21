@@ -20,8 +20,10 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Trash2, Plus, Search, Loader2, FileText } from 'lucide-react'
+import { Trash2, Plus, Search, Loader2, FileText, Lock } from 'lucide-react'
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog'
+import { usePeriodLocks } from '../../hooks/usePeriodLocks'
+import { isRecordLocked } from '../../utils/isRecordLocked'
 
 export interface IncomeListProps {
   /** Callback when add income button is clicked */
@@ -70,6 +72,7 @@ export function IncomeList({
     refresh,
   } = useIncome()
 
+  const { periods } = usePeriodLocks()
   const [searchTerm, setSearchTerm] = useState('')
   const [deletingIncomeId, setDeletingIncomeId] = useState<string | null>(null)
 
@@ -191,6 +194,7 @@ export function IncomeList({
             <Table className="min-w-[700px]">
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[32px]"></TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead>VAT</TableHead>
@@ -201,12 +205,19 @@ export function IncomeList({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredIncome.map((item) => (
+                {filteredIncome.map((item) => {
+                  const locked = isRecordLocked(item.date, periods)
+                  return (
                   <TableRow
                     key={item.id}
                     className="cursor-pointer hover:bg-muted/50"
                     onClick={() => handleRowClick(item)}
                   >
+                    <TableCell className="w-[32px] px-2">
+                      {locked && (
+                        <Lock className="h-3.5 w-3.5 text-red-400" aria-label="Gesperrt" title="Zeitraum gesperrt" />
+                      )}
+                    </TableCell>
                     <TableCell className="font-medium">
                       {formatDate(item.date)}
                     </TableCell>
@@ -243,7 +254,11 @@ export function IncomeList({
                       {formatCurrency(item.grossAmount)}
                     </TableCell>
                     <TableCell>
-                      {item.invoiceId ? (
+                      {locked ? (
+                        <span className="text-xs text-muted-foreground" title="Zeitraum gesperrt">
+                          —
+                        </span>
+                      ) : item.invoiceId ? (
                         <span className="text-xs text-muted-foreground" title="Managed by invoice">
                           —
                         </span>
@@ -259,7 +274,8 @@ export function IncomeList({
                       )}
                     </TableCell>
                   </TableRow>
-                ))}
+                  )
+                })}
               </TableBody>
             </Table>
           </div>

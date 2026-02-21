@@ -36,3 +36,13 @@ export type { ComparisonCardProps, ComparisonFormat } from './ComparisonCard'
 
 export { YearComparison } from './YearComparison'
 export type { YearComparisonProps } from './YearComparison'
+
+// Phase 1: Legal Compliance Components
+export { ElsterSubmissionWizard } from './ElsterSubmissionWizard'
+export type { ElsterSubmissionWizardProps } from './ElsterSubmissionWizard'
+
+export { ElsterHistoryList } from './ElsterHistoryList'
+export type { ElsterHistoryListProps } from './ElsterHistoryList'
+
+export { ZmReportView } from './ZmReportView'
+export type { ZmReportViewProps } from './ZmReportView'

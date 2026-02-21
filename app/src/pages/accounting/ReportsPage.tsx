@@ -3,6 +3,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { UstVoranmeldungList, EuerReportView, Anlageverzeichnis, AfaSummary } from "@/features/accounting/components/Reports";
+import { ZmReportView } from "@/features/accounting/components/Reports/ZmReportView";
+import { ElsterHistoryList } from "@/features/accounting/components/Reports/ElsterHistoryList";
+import { PeriodLockManager } from "@/features/accounting/components/GoBD/PeriodLockManager";
+import { AuditLog } from "@/features/accounting/components/GoBD/AuditLog";
 import { DatevExportDialog } from "@/features/accounting/components/Export";
 import { getAllAssets } from "@/features/accounting/api/assets";
 import { getAllIncome } from "@/features/accounting/api/income";
@@ -64,12 +68,16 @@ export function ReportsPage() {
       </div>
 
       <Tabs defaultValue="vat" className="w-full">
-        <TabsList className="flex w-full overflow-x-auto gap-1 sm:grid sm:grid-cols-5">
+        <TabsList className="flex w-full overflow-x-auto gap-1">
           <TabsTrigger value="vat" className="flex-shrink-0">VAT (USt)</TabsTrigger>
           <TabsTrigger value="euer" className="flex-shrink-0">Profit (EÜR)</TabsTrigger>
-          <TabsTrigger value="assets" className="flex-shrink-0 whitespace-nowrap">Asset Register</TabsTrigger>
-          <TabsTrigger value="afa" className="flex-shrink-0">Depreciation</TabsTrigger>
-          <TabsTrigger value="datev" className="flex-shrink-0 whitespace-nowrap">DATEV Export</TabsTrigger>
+          <TabsTrigger value="assets" className="flex-shrink-0 whitespace-nowrap">Assets</TabsTrigger>
+          <TabsTrigger value="afa" className="flex-shrink-0">AfA</TabsTrigger>
+          <TabsTrigger value="zm" className="flex-shrink-0">ZM</TabsTrigger>
+          <TabsTrigger value="datev" className="flex-shrink-0">DATEV</TabsTrigger>
+          <TabsTrigger value="elster" className="flex-shrink-0">ELSTER</TabsTrigger>
+          <TabsTrigger value="locks" className="flex-shrink-0">Sperren</TabsTrigger>
+          <TabsTrigger value="audit" className="flex-shrink-0">Audit</TabsTrigger>
         </TabsList>
 
         <TabsContent value="vat" className="mt-6">
@@ -88,6 +96,10 @@ export function ReportsPage() {
           <AfaSummary year={selectedYear} assets={assets} isLoading={isLoading} />
         </TabsContent>
 
+        <TabsContent value="zm" className="mt-6">
+          <ZmReportView />
+        </TabsContent>
+
         <TabsContent value="datev" className="mt-6">
           <div className="rounded-lg border bg-card p-6">
             <div className="flex flex-col items-center justify-center space-y-4 py-8">
@@ -103,6 +115,18 @@ export function ReportsPage() {
               </Button>
             </div>
           </div>
+        </TabsContent>
+
+        <TabsContent value="elster" className="mt-6">
+          <ElsterHistoryList />
+        </TabsContent>
+
+        <TabsContent value="locks" className="mt-6">
+          <PeriodLockManager />
+        </TabsContent>
+
+        <TabsContent value="audit" className="mt-6">
+          <AuditLog />
         </TabsContent>
       </Tabs>
 

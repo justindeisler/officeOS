@@ -116,6 +116,17 @@ export function InvoiceForm({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errors, setErrors] = useState<FormErrors>({})
 
+  // E-Rechnung fields
+  const [eInvoiceFormat, setEInvoiceFormat] = useState<string>(
+    (invoice as Record<string, unknown>)?.eInvoiceFormat as string ?? 'none'
+  )
+  const [leitwegId, setLeitwegId] = useState<string>(
+    (invoice as Record<string, unknown>)?.leitwegId as string ?? ''
+  )
+  const [buyerReference, setBuyerReference] = useState<string>(
+    (invoice as Record<string, unknown>)?.buyerReference as string ?? ''
+  )
+
   // Filter projects by selected client
   const filteredProjects = useMemo(() => {
     if (!clientId) return []
@@ -634,6 +645,51 @@ export function InvoiceForm({
         <div className="flex justify-between border-t pt-2 font-semibold">
           <span>Total</span>
           <span>{formatCurrency(calculations.total)}</span>
+        </div>
+      </div>
+
+      {/* E-Rechnung Section */}
+      <div className="space-y-3 rounded-lg border p-4">
+        <Label className="text-sm font-semibold">E-Rechnung (optional)</Label>
+        <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="eInvoiceFormat" className="text-xs text-muted-foreground">Format</Label>
+            <Select
+              value={eInvoiceFormat}
+              onValueChange={setEInvoiceFormat}
+            >
+              <SelectTrigger id="eInvoiceFormat">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Keine E-Rechnung</SelectItem>
+                <SelectItem value="zugferd">ZUGFeRD</SelectItem>
+                <SelectItem value="xrechnung">X-Rechnung</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {eInvoiceFormat === 'xrechnung' && (
+            <div className="space-y-2">
+              <Label htmlFor="leitwegId" className="text-xs text-muted-foreground">Leitweg-ID</Label>
+              <Input
+                id="leitwegId"
+                value={leitwegId}
+                onChange={(e) => setLeitwegId(e.target.value)}
+                placeholder="z.B. 04011000-1234512345-06"
+              />
+            </div>
+          )}
+          {eInvoiceFormat !== 'none' && (
+            <div className="space-y-2">
+              <Label htmlFor="buyerReference" className="text-xs text-muted-foreground">Buyer Reference</Label>
+              <Input
+                id="buyerReference"
+                value={buyerReference}
+                onChange={(e) => setBuyerReference(e.target.value)}
+                placeholder="Käufer-Referenz"
+              />
+            </div>
+          )}
         </div>
       </div>
 

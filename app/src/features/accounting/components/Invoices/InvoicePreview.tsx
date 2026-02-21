@@ -12,8 +12,23 @@ import type { Client } from '@/types'
 import type { BusinessProfile } from '@/types'
 import { cn } from '@/lib/utils'
 import { api, isWebBuild } from '@/lib/api'
+import type { EInvoiceFormat, EInvoiceValidationResult } from '@/lib/api'
 import { Button } from '@/components/ui/button'
-import { Printer, Download, X, Loader2 } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Printer, Download, X, Loader2, FileCode, ChevronDown, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react'
 import { useSettingsStore } from '@/stores/settingsStore'
 
 export interface InvoicePreviewProps {
@@ -91,6 +106,9 @@ export function InvoicePreview({
   className,
 }: InvoicePreviewProps) {
   const [isDownloading, setIsDownloading] = useState(false)
+  const [isEInvoiceLoading, setIsEInvoiceLoading] = useState(false)
+  const [validationResult, setValidationResult] = useState<EInvoiceValidationResult | null>(null)
+  const [showValidationDialog, setShowValidationDialog] = useState(false)
   const { businessProfile } = useSettingsStore()
   const profile: BusinessProfile | undefined = businessProfile ?? undefined
 
@@ -121,6 +139,43 @@ export function InvoicePreview({
     if (onPrint) { onPrint() } else { window.print() }
   }
 
+  // E-Rechnung: download XML
+  const handleDownloadEInvoice = async (format: EInvoiceFormat) => {
+    if (!isWebBuild()) return
+    setIsEInvoiceLoading(true)
+    try {
+      const blob = await api.downloadEInvoice(invoice.id, format)
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      const formatLabel = format === 'zugferd' ? 'ZUGFeRD' : 'XRechnung'
+      link.download = `${invoice.invoiceNumber}-${formatLabel}.xml`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Failed to download E-Rechnung:', err)
+    } finally {
+      setIsEInvoiceLoading(false)
+    }
+  }
+
+  // E-Rechnung: validate
+  const handleValidateEInvoice = async () => {
+    if (!isWebBuild()) return
+    setIsEInvoiceLoading(true)
+    try {
+      const result = await api.validateEInvoice(invoice.id, 'zugferd')
+      setValidationResult(result)
+      setShowValidationDialog(true)
+    } catch (err) {
+      console.error('Failed to validate E-Rechnung:', err)
+    } finally {
+      setIsEInvoiceLoading(false)
+    }
+  }
+
   // Derive due date (14 days) if not set
   const dueDate = invoice.dueDate ?? addDays(invoice.invoiceDate, 14)
 
@@ -140,6 +195,34 @@ export function InvoicePreview({
               : <Download className="mr-2 h-4 w-4" />}
             PDF herunterladen
           </Button>
+          {isWebBuild() && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" disabled={isEInvoiceLoading}>
+                  {isEInvoiceLoading
+                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    : <FileCode className="mr-2 h-4 w-4" />}
+                  E-Rechnung
+                  <ChevronDown className="ml-2 h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onClick={() => handleDownloadEInvoice('zugferd')}>
+                  <Download className="mr-2 h-4 w-4" />
+                  ZUGFeRD herunterladen
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleDownloadEInvoice('xrechnung-ubl')}>
+                  <Download className="mr-2 h-4 w-4" />
+                  X-Rechnung herunterladen
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleValidateEInvoice}>
+                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                  EN 16931 validieren
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
         <Button variant="ghost" size="icon" onClick={onClose}>
           <X className="h-4 w-4" />
@@ -384,6 +467,82 @@ export function InvoicePreview({
 
         </div>{/* /content */}
       </div>{/* /document */}
+
+      {/* E-Rechnung Validation Dialog */}
+      <Dialog open={showValidationDialog} onOpenChange={setShowValidationDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>EN 16931 Validierung</DialogTitle>
+            <DialogDescription>
+              Prüfergebnis für Rechnung {invoice.invoiceNumber}
+            </DialogDescription>
+          </DialogHeader>
+          {validationResult && (
+            <div className="space-y-4">
+              {/* Overall status */}
+              <div className={cn(
+                'flex items-center gap-3 rounded-lg p-4',
+                validationResult.valid
+                  ? 'bg-green-50 text-green-800 border border-green-200'
+                  : 'bg-red-50 text-red-800 border border-red-200'
+              )}>
+                {validationResult.valid
+                  ? <CheckCircle2 className="h-6 w-6 text-green-600" />
+                  : <XCircle className="h-6 w-6 text-red-600" />}
+                <div>
+                  <p className="font-semibold">
+                    {validationResult.valid ? 'Validierung bestanden' : 'Validierung fehlgeschlagen'}
+                  </p>
+                  <p className="text-sm opacity-80">
+                    Format: {validationResult.format}
+                  </p>
+                </div>
+              </div>
+
+              {/* Errors */}
+              {validationResult.errors.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-red-700">
+                    Fehler ({validationResult.errors.length})
+                  </p>
+                  <ul className="space-y-1">
+                    {validationResult.errors.map((err, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-red-600">
+                        <XCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                        <span>{err}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Warnings */}
+              {validationResult.warnings.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-yellow-700">
+                    Warnungen ({validationResult.warnings.length})
+                  </p>
+                  <ul className="space-y-1">
+                    {validationResult.warnings.map((warn, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-yellow-600">
+                        <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                        <span>{warn}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* No issues */}
+              {validationResult.valid && validationResult.errors.length === 0 && validationResult.warnings.length === 0 && (
+                <p className="text-sm text-green-600">
+                  Keine Probleme gefunden. Die Rechnung entspricht der EN 16931 Norm.
+                </p>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

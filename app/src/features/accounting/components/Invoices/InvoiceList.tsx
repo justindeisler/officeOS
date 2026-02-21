@@ -21,9 +21,11 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Trash2, Plus, Search, Loader2, Send, Check, Download } from 'lucide-react'
+import { Trash2, Plus, Search, Loader2, Send, Check, Download, Lock } from 'lucide-react'
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog'
 import { api, isWebBuild } from '@/lib/api'
+import { usePeriodLocks } from '../../hooks/usePeriodLocks'
+import { isRecordLocked } from '../../utils/isRecordLocked'
 
 export interface InvoiceListProps {
   /** Callback when new invoice button is clicked */
@@ -93,6 +95,7 @@ export function InvoiceList({
     setSelectedInvoice,
   } = useInvoices()
 
+  const { periods } = usePeriodLocks()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'all'>('all')
   const [deletingInvoiceId, setDeletingInvoiceId] = useState<string | null>(null)
@@ -293,6 +296,7 @@ export function InvoiceList({
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[32px]"></TableHead>
                   <TableHead>Invoice №</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Due Date</TableHead>
@@ -304,6 +308,7 @@ export function InvoiceList({
               <TableBody>
                 {filteredInvoices.map((invoice) => {
                   const statusBadge = getStatusBadge(invoice.status)
+                  const locked = isRecordLocked(invoice.invoiceDate, periods)
 
                   return (
                     <TableRow
@@ -311,6 +316,11 @@ export function InvoiceList({
                       className="cursor-pointer hover:bg-muted/50"
                       onClick={() => handleRowClick(invoice)}
                     >
+                      <TableCell className="w-[32px] px-2">
+                        {locked && (
+                          <Lock className="h-3.5 w-3.5 text-red-400" aria-label="Gesperrt" title="Zeitraum gesperrt" />
+                        )}
+                      </TableCell>
                       <TableCell className="font-medium">
                         {invoice.invoiceNumber}
                       </TableCell>

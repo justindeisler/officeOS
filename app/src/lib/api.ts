@@ -1044,6 +1044,384 @@ class ApiClient {
     if (agents?.length) params.set('agents', agents.join(','));
     return this.request<MemorySearchResult>(`/memory/search?${params.toString()}`);
   }
+
+  // ── Audit Trail ──────────────────────────────────────────────────────
+
+  /**
+   * Get audit trail for a specific entity
+   */
+  async getAuditLog(entityType: string, entityId: string, limit = 100) {
+    return this.request<AuditEntry[]>(`/audit/${entityType}/${entityId}?limit=${limit}`);
+  }
+
+  /**
+   * Search audit logs with filters
+   */
+  async searchAudit(filters: {
+    entity_type?: string;
+    action?: string;
+    user_id?: string;
+    start_date?: string;
+    end_date?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    const params = new URLSearchParams();
+    if (filters.entity_type) params.set('entity_type', filters.entity_type);
+    if (filters.action) params.set('action', filters.action);
+    if (filters.user_id) params.set('user_id', filters.user_id);
+    if (filters.start_date) params.set('start_date', filters.start_date);
+    if (filters.end_date) params.set('end_date', filters.end_date);
+    if (filters.limit) params.set('limit', String(filters.limit));
+    if (filters.offset) params.set('offset', String(filters.offset));
+    const query = params.toString();
+    return this.request<AuditSearchResult>(`/audit/search${query ? `?${query}` : ''}`);
+  }
+
+  // ── Period Locks ─────────────────────────────────────────────────────
+
+  /**
+   * Get all period locks with status overview
+   */
+  async getPeriodLocks(filters?: { period_type?: string; year?: number }) {
+    const params = new URLSearchParams();
+    if (filters?.period_type) params.set('period_type', filters.period_type);
+    if (filters?.year) params.set('year', String(filters.year));
+    const query = params.toString();
+    return this.request<PeriodLocksResponse>(`/audit/periods${query ? `?${query}` : ''}`);
+  }
+
+  /**
+   * Lock a period
+   */
+  async lockPeriod(key: string, reason?: string) {
+    return this.request<PeriodLock>(`/audit/periods/${key}/lock`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  /**
+   * Unlock a period (requires reason for GoBD compliance)
+   */
+  async unlockPeriod(key: string, reason: string) {
+    return this.request<{ success: boolean; message: string; reason: string }>(`/audit/periods/${key}/unlock`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  /**
+   * Check if a specific period is locked
+   */
+  async getPeriodLockStatus(key: string) {
+    return this.request<{ period_key: string; locked: boolean; lock: PeriodLock | null }>(`/audit/periods/${key}/status`);
+  }
+
+  // ── E-Rechnung ──────────────────────────────────────────────────────
+
+  /**
+   * Generate E-Rechnung (ZUGFeRD or X-Rechnung) for an invoice
+   */
+  async generateEInvoice(invoiceId: string, format: EInvoiceFormat = 'zugferd') {
+    return this.request<EInvoiceResult>(`/invoices/${invoiceId}/einvoice`, {
+      method: 'POST',
+      body: JSON.stringify({ format }),
+    });
+  }
+
+  /**
+   * Download E-Rechnung XML
+   */
+  async downloadEInvoice(invoiceId: string, format: EInvoiceFormat = 'zugferd'): Promise<Blob> {
+    return adminClient.requestBlob(`/invoices/${invoiceId}/einvoice?format=${format}`);
+  }
+
+  /**
+   * Validate E-Rechnung without generating
+   */
+  async validateEInvoice(invoiceId: string, format: EInvoiceFormat = 'zugferd') {
+    return this.request<EInvoiceValidationResult>(`/invoices/${invoiceId}/einvoice/validate?format=${format}`);
+  }
+
+  // ── ELSTER ──────────────────────────────────────────────────────────
+
+  /**
+   * Generate USt-VA ELSTER submission
+   */
+  async generateUstVaElster(year: number, period: number, periodType: 'monthly' | 'quarterly' = 'quarterly', testMode = true) {
+    return this.request<ElsterSubmissionResult>('/tax/elster/ust-va', {
+      method: 'POST',
+      body: JSON.stringify({ year, period, period_type: periodType, test_mode: testMode }),
+    });
+  }
+
+  /**
+   * Validate USt-VA before submission
+   */
+  async validateUstVaElster(year: number, period: number, periodType: 'monthly' | 'quarterly' = 'quarterly') {
+    return this.request<ElsterValidationResult>('/tax/elster/ust-va/validate', {
+      method: 'POST',
+      body: JSON.stringify({ year, period, period_type: periodType }),
+    });
+  }
+
+  /**
+   * Generate ZM (Zusammenfassende Meldung) ELSTER submission
+   */
+  async generateZmElster(year: number, quarter: number, testMode = true) {
+    return this.request<ElsterZmResult>('/tax/elster/zm', {
+      method: 'POST',
+      body: JSON.stringify({ year, quarter, test_mode: testMode }),
+    });
+  }
+
+  /**
+   * Get all ELSTER submissions
+   */
+  async getElsterSubmissions(filters?: { type?: string; period?: string; year?: number }) {
+    const params = new URLSearchParams();
+    if (filters?.type) params.set('type', filters.type);
+    if (filters?.period) params.set('period', filters.period);
+    if (filters?.year) params.set('year', String(filters.year));
+    const query = params.toString();
+    return this.request<ElsterSubmission[]>(`/tax/elster/submissions${query ? `?${query}` : ''}`);
+  }
+
+  /**
+   * Get specific ELSTER submission status
+   */
+  async getElsterSubmissionStatus(id: string) {
+    return this.request<ElsterSubmission>(`/tax/elster/status/${id}`);
+  }
+
+  /**
+   * Update ELSTER submission status (after manual filing)
+   */
+  async updateElsterSubmissionStatus(id: string, data: {
+    status: string;
+    transfer_ticket?: string;
+    response_xml?: string;
+    error_message?: string;
+  }) {
+    return this.request<ElsterSubmission>(`/tax/elster/status/${id}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // ── DATEV (Server-Side) ─────────────────────────────────────────────
+
+  /**
+   * Preview DATEV export (without generating file)
+   */
+  async previewDatevExport(startDate: string, endDate: string, chart: 'SKR03' | 'SKR04' = 'SKR03') {
+    const params = new URLSearchParams({ start: startDate, end: endDate, chart });
+    return this.request<DatevServerPreview>(`/exports/datev/preview?${params.toString()}`);
+  }
+
+  /**
+   * Generate DATEV export
+   */
+  async generateDatevExport(options: {
+    start_date: string;
+    end_date: string;
+    chart_of_accounts?: string;
+    consultant_number?: string;
+    client_number?: string;
+    include_income?: boolean;
+    include_expenses?: boolean;
+    include_depreciation?: boolean;
+  }) {
+    return this.request<DatevServerResult>('/exports/datev/generate', {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  }
+
+  /**
+   * Get Verfahrensdokumentation (procedure documentation)
+   */
+  async getVerfahrensdokumentation() {
+    return this.request<VerfahrensdokuResponse>('/audit/documentation');
+  }
+}
+
+// ============================================================================
+// Phase 1 Types
+// ============================================================================
+
+/** Audit trail entry */
+export interface AuditEntry {
+  id: string;
+  entity_type: string;
+  entity_id: string;
+  action: string;
+  field_name?: string;
+  old_value?: string;
+  new_value?: string;
+  user_id?: string;
+  user_agent?: string;
+  ip_address?: string;
+  timestamp: string;
+  metadata?: string;
+}
+
+/** Audit search result */
+export interface AuditSearchResult {
+  entries: AuditEntry[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+/** Period lock */
+export interface PeriodLock {
+  id: string;
+  period_type: string;
+  period_key: string;
+  locked_at: string;
+  locked_by?: string;
+  reason?: string;
+}
+
+/** Period locks response */
+export interface PeriodLocksResponse {
+  locks: PeriodLock[];
+  periods: Array<{
+    key: string;
+    type: string;
+    locked: boolean;
+    lock?: PeriodLock;
+  }>;
+}
+
+/** E-Rechnung format */
+export type EInvoiceFormat = 'zugferd' | 'xrechnung-ubl' | 'xrechnung-cii';
+
+/** E-Rechnung generation result */
+export interface EInvoiceResult {
+  invoiceId: string;
+  format: EInvoiceFormat;
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+  xml: string;
+}
+
+/** E-Rechnung validation result */
+export interface EInvoiceValidationResult {
+  invoiceId: string;
+  format: EInvoiceFormat;
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
+/** ELSTER submission */
+export interface ElsterSubmission {
+  id: string;
+  type: string;
+  period_key: string;
+  status: string;
+  xml: string;
+  tax_data: string;
+  test_mode: boolean;
+  transfer_ticket?: string;
+  response_xml?: string;
+  error_message?: string;
+  submitted_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** ELSTER submission result */
+export interface ElsterSubmissionResult {
+  submission: ElsterSubmission;
+  taxData: {
+    steuernummer: string;
+    year: number;
+    period: number;
+    periodType: string;
+    kz81: number;
+    kz86: number;
+    kz66: number;
+    kz83: number;
+    [key: string]: unknown;
+  };
+  xml: string;
+}
+
+/** ELSTER validation result */
+export interface ElsterValidationResult {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+  taxData: {
+    steuernummer: string;
+    year: number;
+    period: number;
+    periodType: string;
+    kz81: number;
+    kz86: number;
+    kz66: number;
+    kz83: number;
+    [key: string]: unknown;
+  };
+  xml: string;
+}
+
+/** ELSTER ZM result */
+export interface ElsterZmResult {
+  submission: ElsterSubmission;
+  taxData: {
+    year: number;
+    quarter: number;
+    entries: Array<{
+      vatId: string;
+      name?: string;
+      amount: number;
+    }>;
+    totalAmount: number;
+  };
+  xml: string;
+  entryCount: number;
+}
+
+/** DATEV server-side preview */
+export interface DatevServerPreview {
+  recordCount: number;
+  filename: string;
+  records: unknown[];
+  errors: string[];
+  warnings: string[];
+}
+
+/** DATEV server-side result */
+export interface DatevServerResult {
+  success: boolean;
+  csv?: string;
+  filename?: string;
+  recordCount: number;
+  warnings: string[];
+  errors?: string[];
+}
+
+/** Verfahrensdokumentation response */
+export interface VerfahrensdokuResponse {
+  title: string;
+  version: string;
+  generated_at: string;
+  sections: Array<{
+    id: string;
+    title: string;
+    content: string;
+    subsections?: Array<{
+      id: string;
+      title: string;
+      content: string;
+    }>;
+  }>;
 }
 
 export const api = new ApiClient();

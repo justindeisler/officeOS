@@ -9,7 +9,7 @@
  * - Print functionality
  */
 
-import React from 'react'
+import React, { useState } from 'react'
 import { cn, getErrorMessage } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -29,8 +29,9 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
-import { Printer, FileCheck } from 'lucide-react'
+import { Printer, FileCheck, FileCode } from 'lucide-react'
 import { useUstVoranmeldung } from '../../hooks/useUstVoranmeldung'
+import { ElsterSubmissionWizard } from './ElsterSubmissionWizard'
 
 export interface UstVoranmeldungListProps {
   /** Callback when print is clicked */
@@ -82,6 +83,8 @@ export function UstVoranmeldungList({
     setSelectedQuarter,
     markAsFiled,
   } = useUstVoranmeldung()
+
+  const [showElsterWizard, setShowElsterWizard] = useState(false)
 
   const availableYears = getAvailableYears()
 
@@ -148,6 +151,11 @@ export function UstVoranmeldungList({
           <Button variant="outline" size="sm" onClick={handlePrint}>
             <Printer className="mr-2 h-4 w-4" />
             Drucken
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowElsterWizard(true)}>
+            <FileCode className="mr-2 h-4 w-4" />
+            <span className="hidden sm:inline">ELSTER Export</span>
+            <span className="sm:hidden">ELSTER</span>
           </Button>
           {ustVoranmeldung.status === 'draft' && (
             <Button size="sm" onClick={handleMarkAsFiled}>
@@ -303,6 +311,15 @@ export function UstVoranmeldungList({
           Negativer Betrag = Erstattung vom Finanzamt erwartet
         </p>
       </div>
+
+      {/* ELSTER Submission Wizard */}
+      <ElsterSubmissionWizard
+        open={showElsterWizard}
+        onOpenChange={setShowElsterWizard}
+        year={selectedYear}
+        quarter={selectedQuarter}
+        onSubmitted={refresh}
+      />
     </div>
   )
 }
