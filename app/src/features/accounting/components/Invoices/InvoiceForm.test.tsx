@@ -3,6 +3,16 @@ import { render, screen, waitFor } from '@/test/utils'
 import { InvoiceForm } from './InvoiceForm'
 import { createMockInvoice } from '@/test/mocks/data/accounting'
 
+// Mock the suggestions hook to prevent API calls
+vi.mock('../../hooks/useInvoiceSuggestions', () => ({
+  useInvoiceSuggestions: () => ({
+    suggestions: null,
+    isLoading: false,
+    error: null,
+    refresh: vi.fn(),
+  }),
+}))
+
 // Mock fetch to prevent network errors from useClients/useProjects hooks
 const mockFetch = vi.fn().mockResolvedValue({
   ok: true,

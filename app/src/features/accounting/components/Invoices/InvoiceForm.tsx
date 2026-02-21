@@ -22,6 +22,8 @@ import {
 import { useClients } from '../../hooks/useClients'
 import { useProjectStore } from '@/stores/projectStore'
 import { Trash2, Plus, Loader2, Building2, FolderKanban, Calendar, Percent } from 'lucide-react'
+import { useInvoiceSuggestions } from '../../hooks/useInvoiceSuggestions'
+import { InvoiceNumberPreview } from '../Suggestions/InvoiceNumberPreview'
 
 export interface InvoiceFormProps {
   /** Invoice to edit (undefined for new invoice) */
@@ -117,15 +119,26 @@ export function InvoiceForm({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errors, setErrors] = useState<FormErrors>({})
 
+  // Smart suggestions for invoices
+  const { suggestions: invoiceSuggestions } = useInvoiceSuggestions(clientId)
+  const [invoiceNumberAccepted, setInvoiceNumberAccepted] = useState(false)
+
+  // Auto-update due date when suggested payment terms change
+  useEffect(() => {
+    if (invoiceSuggestions?.suggestedDueDate && !isEditing) {
+      setDueDate(invoiceSuggestions.suggestedDueDate)
+    }
+  }, [invoiceSuggestions?.suggestedDueDate, isEditing])
+
   // E-Rechnung fields
   const [eInvoiceFormat, setEInvoiceFormat] = useState<string>(
-    (invoice as Record<string, unknown>)?.eInvoiceFormat as string ?? 'none'
+    (invoice as any)?.eInvoiceFormat ?? 'none'
   )
   const [leitwegId, setLeitwegId] = useState<string>(
-    (invoice as Record<string, unknown>)?.leitwegId as string ?? ''
+    (invoice as any)?.leitwegId ?? ''
   )
   const [buyerReference, setBuyerReference] = useState<string>(
-    (invoice as Record<string, unknown>)?.buyerReference as string ?? ''
+    (invoice as any)?.buyerReference ?? ''
   )
 
   // Filter projects by selected client
@@ -311,6 +324,16 @@ export function InvoiceForm({
       <h2 className="text-xl font-semibold">
         {isEditing ? 'Edit Invoice' : 'New Invoice'}
       </h2>
+
+      {/* Invoice Number Preview (for new invoices only) */}
+      {!isEditing && invoiceSuggestions?.nextInvoiceNumber && (
+        <InvoiceNumberPreview
+          nextNumber={invoiceSuggestions.nextInvoiceNumber}
+          pattern={invoiceSuggestions.invoiceNumberPattern}
+          onAccept={() => setInvoiceNumberAccepted(true)}
+          accepted={invoiceNumberAccepted}
+        />
+      )}
 
       {/* Invoice Details */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">

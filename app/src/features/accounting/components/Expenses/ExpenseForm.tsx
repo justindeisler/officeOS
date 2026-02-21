@@ -20,7 +20,10 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Loader2, AlertTriangle } from 'lucide-react'
 import { useDuplicateCheck } from '../../hooks/useDuplicateCheck'
+import { useExpenseSuggestions } from '../../hooks/useExpenseSuggestions'
 import { DuplicateAlert } from '../Duplicates/DuplicateAlert'
+import { VendorSuggestions } from '../Suggestions/VendorSuggestions'
+import { CategorySuggestion } from '../Suggestions/CategorySuggestion'
 
 // ============================================================================
 // VAT Calculation Utilities
@@ -177,6 +180,10 @@ export function ExpenseForm({
     { recordId: expense?.id },
   )
 
+  // Smart suggestions
+  const { suggestions, isLoading: isSuggestionsLoading } = useExpenseSuggestions(watchVendor)
+  const [categorySuggestionDismissed, setCategorySuggestionDismissed] = useState(false)
+
   // Calculate VAT and gross amounts based on input mode
   const calculations = useMemo(() => {
     const amount = Number(watchNetAmount) || 0
@@ -286,19 +293,30 @@ export function ExpenseForm({
         )}
       </div>
 
-      {/* Vendor */}
-      <div className="space-y-2">
-        <Label htmlFor="vendor">Vendor</Label>
-        <Input
-          id="vendor"
-          placeholder="e.g., Amazon, Adobe, etc."
-          {...register('vendor')}
-          aria-invalid={!!errors.vendor}
+      {/* Vendor with Smart Suggestions */}
+      <VendorSuggestions
+        onSelect={(vendor) => setValue('vendor', vendor, { shouldValidate: true })}
+        selectedVendor={watchVendor}
+        vendors={suggestions?.recentVendors}
+        isLoading={isSuggestionsLoading}
+        error={errors.vendor?.message}
+      />
+
+      {/* Category Suggestion (appears when vendor has a known category) */}
+      {suggestions?.suggestedCategory &&
+       !categorySuggestionDismissed &&
+       watchVendor &&
+       watchEuerCategory !== suggestions.suggestedCategory && (
+        <CategorySuggestion
+          category={suggestions.suggestedCategory}
+          confidence={suggestions.categoryConfidence}
+          onAccept={() => {
+            setValue('euerCategory', suggestions.suggestedCategory!)
+            setCategorySuggestionDismissed(true)
+          }}
+          onDismiss={() => setCategorySuggestionDismissed(true)}
         />
-        {errors.vendor && (
-          <p className="text-sm text-destructive">{errors.vendor.message}</p>
-        )}
-      </div>
+      )}
 
       {/* Description */}
       <div className="space-y-2">

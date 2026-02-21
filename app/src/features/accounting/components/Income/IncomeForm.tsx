@@ -24,7 +24,9 @@ import {
 } from '@/components/ui/select'
 import { Loader2 } from 'lucide-react'
 import { useDuplicateCheck } from '../../hooks/useDuplicateCheck'
+import { useIncomeSuggestions } from '../../hooks/useIncomeSuggestions'
 import { DuplicateAlert } from '../Duplicates/DuplicateAlert'
+import { ClientSuggestions } from '../Suggestions/ClientSuggestions'
 
 // Form validation schema
 const incomeFormSchema = z.object({
@@ -118,6 +120,9 @@ export function IncomeForm({
     { recordId: income?.id },
   )
 
+  // Smart suggestions for income
+  const { suggestions: incomeSuggestions, isLoading: isSuggestionsLoading } = useIncomeSuggestions()
+
   // Calculate VAT and gross amounts
   const calculations = useMemo(() => {
     const net = Number(watchNetAmount) || 0
@@ -179,6 +184,32 @@ export function IncomeForm({
           <p className="text-sm text-destructive">{errors.date.message}</p>
         )}
       </div>
+
+      {/* Recent Clients Suggestion */}
+      {incomeSuggestions?.recentClients && incomeSuggestions.recentClients.length > 0 && (
+        <div className="space-y-2">
+          <Label>Recent Client</Label>
+          <ClientSuggestions
+            clients={incomeSuggestions.recentClients}
+            isLoading={isSuggestionsLoading}
+            onSelect={(client) => {
+              // Pre-fill the description with the client name
+              const current = watchDescription
+              if (!current) {
+                setValue('description', `Services for ${client}`, { shouldValidate: true })
+              }
+            }}
+          />
+          {/* Show last amount hint for top client */}
+          {incomeSuggestions.recentClients[0]?.lastAmount > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Last amount: {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(
+                incomeSuggestions.recentClients[0].lastAmount
+              )}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Description */}
       <div className="space-y-2">
