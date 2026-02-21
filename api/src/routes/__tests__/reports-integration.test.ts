@@ -485,9 +485,9 @@ describe('Reports Integration Tests', () => {
         const euer = await request(app).get('/api/reports/euer/2024');
         expect(euer.status).toBe(200);
         expect(euer.body.totalIncome).toBe(0);
-        // Only Homeoffice-Pauschale
-        expect(euer.body.totalExpenses).toBe(HOMEOFFICE_PAUSCHALE);
-        expect(euer.body.gewinn).toBe(-HOMEOFFICE_PAUSCHALE);
+        // Homeoffice not enabled → no expenses
+        expect(euer.body.totalExpenses).toBe(0);
+        expect(euer.body.gewinn).toBe(0);
       });
     });
 
@@ -703,11 +703,19 @@ describe('Reports Integration Tests', () => {
     });
 
     describe('Homeoffice-Pauschale behavior', () => {
-      it('applies Pauschale when no Arbeitszimmer expense exists', async () => {
+      it('applies Pauschale when enabled in settings and no Arbeitszimmer expense exists', async () => {
+        testDb.prepare("INSERT INTO settings (key, value) VALUES ('homeoffice_enabled', 'true')").run();
         insertTestIncome(testDb, { date: '2024-06-15', net_amount: 20000 });
 
         const euer = await request(app).get('/api/reports/euer/2024');
         expect(euer.body.expenses[EUER_LINES.ARBEITSZIMMER]).toBe(HOMEOFFICE_PAUSCHALE);
+      });
+
+      it('does NOT apply Pauschale when not enabled in settings', async () => {
+        insertTestIncome(testDb, { date: '2024-06-15', net_amount: 20000 });
+
+        const euer = await request(app).get('/api/reports/euer/2024');
+        expect(euer.body.expenses[EUER_LINES.ARBEITSZIMMER]).toBeUndefined();
       });
 
       it('does NOT apply Pauschale when real Arbeitszimmer expense exists', async () => {

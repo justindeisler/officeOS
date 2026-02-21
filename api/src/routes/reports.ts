@@ -378,7 +378,13 @@ router.get('/euer/:year', async (req, res) => {
     }
 
     // Check if Homeoffice-Pauschale should be included
-    if (!expensesByLine[EUER_LINES.ARBEITSZIMMER]) {
+    // Only add if setting is enabled AND no explicit Arbeitszimmer expenses exist
+    const homeofficeSettingRow = db.prepare(
+      "SELECT value FROM settings WHERE key = 'homeoffice_enabled'"
+    ).get() as { value: string } | undefined;
+    const homeofficeEnabled = homeofficeSettingRow?.value === 'true';
+
+    if (homeofficeEnabled && !expensesByLine[EUER_LINES.ARBEITSZIMMER]) {
       expensesByLine[EUER_LINES.ARBEITSZIMMER] = HOMEOFFICE_PAUSCHALE;
     }
 

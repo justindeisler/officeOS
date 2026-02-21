@@ -431,7 +431,10 @@ describe('EÜR Report — GET /api/reports/euer/:year', () => {
       expect(res.body.gewinn).toBe(res.body.totalIncome - res.body.totalExpenses);
     });
 
-    it('auto-adds Homeoffice-Pauschale (€1,260) when no Arbeitszimmer expense', async () => {
+    it('auto-adds Homeoffice-Pauschale (€1,260) when enabled in settings and no Arbeitszimmer expense', async () => {
+      // Enable homeoffice in settings
+      testDb.prepare("INSERT INTO settings (key, value) VALUES ('homeoffice_enabled', 'true')").run();
+
       insertTestIncome(testDb, { date: '2024-01-15', net_amount: 40000 });
 
       const res = await getEuerReport(2024);
@@ -444,6 +447,18 @@ describe('EÜR Report — GET /api/reports/euer/:year', () => {
       expect(res.body.totalExpenses).toBeGreaterThanOrEqual(1260);
       // Gewinn = 40000 - 1260 = 38740
       expect(res.body.gewinn).toBeCloseTo(38740, 2);
+    });
+
+    it('does NOT add Homeoffice-Pauschale when NOT enabled in settings', async () => {
+      insertTestIncome(testDb, { date: '2024-01-15', net_amount: 40000 });
+
+      const res = await getEuerReport(2024);
+
+      expect(res.status).toBe(200);
+      // No Homeoffice line should exist
+      expect(res.body.expenses[EUER_LINES.ARBEITSZIMMER]).toBeUndefined();
+      expect(res.body.totalExpenses).toBe(0);
+      expect(res.body.gewinn).toBeCloseTo(40000, 2);
     });
 
     it('does NOT add Homeoffice-Pauschale when actual Arbeitszimmer expenses exist', async () => {
@@ -478,8 +493,8 @@ describe('EÜR Report — GET /api/reports/euer/:year', () => {
       const res = await getEuerReport(2024);
 
       expect(res.status).toBe(200);
-      // Gewinn = 60000 - 10000 - 1260 (Homeoffice) = 48740
-      expect(res.body.gewinn).toBeCloseTo(48740, 2);
+      // Gewinn = 60000 - 10000 = 50000 (no Homeoffice since not enabled)
+      expect(res.body.gewinn).toBeCloseTo(50000, 2);
       expect(res.body.gewinn).toBeGreaterThan(0);
     });
 
@@ -495,12 +510,22 @@ describe('EÜR Report — GET /api/reports/euer/:year', () => {
       const res = await getEuerReport(2024);
 
       expect(res.status).toBe(200);
-      // Gewinn = 5000 - 20000 - 1260 = -16260
-      expect(res.body.gewinn).toBeCloseTo(-16260, 2);
+      // Gewinn = 5000 - 20000 = -15000
+      expect(res.body.gewinn).toBeCloseTo(-15000, 2);
       expect(res.body.gewinn).toBeLessThan(0);
     });
 
-    it('calculates negative Gewinn for empty year (only Homeoffice-Pauschale)', async () => {
+    it('calculates zero Gewinn for empty year (no homeoffice enabled)', async () => {
+      const res = await getEuerReport(2024);
+
+      expect(res.status).toBe(200);
+      expect(res.body.totalIncome).toBe(0);
+      expect(res.body.totalExpenses).toBe(0);
+      expect(res.body.gewinn).toBe(0);
+    });
+
+    it('calculates negative Gewinn for empty year with homeoffice enabled', async () => {
+      testDb.prepare("INSERT INTO settings (key, value) VALUES ('homeoffice_enabled', 'true')").run();
       const res = await getEuerReport(2024);
 
       expect(res.status).toBe(200);
@@ -510,6 +535,9 @@ describe('EÜR Report — GET /api/reports/euer/:year', () => {
     });
 
     it('handles a realistic freelancer year with mixed deductibility', async () => {
+      // Enable homeoffice for this test
+      testDb.prepare("INSERT INTO settings (key, value) VALUES ('homeoffice_enabled', 'true')").run();
+
       // Monthly income: roughly €5k/month
       const monthlyIncome = [4500, 5200, 4800, 6000, 5500, 5000, 4700, 5300, 5100, 5800, 4900, 6200];
       let expectedIncome = 0;
@@ -561,7 +589,7 @@ describe('EÜR Report — GET /api/reports/euer/:year', () => {
         2400 * 1.0 + // Software (Sonstige)
         720 * 0.6 +  // Phone (Sonstige, 60%)
         150 * 0.0 +  // Coffee (Sonstige, 0%)
-        1260;         // Homeoffice-Pauschale
+        1260;         // Homeoffice-Pauschale (enabled)
 
       const res = await getEuerReport(2024);
 
@@ -583,9 +611,9 @@ describe('EÜR Report — GET /api/reports/euer/:year', () => {
       const res = await getEuerReport(2024);
 
       expect(res.status).toBe(200);
-      // totalExpenses = AfA(333.33) + Homeoffice(1260)
-      expect(res.body.totalExpenses).toBeCloseTo(333.33 + 1260, 1);
-      expect(res.body.gewinn).toBeCloseTo(30000 - 333.33 - 1260, 1);
+      // totalExpenses = AfA(333.33), no Homeoffice (not enabled)
+      expect(res.body.totalExpenses).toBeCloseTo(333.33, 1);
+      expect(res.body.gewinn).toBeCloseTo(30000 - 333.33, 1);
     });
   });
 
@@ -641,7 +669,7 @@ describe('EÜR Report — GET /api/reports/euer/:year', () => {
     });
 
     it('returns empty lines as absent from response (not 0.00)', async () => {
-      // Only add income — no expenses except auto Homeoffice-Pauschale
+      // Only add income — no expenses, homeoffice not enabled
       insertTestIncome(testDb, { date: '2024-01-15', net_amount: 10000, euer_line: EUER_LINES.BETRIEBSEINNAHMEN });
 
       const res = await getEuerReport(2024);
@@ -656,9 +684,8 @@ describe('EÜR Report — GET /api/reports/euer/:year', () => {
       expect(res.body.expenses[EUER_LINES.GEZAHLTE_UST]).toBeUndefined();
       expect(res.body.expenses[EUER_LINES.SONSTIGE]).toBeUndefined();
       expect(res.body.expenses[EUER_LINES.ANLAGENABGANG_VERLUST]).toBeUndefined();
-
-      // Arbeitszimmer should exist (Homeoffice-Pauschale auto-added)
-      expect(res.body.expenses[EUER_LINES.ARBEITSZIMMER]).toBe(1260);
+      // Arbeitszimmer not present since homeoffice is not enabled
+      expect(res.body.expenses[EUER_LINES.ARBEITSZIMMER]).toBeUndefined();
     });
 
     it('includes AfA line (30) from depreciation schedule', async () => {
@@ -698,13 +725,14 @@ describe('EÜR Report — GET /api/reports/euer/:year', () => {
       expect(res.body.expenses[EUER_LINES.VORSTEUER]).toBeCloseTo(400, 2);
       expect(res.body.expenses[EUER_LINES.GEZAHLTE_UST]).toBeCloseTo(1200, 2);
       expect(res.body.expenses[EUER_LINES.SONSTIGE]).toBeCloseTo(600, 2);
-      expect(res.body.expenses[EUER_LINES.ARBEITSZIMMER]).toBe(1260); // Auto-added Pauschale
+      // Homeoffice not enabled → no Pauschale
+      expect(res.body.expenses[EUER_LINES.ARBEITSZIMMER]).toBeUndefined();
 
       // Totals
       expect(res.body.totalIncome).toBeCloseTo(40800, 2);
-      // 5000 + 400 + 1200 + 600 + 1260 = 8460
-      expect(res.body.totalExpenses).toBeCloseTo(8460, 2);
-      expect(res.body.gewinn).toBeCloseTo(32340, 2);
+      // 5000 + 400 + 1200 + 600 = 7200
+      expect(res.body.totalExpenses).toBeCloseTo(7200, 2);
+      expect(res.body.gewinn).toBeCloseTo(33600, 2);
     });
 
     it('returns correct response structure', async () => {
@@ -819,9 +847,9 @@ describe('EÜR Report — GET /api/reports/euer/:year', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.totalIncome).toBe(0);
-      // 5000 (Fremdleistungen) + 1260 (Homeoffice)
-      expect(res.body.totalExpenses).toBeCloseTo(6260, 2);
-      expect(res.body.gewinn).toBeCloseTo(-6260, 2);
+      // 5000 (Fremdleistungen), no Homeoffice (not enabled)
+      expect(res.body.totalExpenses).toBeCloseTo(5000, 2);
+      expect(res.body.gewinn).toBeCloseTo(-5000, 2);
     });
 
     it('handles rounding for cent-precise deductible amounts', async () => {

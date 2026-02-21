@@ -455,8 +455,8 @@ describe('Reports API', () => {
       expect(res.status).toBe(200);
       expect(res.body.year).toBe(2024);
       expect(res.body.totalIncome).toBeCloseTo(13000, 2);
-      // totalExpenses includes the expense + Homeoffice-Pauschale (€1,260)
-      expect(res.body.totalExpenses).toBeCloseTo(1000 + HOMEOFFICE_PAUSCHALE, 2);
+      // totalExpenses: only the explicit expense (Homeoffice not enabled by default)
+      expect(res.body.totalExpenses).toBeCloseTo(1000, 2);
     });
 
     it('groups income by EÜR line number', async () => {
@@ -518,7 +518,8 @@ describe('Reports API', () => {
       expect(res.body.expenses[EUER_LINES.VORSTEUER]).toBeCloseTo(500, 2);
     });
 
-    it('includes Homeoffice-Pauschale (€1,260) when no Arbeitszimmer expense exists', async () => {
+    it('includes Homeoffice-Pauschale (€1,260) when enabled in settings and no Arbeitszimmer expense exists', async () => {
+      testDb.prepare("INSERT INTO settings (key, value) VALUES ('homeoffice_enabled', 'true')").run();
       insertTestIncome(testDb, {
         date: '2024-01-15',
         net_amount: 50000,
@@ -528,6 +529,18 @@ describe('Reports API', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.expenses[EUER_LINES.ARBEITSZIMMER]).toBe(HOMEOFFICE_PAUSCHALE);
+    });
+
+    it('does NOT include Homeoffice-Pauschale when not enabled in settings', async () => {
+      insertTestIncome(testDb, {
+        date: '2024-01-15',
+        net_amount: 50000,
+      });
+
+      const res = await request(app).get('/api/reports/euer/2024');
+
+      expect(res.status).toBe(200);
+      expect(res.body.expenses[EUER_LINES.ARBEITSZIMMER]).toBeUndefined();
     });
 
     it('does NOT add Homeoffice-Pauschale when Arbeitszimmer expense already exists', async () => {
@@ -619,13 +632,14 @@ describe('Reports API', () => {
       expect(res.body.totalIncome).toBeCloseTo(5000, 2);
     });
 
-    it('handles year with no income or expenses (only Pauschale)', async () => {
+    it('handles year with no income or expenses (empty report)', async () => {
       const res = await request(app).get('/api/reports/euer/2024');
 
       expect(res.status).toBe(200);
       expect(res.body.totalIncome).toBe(0);
-      expect(res.body.totalExpenses).toBe(HOMEOFFICE_PAUSCHALE);
-      expect(res.body.gewinn).toBe(-HOMEOFFICE_PAUSCHALE);
+      // Homeoffice not enabled by default → no expenses
+      expect(res.body.totalExpenses).toBe(0);
+      expect(res.body.gewinn).toBe(0);
     });
 
     it('rejects invalid year', async () => {
@@ -673,9 +687,10 @@ describe('Reports API', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.totalIncome).toBeCloseTo(totalIncomeExpected, 0);
-      expect(res.body.totalExpenses).toBeCloseTo(totalExpensesExpected + HOMEOFFICE_PAUSCHALE, 0);
+      // Homeoffice not enabled → no Pauschale
+      expect(res.body.totalExpenses).toBeCloseTo(totalExpensesExpected, 0);
       expect(res.body.gewinn).toBeCloseTo(
-        totalIncomeExpected - totalExpensesExpected - HOMEOFFICE_PAUSCHALE,
+        totalIncomeExpected - totalExpensesExpected,
         0
       );
     });
