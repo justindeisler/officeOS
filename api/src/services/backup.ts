@@ -79,7 +79,10 @@ function loadEncryptionKey(keyPath?: string): Buffer {
 
 function encrypt(plaintext: string, key: Buffer): string {
   const nonce = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", key, nonce);
+  // SECURITY: Explicitly set authTagLength for GCM to enforce 128-bit (16 byte) tags
+  const cipher = createCipheriv("aes-256-gcm", key, nonce, {
+    authTagLength: 16,
+  });
 
   const encrypted = Buffer.concat([
     cipher.update(plaintext, "utf-8"),
@@ -118,7 +121,12 @@ function decrypt(encryptedContent: string, key: Buffer): string {
   const tag = raw.subarray(raw.length - 16);
   const ct = raw.subarray(12, raw.length - 16);
 
-  const decipher = createDecipheriv("aes-256-gcm", key, nonce);
+  // SECURITY: Specify authTagLength (16 bytes) for GCM mode to prevent
+  // authentication tag truncation attacks. Without this, an attacker could
+  // potentially spoof ciphertexts or recover the GCM authentication key.
+  const decipher = createDecipheriv("aes-256-gcm", key, nonce, {
+    authTagLength: 16,
+  });
   decipher.setAuthTag(tag);
 
   const decrypted = Buffer.concat([decipher.update(ct), decipher.final()]);

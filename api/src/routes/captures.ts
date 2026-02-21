@@ -14,6 +14,40 @@ import { CreateCaptureSchema, ProcessCaptureSchema } from "../schemas/index.js";
 const router = Router();
 const log = createLogger("captures");
 
+// ─── Security Helpers ─────────────────────────────────────────────────
+
+/**
+ * SECURITY: Sanitize user input for safe inclusion in text templates.
+ * Escapes HTML entities to prevent XSS if the output is ever rendered as HTML.
+ * Also strips null bytes and control characters that could be used for injection.
+ */
+function sanitizeForTemplate(input: string): string {
+  if (typeof input !== "string") return "";
+  return input
+    // Remove null bytes (injection vector)
+    .replace(/\0/g, "")
+    // Escape HTML entities to prevent XSS
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
+}
+
+/**
+ * SECURITY: Validate that a capture type is one of the known safe values.
+ * Prevents injection through the type parameter.
+ */
+const VALID_CAPTURE_TYPES = ["note", "task", "meeting", "idea"] as const;
+type CaptureType = (typeof VALID_CAPTURE_TYPES)[number];
+
+function sanitizeCaptureType(type: unknown): CaptureType {
+  if (typeof type === "string" && VALID_CAPTURE_TYPES.includes(type as CaptureType)) {
+    return type as CaptureType;
+  }
+  return "note";
+}
+
 // Helper to parse metadata JSON
 function parseCapture(capture: any) {
   if (capture && capture.metadata && typeof capture.metadata === 'string') {
@@ -134,14 +168,18 @@ router.post("/:id/process-with-james", asyncHandler(async (req, res) => {
   });
 
   // Process in background
-  const captureContent = existing.content as string;
-  const captureType = existing.type as string;
+  // SECURITY: Sanitize user-controlled data before interpolating into the message
+  // template. This prevents XSS if the message is ever rendered as HTML, and
+  // mitigates prompt injection by escaping special characters.
+  const captureContent = sanitizeForTemplate(existing.content as string);
+  const captureType = sanitizeCaptureType(existing.type);
+  const safeId = sanitizeForTemplate(id);
   
   // Fetch projects for context
   const projects = db.prepare("SELECT id, name, area, description FROM projects WHERE status IN ('active', 'pipeline')").all();
-  const projectList = projects.map((p: any) => `  - "${p.name}" (${p.area}) → project_id: ${p.id}`).join('\n');
+  const projectList = projects.map((p: any) => `  - "${sanitizeForTemplate(p.name)}" (${sanitizeForTemplate(p.area)}) → project_id: ${sanitizeForTemplate(p.id)}`).join('\n');
   
-  const message = `Process this capture from the PA app inbox (ID: ${id}):
+  const message = `Process this capture from the PA app inbox (ID: ${safeId}):
 
 **Type:** ${captureType}
 **Content:** ${captureContent}
@@ -165,11 +203,11 @@ ${captureType === 'task' ? `
    - project_id: MUST set if content clearly relates to a specific project from the list above
 2. Create the task via mcporter: mcporter call personal-assistant.create_task title="..." description="..." area="..." project_id="..." priority=2 status="backlog"
 3. Mark capture processed via: mcporter call personal-assistant.query_database sql="..." (or curl if needed)
-   POST to http://localhost:3005/api/captures/${id}/process with body: {"processed_to":"task","processed_by":"james","artifact_type":"task","artifact_id":"<task-id>"}
+   POST to http://localhost:3005/api/captures/${safeId}/process with body: {"processed_to":"task","processed_by":"james","artifact_type":"task","artifact_id":"<task-id>"}
 ` : captureType === 'meeting' ? `
 1. Parse meeting details: title, date/time, duration (default 1h), attendees, location
 2. Create iCloud calendar event via CalDAV (account: justin.deisler@me.com)
-3. Mark capture processed via curl POST to http://localhost:3005/api/captures/${id}/process with body: {"processed_to":"calendar_event","processed_by":"james","artifact_type":"calendar_event","artifact_id":"<event-uid>"}
+3. Mark capture processed via curl POST to http://localhost:3005/api/captures/${safeId}/process with body: {"processed_to":"calendar_event","processed_by":"james","artifact_type":"calendar_event","artifact_id":"<event-uid>"}
 ` : captureType === 'idea' ? `
 **IMPORTANT: Ideas require PRD creation first!**
 1. Create a comprehensive PRD:
@@ -189,7 +227,7 @@ ${captureType === 'task' ? `
 `}
 
 If processing fails, update the capture's processing_status to 'failed' via:
-curl -X POST http://localhost:3005/api/captures/${id}/process -H "Content-Type: application/json" -d '{"processing_status":"failed"}'`;
+curl -X POST http://localhost:3005/api/captures/${safeId}/process -H "Content-Type: application/json" -d '{"processing_status":"failed"}'`;
 
   try {
     // Spawn clawdbot agent in background using spawn (detached)

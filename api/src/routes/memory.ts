@@ -7,7 +7,7 @@ import { Router } from "express";
 import { promises as fs } from "fs";
 import { readFileSync, writeFileSync, existsSync, statSync } from "fs";
 import { join, basename, extname, resolve } from "path";
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import { createLogger } from "../logger.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { NotFoundError, ValidationError, ForbiddenError } from "../errors.js";
@@ -99,6 +99,31 @@ function isAllowedPath(filePath: string): boolean {
   return ALLOWED_ROOTS.some((root) => resolved.startsWith(root));
 }
 
+/**
+ * SECURITY: Validate and sanitize a file path to prevent command injection
+ * and path traversal attacks.
+ *
+ * - Resolves the path to an absolute path
+ * - Rejects paths with null bytes (poison null byte attack)
+ * - Rejects paths outside allowed roots
+ * - Returns the resolved, safe path
+ */
+function validateFilePath(filePath: string): string {
+  // Reject null bytes which can truncate paths in C-based systems
+  if (filePath.includes("\0")) {
+    throw new ValidationError("File path contains invalid characters");
+  }
+
+  const resolved = resolve(filePath);
+
+  // Verify the resolved path is within allowed roots (prevents traversal)
+  if (!isAllowedPath(resolved)) {
+    throw new ForbiddenError("File path not in allowed directory");
+  }
+
+  return resolved;
+}
+
 // ─── File Reading Helpers ───────────────────────────────────────────
 
 function isEncryptedFile(filePath: string): boolean {
@@ -111,62 +136,67 @@ function isEncryptedFile(filePath: string): boolean {
 }
 
 function readMemoryFile(filePath: string): string {
+  // SECURITY: Validate path before any operations to prevent path traversal
+  const safePath = validateFilePath(filePath);
+
   try {
-    const raw = readFileSync(filePath, "utf8");
+    const raw = readFileSync(safePath, "utf8");
     if (raw.startsWith("JAMES_ENCRYPTED_V1")) {
       try {
-        return execSync(`memory-read "${filePath}"`, {
+        // SECURITY: Use execFileSync with argument array to prevent command injection.
+        // filePath is passed as a separate argument, not interpolated into a shell string.
+        return execFileSync("memory-read", [safePath], {
           encoding: "utf8",
           timeout: 5000,
         });
       } catch {
-        // Fallback to Python module
-        return execSync(
-          `python3 ${HOME}/clawd/scripts/memory_crypto.py decrypt "${filePath}"`,
+        // Fallback to Python module — also uses safe argument array
+        return execFileSync(
+          "python3",
+          [`${HOME}/clawd/scripts/memory_crypto.py`, "decrypt", safePath],
           { encoding: "utf8", timeout: 5000 }
         );
       }
     }
     return raw;
   } catch (e) {
-    throw new Error(`Failed to read ${filePath}: ${e}`);
+    throw new Error(`Failed to read ${safePath}: ${e}`);
   }
 }
 
 function writeMemoryFile(filePath: string, content: string): void {
+  // SECURITY: Validate path before any operations to prevent path traversal
+  const safePath = validateFilePath(filePath);
+
   try {
     // Check if file already exists and is encrypted
     let needsEncryption = false;
-    if (existsSync(filePath)) {
-      needsEncryption = isEncryptedFile(filePath);
+    if (existsSync(safePath)) {
+      needsEncryption = isEncryptedFile(safePath);
     } else {
       // New files in clawd/memory/ or clawd core files should be encrypted
       needsEncryption =
-        filePath.startsWith(`${CLAWD_PATH}/memory/`) ||
-        (filePath.startsWith(CLAWD_PATH) &&
-          filePath.endsWith(".md") &&
-          !filePath.includes("/second-brain/"));
+        safePath.startsWith(`${CLAWD_PATH}/memory/`) ||
+        (safePath.startsWith(CLAWD_PATH) &&
+          safePath.endsWith(".md") &&
+          !safePath.includes("/second-brain/"));
     }
 
     if (needsEncryption) {
-      try {
-        execSync(`memory-write "${filePath}" -c "${content.replace(/"/g, '\\"')}"`, {
-          encoding: "utf8",
-          timeout: 5000,
-        });
-      } catch {
-        // Fallback: pipe content through stdin
-        execSync(`memory-write "${filePath}"`, {
-          input: content,
-          encoding: "utf8",
-          timeout: 5000,
-        });
-      }
+      // SECURITY: Use execFileSync with argument array to prevent command injection.
+      // Content is passed via stdin, never interpolated into a shell command string.
+      // This eliminates the risk of shell metacharacter injection through both
+      // filePath and content parameters.
+      execFileSync("memory-write", [safePath], {
+        input: content,
+        encoding: "utf8",
+        timeout: 5000,
+      });
     } else {
-      writeFileSync(filePath, content, "utf8");
+      writeFileSync(safePath, content, "utf8");
     }
   } catch (e) {
-    throw new Error(`Failed to write ${filePath}: ${e}`);
+    throw new Error(`Failed to write ${safePath}: ${e}`);
   }
 }
 
