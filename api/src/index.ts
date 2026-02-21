@@ -51,6 +51,7 @@ import tagsRouter from "./routes/tags.js";
 import cacheRouter from "./routes/cache.js";
 import officeRouter from "./routes/office.js";
 import memoryRouter from "./routes/memory.js";
+import auditRouter from "./routes/audit.js";
 
 // Environment validation — fail fast if critical vars are missing or weak
 // (Full validation logic in startup-validation.ts)
@@ -183,6 +184,9 @@ app.use("/api/office", authMiddleware, officeRouter);
 
 // Memory management routes (protected)
 app.use("/api/memory", authMiddleware, memoryRouter);
+
+// GoBD audit trail and period locking routes (protected)
+app.use("/api/audit", authMiddleware, auditRouter);
 
 // 404 handler for unmatched API routes (must come after all API routes, before static files)
 app.all("/api/*", notFoundHandler);

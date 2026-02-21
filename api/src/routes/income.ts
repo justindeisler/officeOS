@@ -11,6 +11,9 @@ import { NotFoundError, ValidationError } from "../errors.js";
 import { cache, cacheKey, TTL } from "../cache.js";
 import { validateBody } from "../middleware/validateBody.js";
 import { CreateIncomeSchema, UpdateIncomeSchema, MarkIncomeReportedSchema } from "../schemas/index.js";
+import { auditCreate, auditUpdate, auditSoftDelete, extractAuditContext } from "../services/auditService.js";
+import { enforcePeriodLock } from "../services/periodLockService.js";
+import { getNextSequenceNumber } from "../services/sequenceService.js";
 
 const router = Router();
 
@@ -55,7 +58,7 @@ router.get("/", asyncHandler(async (req: Request, res: Response) => {
 
   const db = getDb();
 
-  let sql = "SELECT * FROM income WHERE 1=1";
+  let sql = "SELECT * FROM income WHERE (is_deleted IS NULL OR is_deleted = 0)";
   const params: unknown[] = [];
 
   if (start_date) {
@@ -95,9 +98,9 @@ router.get("/", asyncHandler(async (req: Request, res: Response) => {
  */
 router.get("/:id", asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();
-  const income = db.prepare("SELECT * FROM income WHERE id = ?").get(
-    req.params.id
-  ) as IncomeRow | undefined;
+  const income = db.prepare(
+    "SELECT * FROM income WHERE id = ? AND (is_deleted IS NULL OR is_deleted = 0)"
+  ).get(req.params.id) as IncomeRow | undefined;
 
   if (!income) {
     throw new NotFoundError("Income record", req.params.id);
@@ -129,6 +132,9 @@ router.post("/", validateBody(CreateIncomeSchema), asyncHandler(async (req: Requ
     throw new ValidationError("date, description, and net_amount are required");
   }
 
+  // GoBD: Check period lock before creating
+  enforcePeriodLock(db, date, 'Einnahmen erstellen');
+
   const id = generateId();
   const now = getCurrentTimestamp();
 
@@ -136,12 +142,15 @@ router.post("/", validateBody(CreateIncomeSchema), asyncHandler(async (req: Requ
   const vatAmount = Math.round(net_amount * (vat_rate / 100) * 100) / 100;
   const grossAmount = Math.round((net_amount + vatAmount) * 100) / 100;
 
+  // GoBD: Assign sequential reference number
+  const referenceNumber = getNextSequenceNumber(db, 'EI');
+
   db.prepare(
     `INSERT INTO income (
       id, date, client_id, invoice_id, description, net_amount, vat_rate,
       vat_amount, gross_amount, euer_line, euer_category, payment_method,
-      bank_reference, ust_period, ust_reported, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`
+      bank_reference, ust_period, ust_reported, reference_number, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
   ).run(
     id,
     date,
@@ -157,10 +166,15 @@ router.post("/", validateBody(CreateIncomeSchema), asyncHandler(async (req: Requ
     payment_method || null,
     bank_reference || null,
     ust_period || null,
+    referenceNumber,
     now
   );
 
-  const income = db.prepare("SELECT * FROM income WHERE id = ?").get(id);
+  const income = db.prepare("SELECT * FROM income WHERE id = ?").get(id) as IncomeRow;
+
+  // GoBD: Audit trail
+  auditCreate(db, 'income', id, income as unknown as Record<string, unknown>, extractAuditContext(req));
+
   cache.invalidate("income:*");
   res.status(201).json(income);
 }));
@@ -213,12 +227,27 @@ router.patch("/:id", validateBody(UpdateIncomeSchema), asyncHandler(async (req: 
     params.push(netAmount, vatRate, vatAmount, grossAmount);
   }
 
+  // GoBD: Check period lock on original date and new date (if changing)
+  enforcePeriodLock(db, existing.date, 'Einnahmen ändern');
+  if (req.body.date && req.body.date !== existing.date) {
+    enforcePeriodLock(db, req.body.date, 'Einnahmen in neuen Zeitraum verschieben');
+  }
+
   if (updates.length > 0) {
     params.push(id);
     db.prepare(`UPDATE income SET ${updates.join(", ")} WHERE id = ?`).run(...params);
   }
 
-  const income = db.prepare("SELECT * FROM income WHERE id = ?").get(id);
+  const income = db.prepare("SELECT * FROM income WHERE id = ?").get(id) as IncomeRow;
+
+  // GoBD: Audit trail for update
+  auditUpdate(
+    db, 'income', id,
+    existing as unknown as Record<string, unknown>,
+    income as unknown as Record<string, unknown>,
+    extractAuditContext(req)
+  );
+
   cache.invalidate("income:*");
   res.json(income);
 }));
@@ -238,7 +267,19 @@ router.delete("/:id", asyncHandler(async (req: Request, res: Response) => {
     throw new NotFoundError("Income record", id);
   }
 
-  db.prepare("DELETE FROM income WHERE id = ?").run(id);
+  // GoBD: Check period lock before deletion
+  enforcePeriodLock(db, existing.date, 'Einnahmen löschen');
+
+  // GoBD: Soft-delete instead of hard delete (preserve for audit trail)
+  db.prepare("UPDATE income SET is_deleted = 1 WHERE id = ?").run(id);
+
+  // GoBD: Audit trail
+  auditSoftDelete(
+    db, 'income', id,
+    existing as unknown as Record<string, unknown>,
+    extractAuditContext(req)
+  );
+
   cache.invalidate("income:*");
   res.json({ success: true, message: "Income record deleted" });
 }));

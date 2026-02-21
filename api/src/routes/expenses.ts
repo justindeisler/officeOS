@@ -14,6 +14,9 @@ import { cache, cacheKey, TTL } from "../cache.js";
 import { validateBody } from "../middleware/validateBody.js";
 import { CreateExpenseSchema, UpdateExpenseSchema, MarkExpensesReportedSchema } from "../schemas/index.js";
 import { EXPENSE_CATEGORIES as SHARED_EXPENSE_CATEGORIES, EXPENSE_CATEGORY_MAP, LEGACY_CATEGORY_MAP } from "../constants/expense-categories.js";
+import { auditCreate, auditUpdate, auditSoftDelete, extractAuditContext } from "../services/auditService.js";
+import { enforcePeriodLock } from "../services/periodLockService.js";
+import { getNextSequenceNumber } from "../services/sequenceService.js";
 
 const router = Router();
 
@@ -74,7 +77,7 @@ router.get("/", asyncHandler(async (req: Request, res: Response) => {
 
   const db = getDb();
 
-  let sql = "SELECT * FROM expenses WHERE 1=1";
+  let sql = "SELECT * FROM expenses WHERE (is_deleted IS NULL OR is_deleted = 0)";
   const params: unknown[] = [];
 
   if (start_date) {
@@ -119,9 +122,9 @@ router.get("/", asyncHandler(async (req: Request, res: Response) => {
  */
 router.get("/:id", asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();
-  const expense = db.prepare("SELECT * FROM expenses WHERE id = ?").get(
-    req.params.id
-  ) as ExpenseRow | undefined;
+  const expense = db.prepare(
+    "SELECT * FROM expenses WHERE id = ? AND (is_deleted IS NULL OR is_deleted = 0)"
+  ).get(req.params.id) as ExpenseRow | undefined;
 
   if (!expense) {
     throw new NotFoundError("Expense", req.params.id);
@@ -135,9 +138,9 @@ router.get("/:id", asyncHandler(async (req: Request, res: Response) => {
  */
 router.get("/:id/receipt", asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();
-  const expense = db.prepare("SELECT * FROM expenses WHERE id = ?").get(
-    req.params.id
-  ) as ExpenseRow | undefined;
+  const expense = db.prepare(
+    "SELECT * FROM expenses WHERE id = ? AND (is_deleted IS NULL OR is_deleted = 0)"
+  ).get(req.params.id) as ExpenseRow | undefined;
 
   if (!expense) {
     throw new NotFoundError("Expense", req.params.id);
@@ -197,6 +200,9 @@ router.post("/", validateBody(CreateExpenseSchema), asyncHandler(async (req: Req
     throw new ValidationError("date, description, category, and net_amount are required");
   }
 
+  // GoBD: Check period lock before creating
+  enforcePeriodLock(db, date, 'Ausgaben erstellen');
+
   const id = generateId();
   const now = getCurrentTimestamp();
 
@@ -211,14 +217,17 @@ router.post("/", validateBody(CreateExpenseSchema), asyncHandler(async (req: Req
   const categoryInfo = EXPENSE_CATEGORY_MAP.get(normalizedCategory);
   const finalEuerLine = euer_line ?? categoryInfo?.euer_line ?? 34;
 
+  // GoBD: Assign sequential reference number
+  const referenceNumber = getNextSequenceNumber(db, 'EA');
+
   db.prepare(
     `INSERT INTO expenses (
       id, date, vendor, description, category, net_amount, vat_rate,
       vat_amount, gross_amount, euer_line, euer_category, payment_method,
       receipt_path, ust_period, ust_reported,
       deductible_percent, vorsteuer_claimed, is_recurring, recurring_frequency,
-      is_gwg, asset_id, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`
+      is_gwg, asset_id, reference_number, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     date,
@@ -240,10 +249,15 @@ router.post("/", validateBody(CreateExpenseSchema), asyncHandler(async (req: Req
     recurring_frequency || null,
     is_gwg ? 1 : 0,
     asset_id || null,
+    referenceNumber,
     now
   );
 
-  const expense = db.prepare("SELECT * FROM expenses WHERE id = ?").get(id);
+  const expense = db.prepare("SELECT * FROM expenses WHERE id = ?").get(id) as ExpenseRow;
+
+  // GoBD: Audit trail
+  auditCreate(db, 'expense', id, expense as unknown as Record<string, unknown>, extractAuditContext(req));
+
   cache.invalidate("expenses:*");
   res.status(201).json(expense);
 }));
@@ -291,6 +305,12 @@ router.patch("/:id", validateBody(UpdateExpenseSchema), asyncHandler(async (req:
     }
   }
 
+  // GoBD: Check period lock on original date and new date
+  enforcePeriodLock(db, existing.date, 'Ausgaben ändern');
+  if (req.body.date && req.body.date !== existing.date) {
+    enforcePeriodLock(db, req.body.date, 'Ausgaben in neuen Zeitraum verschieben');
+  }
+
   // Recalculate VAT if amounts change
   if (req.body.net_amount !== undefined || req.body.vat_rate !== undefined) {
     const netAmount = req.body.net_amount ?? existing.net_amount;
@@ -307,7 +327,16 @@ router.patch("/:id", validateBody(UpdateExpenseSchema), asyncHandler(async (req:
     db.prepare(`UPDATE expenses SET ${updates.join(", ")} WHERE id = ?`).run(...params);
   }
 
-  const expense = db.prepare("SELECT * FROM expenses WHERE id = ?").get(id);
+  const expense = db.prepare("SELECT * FROM expenses WHERE id = ?").get(id) as ExpenseRow;
+
+  // GoBD: Audit trail for update
+  auditUpdate(
+    db, 'expense', id,
+    existing as unknown as Record<string, unknown>,
+    expense as unknown as Record<string, unknown>,
+    extractAuditContext(req)
+  );
+
   cache.invalidate("expenses:*");
   res.json(expense);
 }));
@@ -327,7 +356,19 @@ router.delete("/:id", asyncHandler(async (req: Request, res: Response) => {
     throw new NotFoundError("Expense", id);
   }
 
-  db.prepare("DELETE FROM expenses WHERE id = ?").run(id);
+  // GoBD: Check period lock
+  enforcePeriodLock(db, existing.date, 'Ausgaben löschen');
+
+  // GoBD: Soft-delete instead of hard delete
+  db.prepare("UPDATE expenses SET is_deleted = 1 WHERE id = ?").run(id);
+
+  // GoBD: Audit trail
+  auditSoftDelete(
+    db, 'expense', id,
+    existing as unknown as Record<string, unknown>,
+    extractAuditContext(req)
+  );
+
   cache.invalidate("expenses:*");
   res.json({ success: true, message: "Expense deleted" });
 }));

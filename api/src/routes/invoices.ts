@@ -22,6 +22,8 @@ import {
   type InvoiceItem,
   getDefaultSeller,
 } from "../services/pdfService.js";
+import { auditCreate, auditUpdate, auditDelete, extractAuditContext } from "../services/auditService.js";
+import { enforcePeriodLock } from "../services/periodLockService.js";
 
 const router = Router();
 const log = createLogger("invoices");
@@ -380,6 +382,9 @@ router.post("/", validateBody(CreateInvoiceSchema), asyncHandler(async (req, res
   const invoice = db.prepare("SELECT * FROM invoices WHERE id = ?").get(id) as InvoiceRow;
   const invoiceItems = getInvoiceItems(db, id);
 
+  // GoBD: Audit trail
+  auditCreate(db, 'invoice', id, invoice as unknown as Record<string, unknown>, extractAuditContext(req));
+
   res.status(201).json({
     ...invoice,
     items: invoiceItems,
@@ -615,7 +620,16 @@ router.post("/:id/pay", validateBody(PayInvoiceSchema), asyncHandler(async (req,
   // Regenerate PDF to reflect paid status (shows "Bezahlt" watermark + correct status)
   await generateAndSavePdf(db, id);
 
-  const invoice = db.prepare("SELECT * FROM invoices WHERE id = ?").get(id);
+  const invoice = db.prepare("SELECT * FROM invoices WHERE id = ?").get(id) as InvoiceRow;
+
+  // GoBD: Audit trail for status change
+  auditUpdate(
+    db, 'invoice', id,
+    existing as unknown as Record<string, unknown>,
+    invoice as unknown as Record<string, unknown>,
+    extractAuditContext(req)
+  );
+
   res.json(invoice);
 }));
 

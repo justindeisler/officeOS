@@ -190,10 +190,13 @@ const SCHEMA = `
     bank_reference TEXT,
     ust_period TEXT,
     ust_reported INTEGER DEFAULT 0,
+    reference_number TEXT,
+    is_deleted INTEGER DEFAULT 0,
     created_at TEXT NOT NULL,
     FOREIGN KEY (client_id) REFERENCES clients(id),
     FOREIGN KEY (invoice_id) REFERENCES invoices(id)
   );
+  CREATE INDEX IF NOT EXISTS idx_income_reference ON income(reference_number);
 
   CREATE TABLE IF NOT EXISTS expenses (
     id TEXT PRIMARY KEY,
@@ -218,8 +221,11 @@ const SCHEMA = `
     is_gwg INTEGER DEFAULT 0,
     asset_id TEXT REFERENCES assets(id),
     attachment_id TEXT REFERENCES attachments(id) ON DELETE SET NULL,
+    reference_number TEXT,
+    is_deleted INTEGER DEFAULT 0,
     created_at TEXT NOT NULL
   );
+  CREATE INDEX IF NOT EXISTS idx_expenses_reference ON expenses(reference_number);
 
   CREATE TABLE IF NOT EXISTS assets (
     id TEXT PRIMARY KEY,
@@ -405,6 +411,9 @@ const SCHEMA = `
     mime_type TEXT NOT NULL,
     thumbnail_path TEXT,
     checksum TEXT,
+    retention_type TEXT DEFAULT 'receipt',
+    retention_until TEXT,
+    deletion_blocked INTEGER DEFAULT 1,
     uploaded_at TEXT NOT NULL DEFAULT (datetime('now')),
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
@@ -507,7 +516,47 @@ const SCHEMA = `
     markdown_path TEXT,
     created_at TEXT DEFAULT (datetime('now'))
   );
+
+  -- GoBD: Audit Trail (immutable)
+  CREATE TABLE IF NOT EXISTS audit_log (
+    id TEXT PRIMARY KEY,
+    entity_type TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    field_name TEXT,
+    old_value TEXT,
+    new_value TEXT,
+    user_id TEXT DEFAULT 'system',
+    ip_address TEXT,
+    user_agent TEXT,
+    session_id TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity_type, entity_id);
+  CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at);
+  CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_log(action);
+  CREATE INDEX IF NOT EXISTS idx_audit_session ON audit_log(session_id);
+
+  -- GoBD: Period Locking
+  CREATE TABLE IF NOT EXISTS period_locks (
+    id TEXT PRIMARY KEY,
+    period_type TEXT NOT NULL,
+    period_key TEXT NOT NULL UNIQUE,
+    locked_at TEXT NOT NULL,
+    locked_by TEXT DEFAULT 'system',
+    reason TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_period_locks_key ON period_locks(period_key);
+
+  -- GoBD: Sequence Counters
+  CREATE TABLE IF NOT EXISTS sequence_counters (
+    prefix TEXT PRIMARY KEY,
+    last_number INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `;
+
 
 /**
  * Create a fresh in-memory test database with the full schema
