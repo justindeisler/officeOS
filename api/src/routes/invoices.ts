@@ -24,6 +24,13 @@ import {
 } from "../services/pdfService.js";
 import { auditCreate, auditUpdate, auditDelete, extractAuditContext } from "../services/auditService.js";
 import { enforcePeriodLock } from "../services/periodLockService.js";
+import {
+  generateEInvoice,
+  getEInvoiceXml,
+  parseEInvoiceXml,
+  validateEInvoice,
+  type EInvoiceFormat,
+} from "../services/eInvoice/index.js";
 
 const router = Router();
 const log = createLogger("invoices");
@@ -746,6 +753,108 @@ router.post("/:id/regenerate-pdf", asyncHandler(async (req, res) => {
  */
 router.get("/config/seller", asyncHandler(async (_req, res) => {
   res.json(getDefaultSeller());
+}));
+
+// ============================================================================
+// E-Rechnung Endpoints
+// ============================================================================
+
+/**
+ * Generate E-Rechnung (ZUGFeRD or X-Rechnung) for an invoice
+ */
+router.post("/:id/einvoice", asyncHandler(async (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+  const format = (req.body.format || 'zugferd') as EInvoiceFormat;
+
+  const validFormats = ['zugferd', 'xrechnung-ubl', 'xrechnung-cii'];
+  if (!validFormats.includes(format)) {
+    throw new ValidationError(`Invalid format. Must be one of: ${validFormats.join(', ')}`);
+  }
+
+  const result = generateEInvoice(db, id, format);
+
+  res.json({
+    invoiceId: id,
+    format,
+    valid: result.validation.valid,
+    errors: result.validation.errors,
+    warnings: result.validation.warnings,
+    xml: result.xml,
+  });
+}));
+
+/**
+ * Download E-Rechnung XML
+ */
+router.get("/:id/einvoice", asyncHandler(async (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+  const format = (req.query.format || 'zugferd') as EInvoiceFormat;
+
+  // Check if XML already exists
+  const existing = getEInvoiceXml(db, id);
+
+  let xml: string;
+  let valid: boolean;
+
+  if (existing.xml && existing.format === format) {
+    xml = existing.xml;
+    valid = existing.valid ?? false;
+  } else {
+    // Generate on the fly
+    const result = generateEInvoice(db, id, format);
+    xml = result.xml;
+    valid = result.validation.valid;
+  }
+
+  // Get invoice number for filename
+  const invoice = db.prepare('SELECT invoice_number FROM invoices WHERE id = ?').get(id) as { invoice_number: string } | undefined;
+  const filename = invoice
+    ? `${invoice.invoice_number}-${format}.xml`
+    : `einvoice-${format}.xml`;
+
+  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(xml);
+}));
+
+/**
+ * Validate E-Rechnung for an invoice (without generating)
+ */
+router.get("/:id/einvoice/validate", asyncHandler(async (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+  const format = (req.query.format || 'zugferd') as EInvoiceFormat;
+
+  const result = generateEInvoice(db, id, format);
+
+  res.json({
+    invoiceId: id,
+    format,
+    valid: result.validation.valid,
+    errors: result.validation.errors,
+    warnings: result.validation.warnings,
+  });
+}));
+
+/**
+ * Parse incoming E-Rechnung XML
+ */
+router.post("/parse-einvoice", asyncHandler(async (req, res) => {
+  const { xml } = req.body;
+
+  if (!xml || typeof xml !== 'string') {
+    throw new ValidationError('XML content is required in the request body');
+  }
+
+  const parsed = parseEInvoiceXml(xml);
+
+  res.json({
+    success: true,
+    format: parsed.format,
+    data: parsed,
+  });
 }));
 
 export default router;

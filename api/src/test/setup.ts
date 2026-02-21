@@ -32,7 +32,10 @@ const SCHEMA = `
     address_street TEXT,
     address_zip TEXT,
     address_city TEXT,
-    address_country TEXT DEFAULT 'Deutschland'
+    address_country TEXT DEFAULT 'Deutschland',
+    vat_id TEXT,
+    country_code TEXT DEFAULT 'DE',
+    is_eu_business INTEGER DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS projects (
@@ -139,7 +142,12 @@ const SCHEMA = `
     payment_method TEXT,
     notes TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    pdf_path TEXT
+    pdf_path TEXT,
+    einvoice_format TEXT,
+    einvoice_xml TEXT,
+    einvoice_valid INTEGER,
+    leitweg_id TEXT,
+    buyer_reference TEXT
   );
   CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
   CREATE INDEX IF NOT EXISTS idx_invoices_client ON invoices(client_id);
