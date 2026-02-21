@@ -35,7 +35,8 @@ const SCHEMA = `
     address_country TEXT DEFAULT 'Deutschland',
     vat_id TEXT,
     country_code TEXT DEFAULT 'DE',
-    is_eu_business INTEGER DEFAULT 0
+    is_eu_business INTEGER DEFAULT 0,
+    client_type TEXT DEFAULT 'domestic'
   );
 
   CREATE TABLE IF NOT EXISTS projects (
@@ -147,7 +148,12 @@ const SCHEMA = `
     einvoice_xml TEXT,
     einvoice_valid INTEGER,
     leitweg_id TEXT,
-    buyer_reference TEXT
+    buyer_reference TEXT,
+    recurring_invoice_id TEXT,
+    dunning_level INTEGER DEFAULT 0,
+    last_reminded_at TEXT,
+    is_reverse_charge INTEGER DEFAULT 0,
+    reverse_charge_note TEXT
   );
   CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
   CREATE INDEX IF NOT EXISTS idx_invoices_client ON invoices(client_id);
@@ -159,7 +165,10 @@ const SCHEMA = `
     quantity DECIMAL(10,2) NOT NULL,
     unit TEXT DEFAULT 'hours',
     unit_price DECIMAL(10,2) NOT NULL,
-    amount DECIMAL(10,2) NOT NULL
+    amount DECIMAL(10,2) NOT NULL,
+    vat_rate REAL,
+    vat_amount REAL,
+    net_amount REAL
   );
 
   CREATE TABLE IF NOT EXISTS captures (
@@ -200,6 +209,8 @@ const SCHEMA = `
     ust_reported INTEGER DEFAULT 0,
     reference_number TEXT,
     is_deleted INTEGER DEFAULT 0,
+    is_reverse_charge INTEGER DEFAULT 0,
+    reverse_charge_note TEXT,
     created_at TEXT NOT NULL,
     FOREIGN KEY (client_id) REFERENCES clients(id),
     FOREIGN KEY (invoice_id) REFERENCES invoices(id)
@@ -231,6 +242,8 @@ const SCHEMA = `
     attachment_id TEXT REFERENCES attachments(id) ON DELETE SET NULL,
     reference_number TEXT,
     is_deleted INTEGER DEFAULT 0,
+    is_reverse_charge INTEGER DEFAULT 0,
+    reverse_charge_note TEXT,
     created_at TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_expenses_reference ON expenses(reference_number);
@@ -596,6 +609,149 @@ const SCHEMA = `
     last_number INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  -- Migration 016: Banking
+  CREATE TABLE IF NOT EXISTS bank_accounts (
+    id TEXT PRIMARY KEY,
+    provider TEXT NOT NULL DEFAULT 'finapi',
+    provider_account_id TEXT,
+    bank_name TEXT,
+    iban TEXT,
+    bic TEXT,
+    account_name TEXT,
+    account_type TEXT DEFAULT 'checking',
+    balance REAL DEFAULT 0,
+    balance_date TEXT,
+    currency TEXT DEFAULT 'EUR',
+    sync_status TEXT DEFAULT 'pending',
+    last_sync_at TEXT,
+    last_sync_error TEXT,
+    connection_id TEXT,
+    is_active INTEGER DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_bank_accounts_iban ON bank_accounts(iban);
+
+  CREATE TABLE IF NOT EXISTS bank_transactions (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES bank_accounts(id) ON DELETE CASCADE,
+    provider_transaction_id TEXT,
+    amount REAL NOT NULL,
+    currency TEXT DEFAULT 'EUR',
+    booking_date TEXT NOT NULL,
+    value_date TEXT,
+    counterpart_name TEXT,
+    counterpart_iban TEXT,
+    counterpart_bic TEXT,
+    purpose TEXT,
+    bank_reference TEXT,
+    type TEXT,
+    match_status TEXT DEFAULT 'unmatched',
+    match_confidence REAL,
+    matched_invoice_id TEXT REFERENCES invoices(id),
+    matched_expense_id TEXT REFERENCES expenses(id),
+    matched_income_id TEXT REFERENCES income(id),
+    match_rule_id TEXT,
+    category TEXT,
+    vat_rate REAL,
+    booking_description TEXT,
+    is_duplicate INTEGER DEFAULT 0,
+    notes TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_bank_tx_account ON bank_transactions(account_id);
+  CREATE INDEX IF NOT EXISTS idx_bank_tx_date ON bank_transactions(booking_date);
+  CREATE INDEX IF NOT EXISTS idx_bank_tx_match_status ON bank_transactions(match_status);
+
+  CREATE TABLE IF NOT EXISTS bank_sync_log (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES bank_accounts(id) ON DELETE CASCADE,
+    status TEXT DEFAULT 'running',
+    transactions_imported INTEGER DEFAULT 0,
+    transactions_updated INTEGER DEFAULT 0,
+    duplicates_skipped INTEGER DEFAULT 0,
+    error_message TEXT,
+    started_at TEXT NOT NULL DEFAULT (datetime('now')),
+    completed_at TEXT
+  );
+
+  -- Migration 017: Booking Rules
+  CREATE TABLE IF NOT EXISTS booking_rules (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    priority INTEGER DEFAULT 100,
+    is_active INTEGER DEFAULT 1,
+    condition_direction TEXT,
+    condition_counterpart_pattern TEXT,
+    condition_purpose_pattern TEXT,
+    condition_amount_min REAL,
+    condition_amount_max REAL,
+    condition_iban_pattern TEXT,
+    action_category TEXT,
+    action_vat_rate REAL,
+    action_description_template TEXT,
+    action_auto_confirm INTEGER DEFAULT 0,
+    action_match_type TEXT,
+    match_count INTEGER DEFAULT 0,
+    last_matched_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_booking_rules_priority ON booking_rules(priority);
+
+  CREATE TABLE IF NOT EXISTS vendor_bank_mappings (
+    id TEXT PRIMARY KEY,
+    bank_counterpart_name TEXT NOT NULL,
+    mapped_vendor_name TEXT NOT NULL,
+    confidence REAL DEFAULT 1.0,
+    match_count INTEGER DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  -- Migration 019: Recurring Invoices
+  CREATE TABLE IF NOT EXISTS recurring_invoices (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    client_id TEXT REFERENCES clients(id),
+    project_id TEXT REFERENCES projects(id),
+    frequency TEXT NOT NULL DEFAULT 'monthly',
+    next_date TEXT NOT NULL,
+    last_generated_at TEXT,
+    end_date TEXT,
+    vat_rate REAL DEFAULT 19,
+    notes TEXT,
+    payment_terms_days INTEGER DEFAULT 14,
+    items_json TEXT NOT NULL,
+    auto_send INTEGER DEFAULT 0,
+    auto_generate INTEGER DEFAULT 1,
+    is_active INTEGER DEFAULT 1,
+    generated_count INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_recurring_invoices_next ON recurring_invoices(next_date);
+
+  -- Migration 020: Dunning
+  CREATE TABLE IF NOT EXISTS dunning_entries (
+    id TEXT PRIMARY KEY,
+    invoice_id TEXT NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+    level INTEGER NOT NULL DEFAULT 1,
+    sent_date TEXT,
+    due_date TEXT,
+    fee REAL DEFAULT 0,
+    interest_rate REAL DEFAULT 0,
+    interest_amount REAL DEFAULT 0,
+    notes TEXT,
+    delivery_method TEXT DEFAULT 'email',
+    status TEXT DEFAULT 'draft',
+    pdf_path TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_dunning_invoice ON dunning_entries(invoice_id);
 `;
 
 

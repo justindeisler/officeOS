@@ -95,6 +95,8 @@ const ALLOWED_ROOTS = [
 ];
 
 function isAllowedPath(filePath: string): boolean {
+  // SECURITY: Reject null bytes before resolve to prevent poison null byte attacks
+  if (filePath.includes("\0")) return false;
   const resolved = resolve(filePath);
   return ALLOWED_ROOTS.some((root) => resolved.startsWith(root));
 }
@@ -342,6 +344,8 @@ async function scanDirectoryRecursive(dir: string): Promise<string[]> {
   try {
     const entries = await fs.readdir(dir, { withFileTypes: true });
     for (const entry of entries) {
+      // SECURITY: Skip entries with path traversal patterns (defense in depth)
+      if (entry.name.includes("..") || entry.name.includes("\0") || entry.name.includes("/")) continue;
       const fullPath = join(dir, entry.name);
       if (entry.isDirectory()) {
         // Skip sessions/agent dirs that aren't relevant
@@ -588,12 +592,11 @@ router.get(
       throw new ValidationError("path query parameter is required");
     }
 
-    if (!isAllowedPath(filePath)) {
-      throw new ForbiddenError("File path not in allowed directory");
-    }
+    // SECURITY: Use validateFilePath for null byte + traversal + allowed roots check
+    const safePath = validateFilePath(filePath);
 
-    if (!existsSync(filePath)) {
-      throw new NotFoundError("File", filePath);
+    if (!existsSync(safePath)) {
+      throw new NotFoundError("File", safePath);
     }
 
     // Update last_accessed
@@ -601,18 +604,18 @@ router.get(
       const db = getDb();
       db.prepare(
         "UPDATE memory_entries SET last_accessed = ? WHERE agent_id = ? AND file_path = ?"
-      ).run(getCurrentTimestamp(), agentId, filePath);
+      ).run(getCurrentTimestamp(), agentId, safePath);
     } catch {
       // Non-critical
     }
 
-    const content = readMemoryFile(filePath);
+    const content = readMemoryFile(safePath);
 
     res.json({
-      path: filePath,
-      name: basename(filePath),
+      path: safePath,
+      name: basename(safePath),
       content,
-      encrypted: isEncryptedFile(filePath),
+      encrypted: isEncryptedFile(safePath),
     });
   })
 );
@@ -630,13 +633,12 @@ router.put(
       throw new ValidationError("path and content are required");
     }
 
-    if (!isAllowedPath(filePath)) {
-      throw new ForbiddenError("File path not in allowed directory");
-    }
+    // SECURITY: Use validateFilePath for null byte + traversal + allowed roots check
+    const safePath = validateFilePath(filePath);
 
-    writeMemoryFile(filePath, content);
+    writeMemoryFile(safePath, content);
 
-    res.json({ success: true, path: filePath });
+    res.json({ success: true, path: safePath });
   })
 );
 

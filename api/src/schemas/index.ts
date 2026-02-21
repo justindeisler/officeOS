@@ -202,6 +202,7 @@ const InvoiceItemSchema = z.object({
   quantity: z.coerce.number().positive(),
   unit: z.string().optional().default('hours'),
   unit_price: z.coerce.number(),
+  vat_rate: z.coerce.number().optional(), // Per-item VAT rate (overrides invoice-level)
 });
 
 export const CreateInvoiceSchema = z.object({

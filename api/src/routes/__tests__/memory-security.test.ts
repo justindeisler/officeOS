@@ -135,6 +135,42 @@ describe("Memory API Security", () => {
 
       expect(res.status).toBe(403);
     });
+
+    it("rejects absolute paths outside allowed roots", async () => {
+      const res = await request(app)
+        .get("/api/memory/agents/james/files/content")
+        .query({ path: "/tmp/malicious-file.md" });
+
+      expect(res.status).toBe(403);
+    });
+
+    it("rejects paths with null bytes in GET content", async () => {
+      const res = await request(app)
+        .get("/api/memory/agents/james/files/content")
+        .query({ path: "/home/jd-server-admin/clawd/memory/test\0.md" });
+
+      // Null bytes should trigger validation error (400) or forbidden (403)
+      expect([400, 403, 404]).toContain(res.status);
+    });
+
+    it("rejects paths with null bytes in PUT content", async () => {
+      const res = await request(app)
+        .put("/api/memory/agents/james/files/content")
+        .send({
+          path: "/home/jd-server-admin/clawd/memory/test\0../../etc/passwd",
+          content: "malicious",
+        });
+
+      expect([400, 403]).toContain(res.status);
+    });
+
+    it("rejects Windows-style drive letter paths", async () => {
+      const res = await request(app)
+        .get("/api/memory/agents/james/files/content")
+        .query({ path: "C:\\Windows\\System32\\config\\sam" });
+
+      expect(res.status).toBe(403);
+    });
   });
 
   // ==========================================================================
@@ -216,6 +252,45 @@ describe("Memory API Security", () => {
   // ==========================================================================
   // Import Safety
   // ==========================================================================
+
+  // ==========================================================================
+  // Source Code Pattern Verification
+  // ==========================================================================
+
+  describe("Source Code Security Patterns", () => {
+    it("memory.ts routes use validateFilePath instead of direct isAllowedPath for user input", async () => {
+      const fs = await import("fs");
+      const path = await import("path");
+
+      // Read the actual source (unmocked)
+      const { readFileSync: realRead } = await vi.importActual<typeof import("fs")>("fs");
+      const src = realRead(
+        path.join(process.cwd(), "src/routes/memory.ts"),
+        "utf-8"
+      );
+
+      // The GET and PUT content routes should use validateFilePath, not raw isAllowedPath
+      // Extract the route handlers for content endpoints
+      const getContentHandler = src.match(/\/agents\/:agentId\/files\/content.*?asyncHandler\(async.*?\}\)\n\)/s);
+      const putContentHandler = src.match(/PUT.*?\/agents\/:agentId\/files\/content.*?asyncHandler\(async.*?\}\)\n\)/s);
+
+      // Both should use validateFilePath
+      expect(src).toContain("validateFilePath(filePath)");
+    });
+
+    it("memory.ts scanDirectoryRecursive sanitizes entry names", async () => {
+      const { readFileSync: realRead } = await vi.importActual<typeof import("fs")>("fs");
+      const path = await import("path");
+      const src = realRead(
+        path.join(process.cwd(), "src/routes/memory.ts"),
+        "utf-8"
+      );
+
+      // scanDirectoryRecursive should check for traversal in entry.name
+      const scanFn = src.match(/async function scanDirectoryRecursive[\s\S]*?^}/m);
+      expect(scanFn?.[0]).toContain('entry.name.includes("..")');
+    });
+  });
 
   describe("Import Safety", () => {
     it("does not import execSync from child_process", async () => {

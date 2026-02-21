@@ -206,6 +206,85 @@ describe("Backup Encryption Security", () => {
   });
 
   // ==========================================================================
+  // Path Traversal Prevention
+  // ==========================================================================
+
+  describe("Path Traversal Prevention", () => {
+    let tempDir: string;
+
+    beforeAll(() => {
+      tempDir = mkdtempSync(join(tmpdir(), "backup-path-test-"));
+      // Create a fake backup file for testing
+      const fakeBackup = `${MAGIC_HEADER}\n${randomBytes(50).toString("base64")}\n`;
+      writeFileSync(join(tempDir, "pa-backup-2025-01-01T00-00-00.enc"), fakeBackup);
+    });
+
+    afterAll(() => {
+      rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    it("backup.ts has sanitizeFilename function", async () => {
+      const fs = await import("fs");
+      const path = await import("path");
+      const src = fs.readFileSync(
+        path.join(process.cwd(), "src/services/backup.ts"),
+        "utf-8"
+      );
+      expect(src).toContain("function sanitizeFilename");
+      expect(src).toContain("function validateDirPath");
+      expect(src).toContain("function safeJoin");
+    });
+
+    it("backup.ts uses safeJoin instead of raw join for file operations", async () => {
+      const fs = await import("fs");
+      const path = await import("path");
+      const src = fs.readFileSync(
+        path.join(process.cwd(), "src/services/backup.ts"),
+        "utf-8"
+      );
+
+      // Count occurrences of safeJoin (should be used for all file path constructions)
+      const safeJoinCount = (src.match(/safeJoin\(/g) || []).length;
+      expect(safeJoinCount).toBeGreaterThanOrEqual(7);
+    });
+
+    it("backup.ts rejects null bytes in directory paths", async () => {
+      const fs = await import("fs");
+      const path = await import("path");
+      const src = fs.readFileSync(
+        path.join(process.cwd(), "src/services/backup.ts"),
+        "utf-8"
+      );
+      // validateDirPath checks for null bytes
+      expect(src).toContain('dir.includes("\\0")');
+    });
+
+    it("restoreFromBackup rejects path traversal in filename", async () => {
+      const { restoreFromBackup } = await import("../../services/backup.js");
+
+      // Attempt path traversal with ../
+      expect(() =>
+        restoreFromBackup("../../../etc/passwd", { backupDir: tempDir })
+      ).toThrow(/Invalid/i);
+
+      // Attempt path traversal with encoded sequences
+      expect(() =>
+        restoreFromBackup("..%2F..%2Fetc%2Fpasswd", { backupDir: tempDir })
+      ).toThrow();
+
+      // Attempt absolute path
+      expect(() =>
+        restoreFromBackup("/etc/passwd", { backupDir: tempDir })
+      ).toThrow(/Invalid/i);
+
+      // Attempt null byte injection
+      expect(() =>
+        restoreFromBackup("backup.enc\0.txt", { backupDir: tempDir })
+      ).toThrow();
+    });
+  });
+
+  // ==========================================================================
   // Source Code Verification
   // ==========================================================================
 

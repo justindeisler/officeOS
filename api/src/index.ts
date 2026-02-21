@@ -54,6 +54,10 @@ import memoryRouter from "./routes/memory.js";
 import auditRouter from "./routes/audit.js";
 import elsterRouter from "./routes/elster.js";
 import datevRouter from "./routes/datev.js";
+import bankingRouter from "./routes/banking.js";
+import bookingRulesRouter from "./routes/booking-rules.js";
+import recurringInvoicesRouter from "./routes/recurring-invoices.js";
+import dunningRouter from "./routes/dunning.js";
 
 // Environment validation — fail fast if critical vars are missing or weak
 // (Full validation logic in startup-validation.ts)
@@ -195,6 +199,18 @@ app.use("/api/tax/elster", authMiddleware, elsterRouter);
 
 // DATEV export routes (protected)
 app.use("/api/exports/datev", authMiddleware, datevRouter);
+
+// Banking integration routes (protected)
+app.use("/api/banking", authMiddleware, bankingRouter);
+
+// Booking rules routes (protected)
+app.use("/api/booking-rules", authMiddleware, bookingRulesRouter);
+
+// Recurring invoices routes (protected)
+app.use("/api/invoices/recurring", authMiddleware, recurringInvoicesRouter);
+
+// Dunning (Mahnwesen) routes (protected)
+app.use("/api/dunning", authMiddleware, dunningRouter);
 
 // 404 handler for unmatched API routes (must come after all API routes, before static files)
 app.all("/api/*", notFoundHandler);

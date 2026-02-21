@@ -15,12 +15,58 @@
 
 import { createCipheriv, createDecipheriv, randomBytes, createHash } from "crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync, unlinkSync } from "fs";
-import { join, basename } from "path";
+import { join, basename, normalize } from "path";
 import { homedir } from "os";
 import { getDb } from "../database.js";
 import { createLogger } from "../logger.js";
 
 const log = createLogger("backup");
+
+// ============================================================================
+// Security Helpers
+// ============================================================================
+
+/**
+ * SECURITY: Sanitize a filename to prevent path traversal.
+ * Strips directory components and rejects dangerous patterns.
+ */
+function sanitizeFilename(filename: string): string {
+  if (filename.includes("\0")) {
+    throw new Error("Filename contains null bytes");
+  }
+  // basename() strips directory components including ../
+  const safe = basename(filename);
+  if (!safe || safe === "." || safe === "..") {
+    throw new Error("Invalid filename");
+  }
+  return safe;
+}
+
+/**
+ * SECURITY: Validate a directory path parameter.
+ * Rejects paths with null bytes and normalizes.
+ */
+function validateDirPath(dir: string): string {
+  if (dir.includes("\0")) {
+    throw new Error("Directory path contains null bytes");
+  }
+  return normalize(dir);
+}
+
+/**
+ * SECURITY: Safely join a base directory with a filename, ensuring
+ * the result stays within the base directory.
+ */
+function safeJoin(baseDir: string, filename: string): string {
+  const safe = sanitizeFilename(filename);
+  const fullPath = join(baseDir, safe);
+  const normalized = normalize(fullPath);
+  const normalizedBase = normalize(baseDir);
+  if (!normalized.startsWith(normalizedBase)) {
+    throw new Error("Path traversal detected");
+  }
+  return normalized;
+}
 
 // ============================================================================
 // Constants
@@ -247,7 +293,7 @@ export interface BackupStatus {
  * Ensure backup directory exists
  */
 function ensureBackupDir(dir?: string): string {
-  const backupDir = dir || DEFAULT_BACKUP_DIR;
+  const backupDir = validateDirPath(dir || DEFAULT_BACKUP_DIR);
   if (!existsSync(backupDir)) {
     mkdirSync(backupDir, { recursive: true, mode: 0o700 });
     log.info({ dir: backupDir }, "Created backup directory");
@@ -276,7 +322,8 @@ export function createBackup(options?: {
   const dateStr = new Date().toISOString().split("T")[0];
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
   const filename = `pa-backup-${timestamp}.enc`;
-  const filepath = join(backupDir, filename);
+  // SECURITY: Use safeJoin to ensure path stays within backup directory
+  const filepath = safeJoin(backupDir, filename);
 
   writeFileSync(filepath, encryptedContent, { mode: 0o600 });
 
@@ -308,7 +355,7 @@ export function rotateBackups(options?: {
   backupDir?: string;
   maxDays?: number;
 }): { deleted: string[]; kept: number } {
-  const backupDir = options?.backupDir || DEFAULT_BACKUP_DIR;
+  const backupDir = validateDirPath(options?.backupDir || DEFAULT_BACKUP_DIR);
   const maxDays = options?.maxDays || MAX_BACKUP_DAYS;
 
   if (!existsSync(backupDir)) {
@@ -326,7 +373,8 @@ export function rotateBackups(options?: {
   let kept = 0;
 
   for (const file of files) {
-    const filepath = join(backupDir, file);
+    // SECURITY: Use safeJoin to ensure path stays within backup directory
+    const filepath = safeJoin(backupDir, file);
     const stat = statSync(filepath);
 
     if (stat.mtime < cutoff) {
@@ -349,7 +397,7 @@ export function rotateBackups(options?: {
  * Get backup status and history
  */
 export function getBackupStatus(backupDir?: string): BackupStatus {
-  const dir = backupDir || DEFAULT_BACKUP_DIR;
+  const dir = validateDirPath(backupDir || DEFAULT_BACKUP_DIR);
   let keyAvailable = false;
 
   try {
@@ -375,7 +423,8 @@ export function getBackupStatus(backupDir?: string): BackupStatus {
     .reverse();
 
   const backups: BackupInfo[] = files.map((filename) => {
-    const filepath = join(dir, filename);
+    // SECURITY: Use safeJoin to ensure path stays within backup directory
+    const filepath = safeJoin(dir, filename);
     const stat = statSync(filepath);
     // Extract date from filename: pa-backup-YYYY-MM-DDTHH-MM-SS.enc
     const dateMatch = filename.match(/pa-backup-(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})/);
@@ -408,7 +457,7 @@ export function getLatestBackupContent(backupDir?: string): {
   content: Buffer;
   filename: string;
 } | null {
-  const dir = backupDir || DEFAULT_BACKUP_DIR;
+  const dir = validateDirPath(backupDir || DEFAULT_BACKUP_DIR);
 
   if (!existsSync(dir)) {
     return null;
@@ -423,7 +472,8 @@ export function getLatestBackupContent(backupDir?: string): {
     return null;
   }
 
-  const filepath = join(dir, files[0]);
+  // SECURITY: Use safeJoin to ensure path stays within backup directory
+  const filepath = safeJoin(dir, files[0]);
   return {
     content: readFileSync(filepath),
     filename: files[0],
@@ -486,7 +536,7 @@ export interface RestoreResult {
  * Get all backup files (not just recent 7)
  */
 export function getAllBackups(backupDir?: string): BackupInfo[] {
-  const dir = backupDir || DEFAULT_BACKUP_DIR;
+  const dir = validateDirPath(backupDir || DEFAULT_BACKUP_DIR);
 
   if (!existsSync(dir)) {
     return [];
@@ -498,7 +548,8 @@ export function getAllBackups(backupDir?: string): BackupInfo[] {
     .reverse();
 
   return files.map((filename) => {
-    const filepath = join(dir, filename);
+    // SECURITY: Use safeJoin to ensure path stays within backup directory
+    const filepath = safeJoin(dir, filename);
     const stat = statSync(filepath);
     const dateMatch = filename.match(/pa-backup-(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})/);
     const date = dateMatch
@@ -570,7 +621,8 @@ function createSafetyBackup(backupDir?: string, keyPath?: string): string {
   const dir = ensureBackupDir(backupDir);
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
   const filename = `pa-pre-restore-${timestamp}.enc`;
-  const filepath = join(dir, filename);
+  // SECURITY: Use safeJoin to ensure path stays within backup directory
+  const filepath = safeJoin(dir, filename);
 
   const key = loadEncryptionKey(keyPath);
   const exportData = exportAllTablesJson();
@@ -654,15 +706,15 @@ export function restoreFromBackup(filename: string, options?: {
   backupDir?: string;
   keyPath?: string;
 }): RestoreResult {
-  const dir = options?.backupDir || DEFAULT_BACKUP_DIR;
+  const dir = validateDirPath(options?.backupDir || DEFAULT_BACKUP_DIR);
 
-  // Security: prevent path traversal
-  const sanitized = basename(filename);
-  if (sanitized !== filename || filename.includes("..")) {
+  // SECURITY: Sanitize filename and use safeJoin for path traversal prevention
+  const sanitized = sanitizeFilename(filename);
+  if (sanitized !== filename) {
     throw new Error("Invalid backup filename");
   }
 
-  const filepath = join(dir, sanitized);
+  const filepath = safeJoin(dir, sanitized);
   if (!existsSync(filepath)) {
     throw new Error(`Backup file not found: ${sanitized}`);
   }

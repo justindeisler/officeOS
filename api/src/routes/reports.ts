@@ -30,6 +30,8 @@ interface IncomeRow {
   bank_reference: string | null;
   ust_period: string | null;
   ust_reported: number;
+  is_reverse_charge: number;
+  reverse_charge_note: string | null;
   created_at: string;
 }
 
@@ -195,15 +197,23 @@ router.get('/ust/:year/:quarter', async (req, res) => {
     ).all(startDate, endDate) as ExpenseRow[];
 
     // Calculate Umsatzsteuer (output VAT) by rate
-    const umsatzsteuer19 = incomeRecords
+    // Exclude reverse charge transactions (they have 0% VAT on purpose)
+    const normalIncomeRecords = incomeRecords.filter(i => !i.is_reverse_charge);
+    const reverseChargeRecords = incomeRecords.filter(i => i.is_reverse_charge);
+
+    const umsatzsteuer19 = normalIncomeRecords
       .filter((i) => i.vat_rate === 19)
       .reduce((sum, i) => sum + i.vat_amount, 0);
 
-    const umsatzsteuer7 = incomeRecords
+    const umsatzsteuer7 = normalIncomeRecords
       .filter((i) => i.vat_rate === 7)
       .reduce((sum, i) => sum + i.vat_amount, 0);
 
     const totalUmsatzsteuer = umsatzsteuer19 + umsatzsteuer7;
+
+    // Reverse Charge: Kennzahl 46/47 (EU services rendered)
+    const reverseChargeNet = reverseChargeRecords
+      .reduce((sum, i) => sum + i.net_amount, 0);
 
     // Calculate Vorsteuer (input VAT) from expenses in the period
     // Only categories with vorsteuer=true are eligible for Vorsteuer deduction
@@ -235,6 +245,9 @@ router.get('/ust/:year/:quarter', async (req, res) => {
       totalUmsatzsteuer: round(totalUmsatzsteuer),
       vorsteuer: round(vorsteuer),
       zahllast: round(zahllast),
+      // Reverse Charge fields (Kennzahl 46/47)
+      reverseChargeNet: round(reverseChargeNet),
+      reverseChargeCount: reverseChargeRecords.length,
       status: 'draft',
     });
   } catch (error) {

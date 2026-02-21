@@ -207,14 +207,18 @@ describe("Captures API Security", () => {
     it("defaults invalid capture type to 'note'", async () => {
       // Insert directly with invalid type to bypass create validation
       const id = testId("capture");
+      // SECURITY: XSS payload is intentionally used as the TYPE field (not content)
+      // to test that invalid types are sanitized to "note". The id is a safe
+      // deterministic test ID from testId(), not user input.
+      const xssType = '<script>alert("xss")</script>';
       testDb
         .prepare(
           `INSERT INTO captures (id, content, type, processed, processing_status, created_at)
          VALUES (?, ?, ?, 0, 'pending', datetime('now'))`
         )
-        .run(id, "Test content", '<script>alert("xss")</script>');
+        .run(id, "Test content", xssType);
 
-      await request(app).post(`/api/captures/${id}/process-with-james`);
+      await request(app).post(`/api/captures/${encodeURIComponent(id)}/process-with-james`);
 
       expect(spawnMock).toHaveBeenCalled();
       const spawnArgs = spawnMock.mock.calls[0];

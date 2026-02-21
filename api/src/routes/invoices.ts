@@ -66,6 +66,9 @@ interface InvoiceItemRow {
   unit: string;
   unit_price: number;
   amount: number;
+  vat_rate: number | null;
+  vat_amount: number | null;
+  net_amount: number | null;
 }
 
 interface ClientRow {
@@ -330,21 +333,39 @@ router.post("/", validateBody(CreateInvoiceSchema), asyncHandler(async (req, res
   const invoiceNumber = getNextInvoiceNumber(db);
   const now = getCurrentTimestamp();
 
-  // Calculate totals
-  const subtotal = items.reduce(
-    (sum: number, item: { quantity: number; unit_price: number }) =>
-      sum + item.quantity * item.unit_price,
-    0
-  );
-  const vatAmount = Math.round(subtotal * (vat_rate / 100) * 100) / 100;
-  const total = Math.round((subtotal + vatAmount) * 100) / 100;
+  // Check for reverse charge (EU B2B client)
+  let isReverseCharge = false;
+  let reverseChargeNote: string | null = null;
+  if (client_id) {
+    const client = db.prepare('SELECT client_type, vat_id FROM clients WHERE id = ?').get(client_id) as {
+      client_type: string | null; vat_id: string | null;
+    } | undefined;
+    if (client?.client_type === 'eu_b2b' && client.vat_id) {
+      isReverseCharge = true;
+      reverseChargeNote = 'Steuerschuldnerschaft des Leistungsempfängers (Reverse Charge, §13b UStG)';
+    }
+  }
+
+  // Calculate totals (support per-item VAT rates)
+  let subtotal = 0;
+  let totalVatAmount = 0;
+
+  for (const item of items) {
+    const itemAmount = Math.round(item.quantity * item.unit_price * 100) / 100;
+    const itemVatRate = isReverseCharge ? 0 : (item.vat_rate ?? vat_rate);
+    const itemVat = Math.round(itemAmount * (itemVatRate / 100) * 100) / 100;
+    subtotal += itemAmount;
+    totalVatAmount += itemVat;
+  }
+
+  const total = Math.round((subtotal + totalVatAmount) * 100) / 100;
 
   // Insert invoice
   db.prepare(
     `INSERT INTO invoices (
       id, invoice_number, invoice_date, due_date, status, client_id, project_id,
-      subtotal, vat_rate, vat_amount, total, notes, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      subtotal, vat_rate, vat_amount, total, notes, is_reverse_charge, reverse_charge_note, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     invoiceNumber,
@@ -356,21 +377,24 @@ router.post("/", validateBody(CreateInvoiceSchema), asyncHandler(async (req, res
     project_id || null,
     subtotal,
     vat_rate,
-    vatAmount,
+    totalVatAmount,
     total,
     notes || null,
+    isReverseCharge ? 1 : 0,
+    reverseChargeNote,
     now
   );
 
-  // Insert invoice items
+  // Insert invoice items with per-item VAT
   const insertItem = db.prepare(
-    `INSERT INTO invoice_items (id, invoice_id, description, quantity, unit, unit_price, amount)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO invoice_items (id, invoice_id, description, quantity, unit, unit_price, amount, vat_rate, vat_amount, net_amount)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
 
   for (const item of items) {
-    const itemAmount =
-      Math.round(item.quantity * item.unit_price * 100) / 100;
+    const itemAmount = Math.round(item.quantity * item.unit_price * 100) / 100;
+    const itemVatRate = isReverseCharge ? 0 : (item.vat_rate ?? vat_rate);
+    const itemVat = Math.round(itemAmount * (itemVatRate / 100) * 100) / 100;
     insertItem.run(
       generateId(),
       id,
@@ -378,6 +402,9 @@ router.post("/", validateBody(CreateInvoiceSchema), asyncHandler(async (req, res
       item.quantity,
       item.unit || "hours",
       item.unit_price,
+      itemAmount,
+      itemVatRate,
+      itemVat,
       itemAmount
     );
   }
