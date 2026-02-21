@@ -13,6 +13,7 @@ import { NotFoundError, ValidationError } from "../errors.js";
 import { cache, cacheKey, TTL } from "../cache.js";
 import { validateBody } from "../middleware/validateBody.js";
 import { CreateExpenseSchema, UpdateExpenseSchema, MarkExpensesReportedSchema } from "../schemas/index.js";
+import { EXPENSE_CATEGORIES as SHARED_EXPENSE_CATEGORIES, EXPENSE_CATEGORY_MAP, LEGACY_CATEGORY_MAP } from "../constants/expense-categories.js";
 
 const router = Router();
 
@@ -45,20 +46,8 @@ interface ExpenseRow {
   created_at: string;
 }
 
-// Default expense categories for EÜR
-const EXPENSE_CATEGORIES = [
-  { id: "office", name: "Bürokosten", euer_line: 27 },
-  { id: "software", name: "Software & Abonnements", euer_line: 27 },
-  { id: "hardware", name: "Hardware & Technik", euer_line: 27 },
-  { id: "communication", name: "Telefon & Internet", euer_line: 27 },
-  { id: "travel", name: "Reisekosten", euer_line: 27 },
-  { id: "education", name: "Fortbildung", euer_line: 27 },
-  { id: "insurance", name: "Versicherungen", euer_line: 27 },
-  { id: "legal", name: "Rechts- & Beratungskosten", euer_line: 27 },
-  { id: "marketing", name: "Marketing & Werbung", euer_line: 27 },
-  { id: "depreciation", name: "Abschreibungen", euer_line: 30 },
-  { id: "other", name: "Sonstige Kosten", euer_line: 27 },
-];
+// Expense categories from shared constant (single source of truth)
+const EXPENSE_CATEGORIES = SHARED_EXPENSE_CATEGORIES;
 
 // ============================================================================
 // Routes
@@ -215,9 +204,12 @@ router.post("/", validateBody(CreateExpenseSchema), asyncHandler(async (req: Req
   const vatAmount = Math.round(net_amount * (vat_rate / 100) * 100) / 100;
   const grossAmount = Math.round((net_amount + vatAmount) * 100) / 100;
 
+  // Normalize legacy category IDs
+  const normalizedCategory = LEGACY_CATEGORY_MAP[category] || category;
+
   // Look up euer_line from category if not provided
-  const categoryInfo = EXPENSE_CATEGORIES.find(c => c.id === category);
-  const finalEuerLine = euer_line ?? categoryInfo?.euer_line ?? null;
+  const categoryInfo = EXPENSE_CATEGORY_MAP.get(normalizedCategory);
+  const finalEuerLine = euer_line ?? categoryInfo?.euer_line ?? 34;
 
   db.prepare(
     `INSERT INTO expenses (
@@ -232,7 +224,7 @@ router.post("/", validateBody(CreateExpenseSchema), asyncHandler(async (req: Req
     date,
     vendor || null,
     description,
-    category,
+    normalizedCategory,
     net_amount,
     vat_rate,
     vatAmount,

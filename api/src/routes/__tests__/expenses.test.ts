@@ -248,11 +248,23 @@ describe('Expenses API', () => {
     it('auto-assigns EÜR line from category', async () => {
       const res = await request(app).post('/api/expenses').send({
         date: '2024-03-15', description: 'Supplies',
+        category: 'office_supplies', net_amount: 50,
+      });
+
+      expect(res.status).toBe(201);
+      expect(res.body.euer_line).toBe(34);
+    });
+
+    it('normalizes legacy category IDs', async () => {
+      const res = await request(app).post('/api/expenses').send({
+        date: '2024-03-15', description: 'Legacy Office',
         category: 'office', net_amount: 50,
       });
 
       expect(res.status).toBe(201);
-      expect(res.body.euer_line).toBe(27);
+      // 'office' → normalized to 'office_supplies'
+      expect(res.body.category).toBe('office_supplies');
+      expect(res.body.euer_line).toBe(34);
     });
 
     it('defaults VAT rate to 19%', async () => {

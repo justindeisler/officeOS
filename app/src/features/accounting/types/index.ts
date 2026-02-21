@@ -307,17 +307,27 @@ export const EUER_LINES = {
   ANLAGENABGANG_VERLUST: 35, // Losses from asset disposals (Restbuchwert)
 } as const;
 
-/** Expense Categories (subcategories of Line 34) */
+/**
+ * Expense Categories — Must be kept in sync with
+ * api/src/constants/expense-categories.ts (single source of truth)
+ */
 export const EXPENSE_CATEGORIES = {
-  software: { label: 'Software & Lizenzen', vorsteuer: true },
-  telecom: { label: 'Telekommunikation', vorsteuer: true },
-  hosting: { label: 'Hosting & Domains', vorsteuer: true },
-  travel: { label: 'Reisekosten', vorsteuer: true },
-  insurance: { label: 'Versicherungen', vorsteuer: false },
-  bank_fees: { label: 'Kontoführung', vorsteuer: false },
-  training: { label: 'Fortbildung', vorsteuer: true },
-  books: { label: 'Fachliteratur', vorsteuer: true }, // 7% VAT
-  office_supplies: { label: 'Büromaterial', vorsteuer: true },
+  software:        { label: 'Software & Lizenzen',     euer_line: 34, vorsteuer: true },
+  hosting:         { label: 'Hosting & Domains',       euer_line: 34, vorsteuer: true },
+  telecom:         { label: 'Telekommunikation',       euer_line: 34, vorsteuer: true },
+  hardware:        { label: 'Hardware & Technik',      euer_line: 34, vorsteuer: true },
+  office_supplies: { label: 'Büromaterial',             euer_line: 34, vorsteuer: true },
+  travel:          { label: 'Reisekosten',             euer_line: 34, vorsteuer: true },
+  training:        { label: 'Fortbildung',             euer_line: 34, vorsteuer: true },
+  books:           { label: 'Fachliteratur',           euer_line: 34, vorsteuer: true },
+  insurance:       { label: 'Versicherungen',          euer_line: 34, vorsteuer: false },
+  bank_fees:       { label: 'Kontoführung',            euer_line: 34, vorsteuer: false },
+  legal:           { label: 'Rechts- & Beratung',      euer_line: 34, vorsteuer: true },
+  marketing:       { label: 'Marketing & Werbung',     euer_line: 34, vorsteuer: true },
+  fremdleistungen: { label: 'Fremdleistungen',         euer_line: 25, vorsteuer: true },
+  depreciation:    { label: 'Abschreibungen (AfA)',    euer_line: 30, vorsteuer: false },
+  homeoffice:      { label: 'Arbeitszimmer',           euer_line: 33, vorsteuer: false },
+  other:           { label: 'Sonstige Kosten',         euer_line: 34, vorsteuer: true },
 } as const;
 
 export type ExpenseCategory = keyof typeof EXPENSE_CATEGORIES;
