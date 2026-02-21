@@ -66,6 +66,10 @@ const LINE_LABELS: Record<number, { name: string; description: string }> = {
     name: 'Betriebseinnahmen',
     description: 'Standard taxable business income',
   },
+  [EUER_LINES.ENTNAHME_VERKAUF]: {
+    name: 'Veräußerungsgewinne',
+    description: 'Gains from asset sales',
+  },
   [EUER_LINES.UST_ERSTATTUNG]: {
     name: 'USt-Erstattung',
     description: 'VAT refunds from tax office',
@@ -93,6 +97,10 @@ const LINE_LABELS: Record<number, { name: string; description: string }> = {
   [EUER_LINES.SONSTIGE]: {
     name: 'Sonstige',
     description: 'Other expenses',
+  },
+  [EUER_LINES.ANLAGENABGANG_VERLUST]: {
+    name: 'Anlagenabgang (Verlust)',
+    description: 'Losses from asset disposals',
   },
 }
 
