@@ -58,44 +58,109 @@ function generateDepreciationSchedule(
   method: string
 ): DepreciationRow[] {
   const schedule: DepreciationRow[] = [];
-  const startYear = new Date(purchaseDate).getFullYear();
+  const startDate = new Date(purchaseDate);
+  const startYear = startDate.getFullYear();
+  const startMonth = startDate.getMonth() + 1; // 1-indexed (Jan=1)
   const depreciableAmount = purchasePrice - salvageValue;
+
+  // Pro-rata: month of acquisition counts as full month (German tax law)
+  const firstYearMonths = 13 - startMonth; // e.g. Oct purchase → 3 months (Oct, Nov, Dec)
+  const firstYearFraction = firstYearMonths / 12;
+
+  // If purchased in January, no extra year needed (full first year)
+  const needsExtraYear = firstYearFraction < 1;
+  const totalYears = usefulLifeYears + (needsExtraYear ? 1 : 0);
 
   let accumulated = 0;
 
-  for (let i = 0; i < usefulLifeYears; i++) {
-    const year = startYear + i;
-    let depreciationAmount: number;
+  if (method === "declining") {
+    // Declining balance: rate = 2/usefulLifeYears, capped at 25% (German law)
+    const maxRate = 0.25;
+    const rate = Math.min(2 / usefulLifeYears, maxRate);
 
-    if (method === "linear") {
-      depreciationAmount = Math.round((depreciableAmount / usefulLifeYears) * 100) / 100;
-    } else if (method === "declining") {
-      const rate = 2 / usefulLifeYears;
+    for (let i = 0; i < totalYears; i++) {
+      const year = startYear + i;
       const bookValueStart = purchasePrice - accumulated;
-      depreciationAmount = Math.round(bookValueStart * rate * 100) / 100;
+
+      // Calculate declining balance amount
+      let decliningAmount = Math.round(bookValueStart * rate * 100) / 100;
+
+      // Pro-rata for first year
+      if (i === 0 && needsExtraYear) {
+        decliningAmount = Math.round(decliningAmount * firstYearFraction * 100) / 100;
+      }
+
+      // Calculate linear remaining for switch-to-linear check
+      const remainingYears = totalYears - i;
+      const linearRemaining = Math.round(((bookValueStart - salvageValue) / remainingYears) * 100) / 100;
+
+      // Use the higher of declining or linear (auto-switch)
+      let depreciationAmount = Math.max(decliningAmount, linearRemaining);
+
+      // Don't exceed remaining depreciable amount
+      if (accumulated + depreciationAmount > depreciableAmount) {
+        depreciationAmount = depreciableAmount - accumulated;
+      }
+
+      // Don't let book value go below salvage value
       if (purchasePrice - accumulated - depreciationAmount < salvageValue) {
         depreciationAmount = purchasePrice - accumulated - salvageValue;
       }
-    } else {
-      depreciationAmount = Math.round((depreciableAmount / usefulLifeYears) * 100) / 100;
+
+      // Final year: absorb rounding remainder
+      if (i === totalYears - 1) {
+        depreciationAmount = Math.round((depreciableAmount - accumulated) * 100) / 100;
+      }
+
+      accumulated += depreciationAmount;
+      const bookValue = Math.round((purchasePrice - accumulated) * 100) / 100;
+
+      schedule.push({
+        id: generateId(),
+        asset_id: assetId,
+        year,
+        depreciation_amount: Math.round(depreciationAmount * 100) / 100,
+        accumulated_depreciation: Math.round(accumulated * 100) / 100,
+        book_value: bookValue,
+      });
     }
+  } else {
+    // Linear depreciation (default)
+    const annualAmount = depreciableAmount / usefulLifeYears;
+    const firstYearAmount = Math.round(annualAmount * firstYearFraction * 100) / 100;
 
-    if (i === usefulLifeYears - 1) {
-      depreciationAmount = depreciableAmount - accumulated;
+    for (let i = 0; i < totalYears; i++) {
+      const year = startYear + i;
+      let depreciationAmount: number;
+
+      if (i === 0 && needsExtraYear) {
+        // First year: pro-rata
+        depreciationAmount = firstYearAmount;
+      } else if (i === totalYears - 1 && needsExtraYear) {
+        // Last year: remainder (the complementary months)
+        depreciationAmount = Math.round((depreciableAmount - accumulated) * 100) / 100;
+      } else {
+        // Full years
+        depreciationAmount = Math.round(annualAmount * 100) / 100;
+      }
+
+      // Safety: don't exceed depreciable amount
+      if (accumulated + depreciationAmount > depreciableAmount) {
+        depreciationAmount = Math.round((depreciableAmount - accumulated) * 100) / 100;
+      }
+
+      accumulated += depreciationAmount;
+      const bookValue = Math.round((purchasePrice - accumulated) * 100) / 100;
+
+      schedule.push({
+        id: generateId(),
+        asset_id: assetId,
+        year,
+        depreciation_amount: Math.round(depreciationAmount * 100) / 100,
+        accumulated_depreciation: Math.round(accumulated * 100) / 100,
+        book_value: bookValue,
+      });
     }
-
-    accumulated += depreciationAmount;
-    const bookValue = Math.round((purchasePrice - accumulated) * 100) / 100;
-
-    const id = generateId();
-    schedule.push({
-      id,
-      asset_id: assetId,
-      year,
-      depreciation_amount: depreciationAmount,
-      accumulated_depreciation: Math.round(accumulated * 100) / 100,
-      book_value: bookValue,
-    });
   }
 
   const insertStmt = db.prepare(

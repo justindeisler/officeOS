@@ -292,7 +292,7 @@ describe('Assets API', () => {
       expect(schedule[4].book_value).toBeCloseTo(500, 2);
     });
 
-    it('creates asset with declining balance depreciation', async () => {
+    it('creates asset with declining balance depreciation (capped at 25%)', async () => {
       const res = await request(app).post('/api/assets').send({
         name: 'Machine',
         category: 'equipment',
@@ -305,15 +305,16 @@ describe('Assets API', () => {
 
       expect(res.status).toBe(201);
       const schedule = res.body.depreciation_schedule;
+      // Jan 1 purchase → full first year, 5 rows
       expect(schedule).toHaveLength(5);
 
-      // Declining balance: rate = 2/5 = 0.4
-      // Year 1: 10000 * 0.4 = 4000, book = 6000
-      expect(schedule[0].depreciation_amount).toBeCloseTo(4000, 2);
-      expect(schedule[0].book_value).toBeCloseTo(6000, 2);
+      // Declining balance: raw rate = 2/5 = 0.4, but CAPPED at 25%
+      // Year 1: 10000 * 0.25 = 2500, linear = 10000/5 = 2000 → declining wins
+      expect(schedule[0].depreciation_amount).toBeCloseTo(2500, 2);
+      expect(schedule[0].book_value).toBeCloseTo(7500, 2);
 
-      // Year 2: 6000 * 0.4 = 2400, book = 3600
-      expect(schedule[1].depreciation_amount).toBeCloseTo(2400, 2);
+      // Year 2: 7500 * 0.25 = 1875, linear = 7500/4 = 1875 → equal, either works
+      expect(schedule[1].depreciation_amount).toBeCloseTo(1875, 2);
 
       // Total depreciation should equal purchase price (no salvage)
       const totalDep = schedule.reduce((s: number, r: any) => s + r.depreciation_amount, 0);
