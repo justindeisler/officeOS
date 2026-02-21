@@ -7,6 +7,7 @@ import express from 'express';
 import { getDb } from '../database.js';
 import { EUER_LINES, HOMEOFFICE_PAUSCHALE } from '../constants/euer.js';
 import { EXPENSE_CATEGORY_MAP } from '../constants/expense-categories.js';
+import { generateVerfahrensdokumentation, renderVerfahrensdokuAsMarkdown } from '../services/verfahrensdokumentation.js';
 
 const router = express.Router();
 
@@ -183,14 +184,14 @@ router.get('/ust/:year/:quarter', async (req, res) => {
 
     const db = getDb();
 
-    // Get income for the quarter
+    // Get income for the quarter (exclude soft-deleted)
     const incomeRecords = db.prepare(
-      `SELECT * FROM income WHERE date >= ? AND date <= ? ORDER BY date DESC`
+      `SELECT * FROM income WHERE date >= ? AND date <= ? AND (is_deleted IS NULL OR is_deleted = 0) ORDER BY date DESC`
     ).all(startDate, endDate) as IncomeRow[];
 
-    // Get expenses for the quarter
+    // Get expenses for the quarter (exclude soft-deleted)
     const expenseRecords = db.prepare(
-      `SELECT * FROM expenses WHERE date >= ? AND date <= ? ORDER BY date DESC`
+      `SELECT * FROM expenses WHERE date >= ? AND date <= ? AND (is_deleted IS NULL OR is_deleted = 0) ORDER BY date DESC`
     ).all(startDate, endDate) as ExpenseRow[];
 
     // Calculate Umsatzsteuer (output VAT) by rate
@@ -330,14 +331,14 @@ router.get('/euer/:year', async (req, res) => {
 
     const db = getDb();
 
-    // Get income for the year
+    // Get income for the year (exclude soft-deleted)
     const incomeRecords = db.prepare(
-      `SELECT * FROM income WHERE date >= ? AND date <= ? ORDER BY date DESC`
+      `SELECT * FROM income WHERE date >= ? AND date <= ? AND (is_deleted IS NULL OR is_deleted = 0) ORDER BY date DESC`
     ).all(startDate, endDate) as IncomeRow[];
 
-    // Get expenses for the year
+    // Get expenses for the year (exclude soft-deleted)
     const expenseRecords = db.prepare(
-      `SELECT * FROM expenses WHERE date >= ? AND date <= ? ORDER BY date DESC`
+      `SELECT * FROM expenses WHERE date >= ? AND date <= ? AND (is_deleted IS NULL OR is_deleted = 0) ORDER BY date DESC`
     ).all(startDate, endDate) as ExpenseRow[];
 
     // Get asset depreciation (AfA) for the year
@@ -478,6 +479,30 @@ router.get('/euer-lines', (req, res) => {
       },
     ],
   });
+});
+
+/**
+ * GET /api/reports/verfahrensdokumentation
+ * Generate GoBD Verfahrensdokumentation
+ */
+router.get('/verfahrensdokumentation', (req, res) => {
+  try {
+    const db = getDb();
+    const format = req.query.format || 'json';
+    const doc = generateVerfahrensdokumentation(db);
+
+    if (format === 'markdown' || format === 'md') {
+      const markdown = renderVerfahrensdokuAsMarkdown(doc);
+      res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="Verfahrensdokumentation.md"');
+      res.send(markdown);
+    } else {
+      res.json(doc);
+    }
+  } catch (error) {
+    console.error('Error generating Verfahrensdokumentation:', error);
+    res.status(500).json({ error: 'Failed to generate Verfahrensdokumentation' });
+  }
 });
 
 export default router;
