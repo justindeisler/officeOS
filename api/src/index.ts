@@ -60,6 +60,7 @@ import recurringInvoicesRouter from "./routes/recurring-invoices.js";
 import dunningRouter from "./routes/dunning.js";
 import bwaRouter from "./routes/bwa.js";
 import travelRouter from "./routes/travel.js";
+import duplicatesRouter from "./routes/duplicates.js";
 
 // Environment validation — fail fast if critical vars are missing or weak
 // (Full validation logic in startup-validation.ts)
@@ -219,6 +220,9 @@ app.use("/api/reports", authMiddleware, bwaRouter);
 
 // Travel expense routes (protected)
 app.use("/api/travel-records", authMiddleware, travelRouter);
+
+// Duplicate detection routes (protected)
+app.use("/api/duplicates", authMiddleware, duplicatesRouter);
 
 // 404 handler for unmatched API routes (must come after all API routes, before static files)
 app.all("/api/*", notFoundHandler);

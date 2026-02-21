@@ -211,11 +211,14 @@ const SCHEMA = `
     is_deleted INTEGER DEFAULT 0,
     is_reverse_charge INTEGER DEFAULT 0,
     reverse_charge_note TEXT,
+    is_duplicate BOOLEAN DEFAULT FALSE,
+    duplicate_of_id TEXT REFERENCES income(id),
     created_at TEXT NOT NULL,
     FOREIGN KEY (client_id) REFERENCES clients(id),
     FOREIGN KEY (invoice_id) REFERENCES invoices(id)
   );
   CREATE INDEX IF NOT EXISTS idx_income_reference ON income(reference_number);
+  CREATE INDEX IF NOT EXISTS idx_income_duplicate ON income(is_duplicate, duplicate_of_id);
 
   CREATE TABLE IF NOT EXISTS expenses (
     id TEXT PRIMARY KEY,
@@ -248,9 +251,12 @@ const SCHEMA = `
     meal_participants TEXT,
     meal_purpose TEXT,
     meal_location TEXT,
+    is_duplicate BOOLEAN DEFAULT FALSE,
+    duplicate_of_id TEXT REFERENCES expenses(id),
     created_at TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_expenses_reference ON expenses(reference_number);
+  CREATE INDEX IF NOT EXISTS idx_expenses_duplicate ON expenses(is_duplicate, duplicate_of_id);
 
   CREATE TABLE IF NOT EXISTS assets (
     id TEXT PRIMARY KEY,
