@@ -244,6 +244,10 @@ const SCHEMA = `
     is_deleted INTEGER DEFAULT 0,
     is_reverse_charge INTEGER DEFAULT 0,
     reverse_charge_note TEXT,
+    is_business_meal INTEGER DEFAULT 0,
+    meal_participants TEXT,
+    meal_purpose TEXT,
+    meal_location TEXT,
     created_at TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_expenses_reference ON expenses(reference_number);
@@ -752,6 +756,32 @@ const SCHEMA = `
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
   CREATE INDEX IF NOT EXISTS idx_dunning_invoice ON dunning_entries(invoice_id);
+
+  -- Migration 022: Travel Expenses (Reisekosten)
+  CREATE TABLE IF NOT EXISTS travel_records (
+    id TEXT PRIMARY KEY,
+    expense_id TEXT REFERENCES expenses(id),
+    trip_date TEXT NOT NULL,
+    return_date TEXT,
+    destination TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    distance_km REAL,
+    vehicle_type TEXT DEFAULT 'car',
+    km_rate REAL DEFAULT 0.30,
+    mileage_amount REAL,
+    absence_hours REAL,
+    per_diem_rate REAL,
+    per_diem_amount REAL,
+    meals_provided TEXT,
+    meal_deductions REAL,
+    accommodation_amount REAL,
+    other_costs REAL,
+    notes TEXT,
+    total_amount REAL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_travel_expense ON travel_records(expense_id);
+  CREATE INDEX IF NOT EXISTS idx_travel_date ON travel_records(trip_date);
 `;
 
 
