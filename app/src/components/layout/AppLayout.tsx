@@ -30,6 +30,7 @@ import {
   CalendarDays,
   AlertTriangle,
   MapPin,
+  Copy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -72,6 +73,7 @@ const baseNavigation: NavItem[] = [
       { name: "Dunning", href: "/accounting/dunning", icon: AlertTriangle },
       { name: "Travel", href: "/accounting/travel", icon: MapPin },
       { name: "Rules", href: "/accounting/booking-rules", icon: Zap },
+      { name: "Duplicates", href: "/accounting/duplicates", icon: Copy },
       { name: "Reports", href: "/accounting/reports", icon: FileText },
     ],
   },

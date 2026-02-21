@@ -112,6 +112,11 @@ const DunningPage = lazy(() =>
     default: m.DunningPage,
   }))
 );
+const DuplicatesPage = lazy(() =>
+  import("./pages/accounting/DuplicatesPage").then((m) => ({
+    default: m.DuplicatesPage,
+  }))
+);
 
 // James Brain sub-pages
 const JamesBrainOverviewPage = lazy(() =>
@@ -378,6 +383,7 @@ function App() {
             <Route path="/accounting/booking-rules" element={<BookingRulesPage />} />
             <Route path="/accounting/travel" element={<TravelExpensesPage />} />
             <Route path="/accounting/dunning" element={<DunningPage />} />
+            <Route path="/accounting/duplicates" element={<DuplicatesPage />} />
             <Route path="/prd" element={<PrdPage />} />
             <Route path="/prd/:id" element={<PrdDetailPage />} />
             <Route path="/second-brain" element={<SecondBrainPage />} />

@@ -7,6 +7,7 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
+import { useNavigate } from 'react-router-dom'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import type { Income, NewIncome, VatRate } from '../../types'
@@ -22,6 +23,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Loader2 } from 'lucide-react'
+import { useDuplicateCheck } from '../../hooks/useDuplicateCheck'
+import { DuplicateAlert } from '../Duplicates/DuplicateAlert'
 
 // Form validation schema
 const incomeFormSchema = z.object({
@@ -74,6 +77,7 @@ export function IncomeForm({
   className,
 }: IncomeFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const navigate = useNavigate()
 
   const isEditing = !!income
 
@@ -102,6 +106,17 @@ export function IncomeForm({
 
   const watchNetAmount = watch('netAmount')
   const watchVatRate = watch('vatRate')
+  const watchDescription = watch('description')
+  const watchDate = watch('date')
+
+  // Duplicate detection
+  const { duplicates, isChecking: isDuplicateChecking, dismiss: dismissDuplicates } = useDuplicateCheck(
+    'income',
+    Number(watchNetAmount) || 0,
+    watchDate,
+    watchDescription,
+    { recordId: income?.id },
+  )
 
   // Calculate VAT and gross amounts
   const calculations = useMemo(() => {
@@ -274,6 +289,17 @@ export function IncomeForm({
           />
         </div>
       </div>
+
+      {/* Duplicate Detection Alert */}
+      {(duplicates.length > 0 || isDuplicateChecking) && (
+        <DuplicateAlert
+          type="income"
+          duplicates={duplicates}
+          isChecking={isDuplicateChecking}
+          onIgnore={dismissDuplicates}
+          onView={(id) => navigate(`/accounting/income`, { state: { highlightId: id } })}
+        />
+      )}
 
       {/* Actions */}
       <div className="flex justify-end gap-3">

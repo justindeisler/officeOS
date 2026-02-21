@@ -8,6 +8,7 @@
 
 import { useState, useMemo, useCallback } from 'react'
 import { useForm } from 'react-hook-form'
+import { useNavigate } from 'react-router-dom'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import type { Expense, NewExpense, VatRate, RecurringFrequency } from '../../types'
@@ -18,6 +19,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Loader2, AlertTriangle } from 'lucide-react'
+import { useDuplicateCheck } from '../../hooks/useDuplicateCheck'
+import { DuplicateAlert } from '../Duplicates/DuplicateAlert'
 
 // ============================================================================
 // VAT Calculation Utilities
@@ -128,6 +131,7 @@ export function ExpenseForm({
 }: ExpenseFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [inputMode, setInputMode] = useState<AmountInputMode>('net')
+  const navigate = useNavigate()
 
   const isEditing = !!expense
 
@@ -161,6 +165,17 @@ export function ExpenseForm({
   const watchVatRate = watch('vatRate')
   const watchIsRecurring = watch('isRecurring')
   const watchEuerCategory = watch('euerCategory')
+  const watchVendor = watch('vendor')
+  const watchDate = watch('date')
+
+  // Duplicate detection
+  const { duplicates, isChecking: isDuplicateChecking, dismiss: dismissDuplicates } = useDuplicateCheck(
+    'expense',
+    Number(watchNetAmount) || 0,
+    watchDate,
+    watchVendor,
+    { recordId: expense?.id },
+  )
 
   // Calculate VAT and gross amounts based on input mode
   const calculations = useMemo(() => {
@@ -480,6 +495,17 @@ export function ExpenseForm({
           {...register('receiptPath')}
         />
       </div>
+
+      {/* Duplicate Detection Alert */}
+      {(duplicates.length > 0 || isDuplicateChecking) && (
+        <DuplicateAlert
+          type="expense"
+          duplicates={duplicates}
+          isChecking={isDuplicateChecking}
+          onIgnore={dismissDuplicates}
+          onView={(id) => navigate(`/accounting/expenses`, { state: { highlightId: id } })}
+        />
+      )}
 
       {/* Actions */}
       <div className="flex justify-end gap-3">
