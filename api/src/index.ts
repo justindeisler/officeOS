@@ -66,6 +66,8 @@ import smartSuggestionsRouter from "./routes/smart-suggestions.js";
 import missingReceiptsRouter from "./routes/missing-receipts.js";
 import v1Router from "./routes/v1/index.js";
 import adminApiKeysRouter from "./routes/admin/api-keys.js";
+import swaggerUi from "swagger-ui-express";
+import { getOpenApiSpec } from "./openapi.js";
 
 // Environment validation — fail fast if critical vars are missing or weak
 // (Full validation logic in startup-validation.ts)
@@ -240,6 +242,15 @@ app.use("/api/missing-receipts", authMiddleware, missingReceiptsRouter);
 
 // Admin API key management (protected by JWT auth)
 app.use("/api/admin/api-keys", authMiddleware, adminApiKeysRouter);
+
+// OpenAPI docs (public — no auth required)
+app.get("/api/docs/openapi.json", (_req, res) => {
+  res.json(getOpenApiSpec());
+});
+app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(getOpenApiSpec(), {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'officeOS API Documentation',
+}));
 
 // Public REST API v1 (protected by API key authentication)
 app.use("/api/v1", v1Router);

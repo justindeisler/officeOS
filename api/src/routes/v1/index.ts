@@ -17,6 +17,7 @@ import expensesRouter from './expenses.js';
 import assetsRouter from './assets.js';
 import reportsRouter from './reports.js';
 import exportsRouter from './exports.js';
+import webhooksRouter from './webhooks.js';
 
 const v1Router = express.Router();
 
@@ -33,5 +34,8 @@ v1Router.use('/invoices', apiAuthMiddleware(['read', 'write']), invoicesRouter);
 v1Router.use('/income', apiAuthMiddleware(['read', 'write']), incomeRouter);
 v1Router.use('/expenses', apiAuthMiddleware(['read', 'write']), expensesRouter);
 v1Router.use('/assets', apiAuthMiddleware(['read', 'write']), assetsRouter);
+
+// Webhook routes (scope: write for mutations, read for listing)
+v1Router.use('/webhooks', apiAuthMiddleware(['read', 'write']), webhooksRouter);
 
 export default v1Router;
