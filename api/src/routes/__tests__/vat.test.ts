@@ -408,6 +408,119 @@ describe('VAT (USt-Voranmeldung) Report — Comprehensive', () => {
   });
 
   // ==========================================================================
+  // 2b. Vorsteuer eligibility & deductible_percent
+  // ==========================================================================
+
+  describe('Vorsteuer eligibility & deductible_percent', () => {
+    it('excludes insurance expenses from Vorsteuer (vorsteuer=false)', async () => {
+      insertTestExpense(testDb, {
+        date: '2025-01-15',
+        category: 'insurance',
+        net_amount: 1000,
+        vat_rate: 19,
+        vat_amount: 190,
+      });
+
+      // Also add a software expense (vorsteuer=true)
+      insertTestExpense(testDb, {
+        date: '2025-01-20',
+        category: 'software',
+        net_amount: 500,
+        vat_rate: 19,
+        vat_amount: 95,
+      });
+
+      const res = await request(app).get('/api/reports/ust/2025/1');
+
+      // Only software's VAT should count as Vorsteuer, not insurance
+      expect(res.body.vorsteuer).toBeCloseTo(95, 2);
+    });
+
+    it('excludes bank_fees from Vorsteuer (vorsteuer=false)', async () => {
+      insertTestExpense(testDb, {
+        date: '2025-01-15',
+        category: 'bank_fees',
+        net_amount: 100,
+        vat_rate: 19,
+        vat_amount: 19,
+      });
+
+      const res = await request(app).get('/api/reports/ust/2025/1');
+
+      // Bank fees are not Vorsteuer-eligible
+      expect(res.body.vorsteuer).toBe(0);
+    });
+
+    it('respects deductible_percent for partial deductions', async () => {
+      // 70% deductible business meal
+      insertTestExpense(testDb, {
+        date: '2025-01-15',
+        category: 'travel',
+        net_amount: 100,
+        vat_rate: 19,
+        vat_amount: 19,
+        deductible_percent: 70,
+      });
+
+      const res = await request(app).get('/api/reports/ust/2025/1');
+
+      // Only 70% of VAT is claimable: 19 * 0.70 = 13.30
+      expect(res.body.vorsteuer).toBeCloseTo(13.30, 2);
+    });
+
+    it('handles 100% deductible expense normally', async () => {
+      insertTestExpense(testDb, {
+        date: '2025-01-15',
+        category: 'software',
+        net_amount: 500,
+        vat_rate: 19,
+        vat_amount: 95,
+        deductible_percent: 100,
+      });
+
+      const res = await request(app).get('/api/reports/ust/2025/1');
+
+      expect(res.body.vorsteuer).toBeCloseTo(95, 2);
+    });
+
+    it('handles mixed eligible and non-eligible expenses', async () => {
+      // Eligible: software (100%)
+      insertTestExpense(testDb, {
+        date: '2025-01-10',
+        category: 'software',
+        net_amount: 200,
+        vat_rate: 19,
+        vat_amount: 38,
+        deductible_percent: 100,
+      });
+
+      // Not eligible: insurance
+      insertTestExpense(testDb, {
+        date: '2025-01-15',
+        category: 'insurance',
+        net_amount: 300,
+        vat_rate: 19,
+        vat_amount: 57,
+      });
+
+      // Partially eligible: travel at 70%
+      insertTestExpense(testDb, {
+        date: '2025-01-20',
+        category: 'travel',
+        net_amount: 100,
+        vat_rate: 19,
+        vat_amount: 19,
+        deductible_percent: 70,
+      });
+
+      const res = await request(app).get('/api/reports/ust/2025/1');
+
+      // Vorsteuer = 38 (software) + 0 (insurance) + 19*0.7 (travel) = 38 + 13.30 = 51.30
+      expect(res.body.vorsteuer).toBeCloseTo(51.30, 2);
+    });
+  });
+
+  // ==========================================================================
   // 3. Net VAT (Zahllast) calculation
   // ==========================================================================
 

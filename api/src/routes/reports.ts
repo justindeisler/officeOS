@@ -6,6 +6,7 @@
 import express from 'express';
 import { getDb } from '../database.js';
 import { EUER_LINES, HOMEOFFICE_PAUSCHALE } from '../constants/euer.js';
+import { EXPENSE_CATEGORY_MAP } from '../constants/expense-categories.js';
 
 const router = express.Router();
 
@@ -203,10 +204,18 @@ router.get('/ust/:year/:quarter', async (req, res) => {
 
     const totalUmsatzsteuer = umsatzsteuer19 + umsatzsteuer7;
 
-    // Calculate Vorsteuer (input VAT) from all expenses in the period
-    // All expenses with VAT in the quarter are eligible for Vorsteuer deduction
-    const vorsteuer = expenseRecords
-      .reduce((sum, e) => sum + (e.vat_amount || 0), 0);
+    // Calculate Vorsteuer (input VAT) from expenses in the period
+    // Only categories with vorsteuer=true are eligible for Vorsteuer deduction
+    // Respects deductible_percent (e.g. 70% deductible meals → only 70% of VAT)
+    const vorsteuer = expenseRecords.reduce((sum, e) => {
+      // Check if the category is Vorsteuer-eligible
+      const categoryInfo = EXPENSE_CATEGORY_MAP.get(e.category);
+      if (categoryInfo && !categoryInfo.vorsteuer) return sum;
+
+      // Apply deductible percentage
+      const deductibleFraction = (e.deductible_percent ?? 100) / 100;
+      return sum + (e.vat_amount || 0) * deductibleFraction;
+    }, 0);
 
     // Zahllast = total output VAT - total input VAT
     const zahllast = totalUmsatzsteuer - vorsteuer;
