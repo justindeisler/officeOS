@@ -102,6 +102,11 @@ const BookingRulesPage = lazy(() =>
     default: m.BookingRulesPage,
   }))
 );
+const TravelExpensesPage = lazy(() =>
+  import("./pages/accounting/TravelExpensesPage").then((m) => ({
+    default: m.TravelExpensesPage,
+  }))
+);
 const DunningPage = lazy(() =>
   import("./pages/accounting/DunningPage").then((m) => ({
     default: m.DunningPage,
@@ -371,6 +376,7 @@ function App() {
             <Route path="/accounting/banking" element={<BankingPage />} />
             <Route path="/accounting/recurring" element={<RecurringInvoicesPage />} />
             <Route path="/accounting/booking-rules" element={<BookingRulesPage />} />
+            <Route path="/accounting/travel" element={<TravelExpensesPage />} />
             <Route path="/accounting/dunning" element={<DunningPage />} />
             <Route path="/prd" element={<PrdPage />} />
             <Route path="/prd/:id" element={<PrdDetailPage />} />
