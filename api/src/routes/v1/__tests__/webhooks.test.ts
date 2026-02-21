@@ -196,6 +196,45 @@ describe('V1 Webhooks API', () => {
       expect(res.status).toBe(201);
       expect(res.body.data.events).toEqual(['*']);
     });
+
+    // SSRF Protection
+    it('rejects localhost webhook URL', async () => {
+      const res = await authedPost('/api/v1/webhooks')
+        .send({ url: 'https://localhost/hook', events: ['invoice.created'] });
+      expect(res.status).toBe(400);
+      expect(res.body.error.message).toContain('private');
+    });
+
+    it('rejects 127.0.0.1 webhook URL', async () => {
+      const res = await authedPost('/api/v1/webhooks')
+        .send({ url: 'http://127.0.0.1:3000/hook', events: ['invoice.created'] });
+      expect(res.status).toBe(400);
+      expect(res.body.error.message).toContain('private');
+    });
+
+    it('rejects 10.x.x.x webhook URL', async () => {
+      const res = await authedPost('/api/v1/webhooks')
+        .send({ url: 'http://10.0.0.1/hook', events: ['invoice.created'] });
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects 192.168.x.x webhook URL', async () => {
+      const res = await authedPost('/api/v1/webhooks')
+        .send({ url: 'http://192.168.1.100/hook', events: ['invoice.created'] });
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects 169.254.x.x (cloud metadata) webhook URL', async () => {
+      const res = await authedPost('/api/v1/webhooks')
+        .send({ url: 'http://169.254.169.254/latest/meta-data/', events: ['invoice.created'] });
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects 172.16.x.x webhook URL', async () => {
+      const res = await authedPost('/api/v1/webhooks')
+        .send({ url: 'http://172.16.0.1/hook', events: ['invoice.created'] });
+      expect(res.status).toBe(400);
+    });
   });
 
   // ========== GET BY ID ==========
@@ -305,6 +344,19 @@ describe('V1 Webhooks API', () => {
       const res = await authedPatch(`/api/v1/webhooks/${webhook.id}`)
         .send({ events: ['invalid.event'] });
       expect(res.status).toBe(400);
+    });
+
+    it('rejects private IP in URL update', async () => {
+      const apiKey = testDb.prepare('SELECT * FROM api_keys WHERE is_active = 1').get() as any;
+      const webhook = createWebhook(testDb, apiKey.id, {
+        url: 'https://example.com/hook',
+        events: ['invoice.created'],
+      });
+
+      const res = await authedPatch(`/api/v1/webhooks/${webhook.id}`)
+        .send({ url: 'http://192.168.1.1/hook' });
+      expect(res.status).toBe(400);
+      expect(res.body.error.message).toContain('private');
     });
   });
 

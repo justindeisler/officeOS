@@ -262,6 +262,72 @@ export function verifySignature(
 }
 
 // ============================================================================
+// SSRF Protection — URL Validation
+// ============================================================================
+
+/**
+ * Validate that a webhook URL doesn't target private/internal networks.
+ * Blocks localhost, private RFC1918 ranges, link-local, and IPv6 loopback.
+ */
+export function validateWebhookUrl(url: string): { valid: true } | { valid: false; reason: string } {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { valid: false, reason: 'Invalid URL format' };
+  }
+
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    return { valid: false, reason: 'URL must use http or https protocol' };
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+
+  // Block localhost
+  if (hostname === 'localhost') {
+    return { valid: false, reason: 'Webhook URLs cannot target private/internal addresses' };
+  }
+
+  // Block IPv6 loopback
+  if (hostname === '[::1]' || hostname === '::1') {
+    return { valid: false, reason: 'Webhook URLs cannot target private/internal addresses' };
+  }
+
+  // Check IP address patterns
+  const ipMatch = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipMatch) {
+    const [, a, b] = ipMatch.map(Number);
+
+    // 127.0.0.0/8 — loopback
+    if (a === 127) {
+      return { valid: false, reason: 'Webhook URLs cannot target private/internal addresses' };
+    }
+    // 10.0.0.0/8 — private
+    if (a === 10) {
+      return { valid: false, reason: 'Webhook URLs cannot target private/internal addresses' };
+    }
+    // 172.16.0.0/12 — private (172.16-31.x.x)
+    if (a === 172 && b >= 16 && b <= 31) {
+      return { valid: false, reason: 'Webhook URLs cannot target private/internal addresses' };
+    }
+    // 192.168.0.0/16 — private
+    if (a === 192 && b === 168) {
+      return { valid: false, reason: 'Webhook URLs cannot target private/internal addresses' };
+    }
+    // 169.254.0.0/16 — link-local / cloud metadata
+    if (a === 169 && b === 254) {
+      return { valid: false, reason: 'Webhook URLs cannot target private/internal addresses' };
+    }
+    // 0.0.0.0
+    if (a === 0) {
+      return { valid: false, reason: 'Webhook URLs cannot target private/internal addresses' };
+    }
+  }
+
+  return { valid: true };
+}
+
+// ============================================================================
 // Event Dispatch & Delivery
 // ============================================================================
 
@@ -296,13 +362,17 @@ export function createDelivery(
 
 /**
  * Dispatch an event to all registered webhooks for the event type.
- * Returns the created delivery records.
+ * Creates delivery records and immediately attempts delivery (inline).
+ * Failed deliveries remain in 'pending' status for retry by a separate worker.
+ *
+ * @param fetchFn - Injectable fetch function for testing
  */
-export function dispatchEvent(
+export async function dispatchEvent(
   db: Database.Database,
   eventType: WebhookEventType,
-  data: object
-): WebhookDelivery[] {
+  data: object,
+  fetchFn: typeof fetch = globalThis.fetch
+): Promise<WebhookDelivery[]> {
   // Find all active webhooks that subscribe to this event
   const webhooks = db.prepare(`
     SELECT * FROM webhooks WHERE is_active = 1
@@ -320,7 +390,10 @@ export function dispatchEvent(
         timestamp: new Date().toISOString(),
       };
       const delivery = createDelivery(db, webhook.id, eventType, payload);
-      deliveries.push(delivery);
+
+      // Fire inline — attempt delivery immediately
+      const result = await attemptDelivery(db, delivery.id, fetchFn);
+      deliveries.push(result);
     }
   }
 

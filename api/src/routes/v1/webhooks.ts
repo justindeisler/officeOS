@@ -17,6 +17,7 @@ import {
   deleteWebhook,
   getDeliveryHistory,
   ensureWebhookTables,
+  validateWebhookUrl,
   WEBHOOK_EVENT_TYPES,
   type WebhookCreateInput,
 } from '../../services/webhookService.js';
@@ -65,13 +66,9 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
   if (!url || typeof url !== 'string') {
     return sendError(res, 'URL is required', 'VALIDATION_ERROR', 400);
   }
-  try {
-    const parsed = new URL(url);
-    if (!['http:', 'https:'].includes(parsed.protocol)) {
-      return sendError(res, 'URL must use http or https protocol', 'VALIDATION_ERROR', 400);
-    }
-  } catch {
-    return sendError(res, 'Invalid URL format', 'VALIDATION_ERROR', 400);
+  const urlValidation = validateWebhookUrl(url);
+  if (!urlValidation.valid) {
+    return sendError(res, urlValidation.reason, 'VALIDATION_ERROR', 400);
   }
 
   // Validate events
@@ -124,13 +121,9 @@ router.patch('/:id', asyncHandler(async (req: Request, res: Response) => {
     if (typeof url !== 'string' || url.trim() === '') {
       return sendError(res, 'Invalid URL', 'VALIDATION_ERROR', 400);
     }
-    try {
-      const parsed = new URL(url);
-      if (!['http:', 'https:'].includes(parsed.protocol)) {
-        return sendError(res, 'URL must use http or https protocol', 'VALIDATION_ERROR', 400);
-      }
-    } catch {
-      return sendError(res, 'Invalid URL format', 'VALIDATION_ERROR', 400);
+    const urlValidation = validateWebhookUrl(url);
+    if (!urlValidation.valid) {
+      return sendError(res, urlValidation.reason, 'VALIDATION_ERROR', 400);
     }
   }
 

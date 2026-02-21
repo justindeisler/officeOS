@@ -21,21 +21,17 @@ import webhooksRouter from './webhooks.js';
 
 const v1Router = express.Router();
 
-// Apply auth + rate limiting to ALL v1 routes
-v1Router.use(apiAuthMiddleware());   // Validates key (no specific scope required)
-v1Router.use(rateLimiterMiddleware); // Enforces per-key rate limits
-
-// Read-only routes (scope: read)
-v1Router.use('/reports', apiAuthMiddleware(['read']), reportsRouter);
-v1Router.use('/exports', apiAuthMiddleware(['read']), exportsRouter);
+// Read-only routes (scope: read) — auth then rate limit
+v1Router.use('/reports', apiAuthMiddleware(['read']), rateLimiterMiddleware, reportsRouter);
+v1Router.use('/exports', apiAuthMiddleware(['read']), rateLimiterMiddleware, exportsRouter);
 
 // Write routes (scope: write) — also allow read for GET endpoints
-v1Router.use('/invoices', apiAuthMiddleware(['read', 'write']), invoicesRouter);
-v1Router.use('/income', apiAuthMiddleware(['read', 'write']), incomeRouter);
-v1Router.use('/expenses', apiAuthMiddleware(['read', 'write']), expensesRouter);
-v1Router.use('/assets', apiAuthMiddleware(['read', 'write']), assetsRouter);
+v1Router.use('/invoices', apiAuthMiddleware(['read', 'write']), rateLimiterMiddleware, invoicesRouter);
+v1Router.use('/income', apiAuthMiddleware(['read', 'write']), rateLimiterMiddleware, incomeRouter);
+v1Router.use('/expenses', apiAuthMiddleware(['read', 'write']), rateLimiterMiddleware, expensesRouter);
+v1Router.use('/assets', apiAuthMiddleware(['read', 'write']), rateLimiterMiddleware, assetsRouter);
 
 // Webhook routes (scope: write for mutations, read for listing)
-v1Router.use('/webhooks', apiAuthMiddleware(['read', 'write']), webhooksRouter);
+v1Router.use('/webhooks', apiAuthMiddleware(['read', 'write']), rateLimiterMiddleware, webhooksRouter);
 
 export default v1Router;

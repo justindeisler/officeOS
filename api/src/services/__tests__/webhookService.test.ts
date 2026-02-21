@@ -23,6 +23,7 @@ import {
   attemptDelivery,
   getDeliveryHistory,
   getPendingDeliveries,
+  validateWebhookUrl,
   WEBHOOK_EVENT_TYPES,
 } from '../webhookService.js';
 import { generateApiKey } from '../apiKeyService.js';
@@ -277,7 +278,18 @@ describe('WebhookService', () => {
   // ========================================================================
 
   describe('Event Dispatch', () => {
-    it('creates delivery records for matching webhooks', () => {
+    // Mock fetch for all dispatch tests since dispatchEvent now fires inline
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: () => Promise.resolve('OK'),
+    });
+
+    beforeEach(() => {
+      mockFetch.mockClear();
+    });
+
+    it('creates delivery records for matching webhooks', async () => {
       createWebhook(db, apiKeyId, {
         url: 'https://a.com/hook',
         events: ['invoice.created', 'invoice.paid'],
@@ -287,41 +299,42 @@ describe('WebhookService', () => {
         events: ['expense.created'],
       });
 
-      const deliveries = dispatchEvent(db, 'invoice.created', { id: 'inv-001' });
+      const deliveries = await dispatchEvent(db, 'invoice.created', { id: 'inv-001' }, mockFetch as any);
       expect(deliveries).toHaveLength(1);
       expect(deliveries[0].event_type).toBe('invoice.created');
-      expect(deliveries[0].status).toBe('pending');
-      expect(deliveries[0].attempts).toBe(0);
+      // After inline dispatch, status should be success (mock returns 200)
+      expect(deliveries[0].status).toBe('success');
+      expect(deliveries[0].attempts).toBe(1);
     });
 
-    it('dispatches to wildcard subscribers', () => {
+    it('dispatches to wildcard subscribers', async () => {
       createWebhook(db, apiKeyId, {
         url: 'https://all-events.com/hook',
         events: ['*'],
       });
 
-      const deliveries = dispatchEvent(db, 'expense.created', { id: 'exp-001' });
+      const deliveries = await dispatchEvent(db, 'expense.created', { id: 'exp-001' }, mockFetch as any);
       expect(deliveries).toHaveLength(1);
     });
 
-    it('skips inactive webhooks', () => {
+    it('skips inactive webhooks', async () => {
       const webhook = createWebhook(db, apiKeyId, {
         url: 'https://inactive.com/hook',
         events: ['invoice.created'],
       });
       updateWebhook(db, webhook.id, apiKeyId, { is_active: false });
 
-      const deliveries = dispatchEvent(db, 'invoice.created', { id: 'inv-001' });
+      const deliveries = await dispatchEvent(db, 'invoice.created', { id: 'inv-001' }, mockFetch as any);
       expect(deliveries).toHaveLength(0);
     });
 
-    it('creates delivery with correct payload structure', () => {
+    it('creates delivery with correct payload structure', async () => {
       createWebhook(db, apiKeyId, {
         url: 'https://example.com/hook',
         events: ['task.completed'],
       });
 
-      const deliveries = dispatchEvent(db, 'task.completed', { id: 'task-001', title: 'Test' });
+      const deliveries = await dispatchEvent(db, 'task.completed', { id: 'task-001', title: 'Test' }, mockFetch as any);
       expect(deliveries).toHaveLength(1);
 
       const payload = JSON.parse(deliveries[0].payload);
@@ -330,12 +343,12 @@ describe('WebhookService', () => {
       expect(payload.timestamp).toBeTruthy();
     });
 
-    it('dispatches to multiple matching webhooks', () => {
+    it('dispatches to multiple matching webhooks', async () => {
       createWebhook(db, apiKeyId, { url: 'https://a.com/hook', events: ['invoice.created'] });
       createWebhook(db, apiKeyId, { url: 'https://b.com/hook', events: ['invoice.created'] });
       createWebhook(db, apiKeyId, { url: 'https://c.com/hook', events: ['*'] });
 
-      const deliveries = dispatchEvent(db, 'invoice.created', { id: 'inv-001' });
+      const deliveries = await dispatchEvent(db, 'invoice.created', { id: 'inv-001' }, mockFetch as any);
       expect(deliveries).toHaveLength(3);
     });
   });
@@ -579,6 +592,212 @@ describe('WebhookService', () => {
       for (const event of WEBHOOK_EVENT_TYPES) {
         expect(event).toMatch(/^[a-z]+\.[a-z]+$/);
       }
+    });
+  });
+
+  // ========================================================================
+  // SSRF Protection — URL Validation
+  // ========================================================================
+
+  describe('URL Validation (SSRF Protection)', () => {
+    it('allows valid public URLs', () => {
+      expect(validateWebhookUrl('https://example.com/webhook')).toEqual({ valid: true });
+      expect(validateWebhookUrl('https://api.myapp.com/hooks')).toEqual({ valid: true });
+      expect(validateWebhookUrl('http://webhook.site/test')).toEqual({ valid: true });
+    });
+
+    it('blocks localhost', () => {
+      const result = validateWebhookUrl('https://localhost/hook');
+      expect(result.valid).toBe(false);
+      expect(result.reason).toContain('private');
+    });
+
+    it('blocks localhost with port', () => {
+      const result = validateWebhookUrl('https://localhost:3000/hook');
+      expect(result.valid).toBe(false);
+      expect(result.reason).toContain('private');
+    });
+
+    it('blocks 127.0.0.1', () => {
+      const result = validateWebhookUrl('http://127.0.0.1/hook');
+      expect(result.valid).toBe(false);
+      expect(result.reason).toContain('private');
+    });
+
+    it('blocks 127.x.x.x range', () => {
+      const result = validateWebhookUrl('http://127.0.0.2:8080/hook');
+      expect(result.valid).toBe(false);
+      expect(result.reason).toContain('private');
+    });
+
+    it('blocks 10.x.x.x private range', () => {
+      const result = validateWebhookUrl('http://10.0.0.1/hook');
+      expect(result.valid).toBe(false);
+      expect(result.reason).toContain('private');
+    });
+
+    it('blocks 172.16-31.x.x private range', () => {
+      expect(validateWebhookUrl('http://172.16.0.1/hook').valid).toBe(false);
+      expect(validateWebhookUrl('http://172.20.10.5/hook').valid).toBe(false);
+      expect(validateWebhookUrl('http://172.31.255.255/hook').valid).toBe(false);
+    });
+
+    it('allows 172.32+ (not private)', () => {
+      expect(validateWebhookUrl('http://172.32.0.1/hook').valid).toBe(true);
+    });
+
+    it('blocks 192.168.x.x private range', () => {
+      const result = validateWebhookUrl('http://192.168.1.1/hook');
+      expect(result.valid).toBe(false);
+      expect(result.reason).toContain('private');
+    });
+
+    it('blocks 169.254.x.x link-local', () => {
+      const result = validateWebhookUrl('http://169.254.169.254/latest/meta-data/');
+      expect(result.valid).toBe(false);
+      expect(result.reason).toContain('private');
+    });
+
+    it('blocks cloud metadata IP 169.254.169.254', () => {
+      const result = validateWebhookUrl('http://169.254.169.254/latest/api/token');
+      expect(result.valid).toBe(false);
+    });
+
+    it('blocks 0.0.0.0', () => {
+      const result = validateWebhookUrl('http://0.0.0.0/hook');
+      expect(result.valid).toBe(false);
+    });
+
+    it('blocks [::1] IPv6 loopback', () => {
+      const result = validateWebhookUrl('http://[::1]/hook');
+      expect(result.valid).toBe(false);
+    });
+
+    it('blocks non-http protocols', () => {
+      const result = validateWebhookUrl('ftp://example.com/hook');
+      expect(result.valid).toBe(false);
+      expect(result.reason).toContain('protocol');
+    });
+
+    it('returns error for invalid URLs', () => {
+      const result = validateWebhookUrl('not-a-url');
+      expect(result.valid).toBe(false);
+      expect(result.reason).toContain('Invalid URL');
+    });
+  });
+
+  // ========================================================================
+  // Inline Dispatch (webhooks actually fire)
+  // ========================================================================
+
+  describe('Inline Dispatch', () => {
+    it('fires HTTP requests when dispatching events', async () => {
+      createWebhook(db, apiKeyId, {
+        url: 'https://example.com/hook',
+        events: ['invoice.created'],
+      });
+
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve('OK'),
+      });
+
+      const deliveries = await dispatchEvent(
+        db,
+        'invoice.created',
+        { id: 'inv-001' },
+        mockFetch as any,
+      );
+
+      expect(deliveries).toHaveLength(1);
+      expect(mockFetch).toHaveBeenCalledOnce();
+      // Delivery should be marked as success after inline attempt
+      expect(deliveries[0].status).toBe('success');
+      expect(deliveries[0].attempts).toBe(1);
+    });
+
+    it('marks delivery as pending on HTTP failure (for retry)', async () => {
+      createWebhook(db, apiKeyId, {
+        url: 'https://example.com/hook',
+        events: ['invoice.created'],
+      });
+
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        text: () => Promise.resolve('Internal Server Error'),
+      });
+
+      const deliveries = await dispatchEvent(
+        db,
+        'invoice.created',
+        { id: 'inv-001' },
+        mockFetch as any,
+      );
+
+      expect(deliveries).toHaveLength(1);
+      expect(mockFetch).toHaveBeenCalledOnce();
+      expect(deliveries[0].status).toBe('pending');
+      expect(deliveries[0].attempts).toBe(1);
+      expect(deliveries[0].next_retry_at).toBeTruthy();
+    });
+
+    it('marks delivery as pending on network error (for retry)', async () => {
+      createWebhook(db, apiKeyId, {
+        url: 'https://example.com/hook',
+        events: ['invoice.created'],
+      });
+
+      const mockFetch = vi.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+
+      const deliveries = await dispatchEvent(
+        db,
+        'invoice.created',
+        { id: 'inv-001' },
+        mockFetch as any,
+      );
+
+      expect(deliveries).toHaveLength(1);
+      expect(deliveries[0].status).toBe('pending');
+      expect(deliveries[0].error_message).toBe('ECONNREFUSED');
+    });
+
+    it('dispatches to multiple webhooks independently', async () => {
+      createWebhook(db, apiKeyId, { url: 'https://a.com/hook', events: ['invoice.created'] });
+      createWebhook(db, apiKeyId, { url: 'https://b.com/hook', events: ['invoice.created'] });
+
+      const mockFetch = vi.fn()
+        .mockResolvedValueOnce({ ok: true, status: 200, text: () => Promise.resolve('OK') })
+        .mockResolvedValueOnce({ ok: false, status: 503, text: () => Promise.resolve('Unavailable') });
+
+      const deliveries = await dispatchEvent(
+        db,
+        'invoice.created',
+        { id: 'inv-001' },
+        mockFetch as any,
+      );
+
+      expect(deliveries).toHaveLength(2);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(deliveries[0].status).toBe('success');
+      expect(deliveries[1].status).toBe('pending');
+    });
+
+    it('uses global fetch by default (no fetchFn argument)', async () => {
+      // Just verify the function signature accepts no fetchFn
+      createWebhook(db, apiKeyId, {
+        url: 'https://example.com/hook',
+        events: ['expense.created'],
+      });
+
+      // We can't easily test with real fetch, but we verify it doesn't throw
+      // when called without fetchFn — it will use globalThis.fetch
+      // and likely fail with a network error, which is fine (it retries)
+      const deliveries = await dispatchEvent(db, 'expense.created', { id: 'exp-001' });
+      expect(deliveries).toHaveLength(1);
+      // The delivery will be in pending state (retry) since the URL doesn't exist
+      expect(['pending', 'failed']).toContain(deliveries[0].status);
     });
   });
 
