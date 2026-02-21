@@ -63,6 +63,7 @@ import travelRouter from "./routes/travel.js";
 import duplicatesRouter from "./routes/duplicates.js";
 import categorizationRouter from "./routes/categorization.js";
 import smartSuggestionsRouter from "./routes/smart-suggestions.js";
+import missingReceiptsRouter from "./routes/missing-receipts.js";
 
 // Environment validation — fail fast if critical vars are missing or weak
 // (Full validation logic in startup-validation.ts)
@@ -231,6 +232,9 @@ app.use("/api/categorization", authMiddleware, categorizationRouter);
 
 // Smart suggestions for form prefilling (protected)
 app.use("/api/smart-suggestions", authMiddleware, smartSuggestionsRouter);
+
+// Missing receipt alerts (protected)
+app.use("/api/missing-receipts", authMiddleware, missingReceiptsRouter);
 
 // 404 handler for unmatched API routes (must come after all API routes, before static files)
 app.all("/api/*", notFoundHandler);

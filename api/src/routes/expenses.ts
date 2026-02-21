@@ -17,6 +17,7 @@ import { EXPENSE_CATEGORIES as SHARED_EXPENSE_CATEGORIES, EXPENSE_CATEGORY_MAP, 
 import { auditCreate, auditUpdate, auditSoftDelete, extractAuditContext } from "../services/auditService.js";
 import { enforcePeriodLock } from "../services/periodLockService.js";
 import { getNextSequenceNumber } from "../services/sequenceService.js";
+import { checkExpenseForMissingReceipt, removeAlertForExpense } from "../services/missingReceiptService.js";
 
 const router = Router();
 
@@ -258,6 +259,11 @@ router.post("/", validateBody(CreateExpenseSchema), asyncHandler(async (req: Req
   // GoBD: Audit trail
   auditCreate(db, 'expense', id, expense as unknown as Record<string, unknown>, extractAuditContext(req));
 
+  // Missing receipt alert check
+  if (!expense.receipt_path) {
+    try { checkExpenseForMissingReceipt(db, id); } catch { /* non-critical */ }
+  }
+
   cache.invalidate("expenses:*");
   res.status(201).json(expense);
 }));
@@ -336,6 +342,15 @@ router.patch("/:id", validateBody(UpdateExpenseSchema), asyncHandler(async (req:
     expense as unknown as Record<string, unknown>,
     extractAuditContext(req)
   );
+
+  // Missing receipt: auto-dismiss if receipt uploaded, or re-check
+  try {
+    if (expense.receipt_path && expense.receipt_path !== '') {
+      removeAlertForExpense(db, id);
+    } else {
+      checkExpenseForMissingReceipt(db, id);
+    }
+  } catch { /* non-critical */ }
 
   cache.invalidate("expenses:*");
   res.json(expense);

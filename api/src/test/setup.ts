@@ -788,6 +788,20 @@ const SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS idx_travel_expense ON travel_records(expense_id);
   CREATE INDEX IF NOT EXISTS idx_travel_date ON travel_records(trip_date);
+
+  -- Migration 024: Missing Receipt Alerts
+  CREATE TABLE IF NOT EXISTS missing_receipt_alerts (
+    id TEXT PRIMARY KEY,
+    expense_id TEXT NOT NULL REFERENCES expenses(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    severity TEXT NOT NULL CHECK (severity IN ('low', 'medium', 'high')),
+    reason TEXT NOT NULL,
+    dismissed BOOLEAN DEFAULT FALSE,
+    dismissed_at TEXT,
+    dismissed_by TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_missing_receipt_alerts_expense ON missing_receipt_alerts(expense_id);
+  CREATE INDEX IF NOT EXISTS idx_missing_receipt_alerts_severity ON missing_receipt_alerts(severity, dismissed);
 `;
 
 
