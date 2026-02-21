@@ -2,8 +2,89 @@
 
 Base URL: `http://localhost:3001/api/v1`
 
-> **Note:** Authentication is not yet required (Sprint 7 will add API key authentication).  
-> The existing internal routes (`/api/invoices`, etc.) remain available for backward compatibility.
+> The existing internal routes (`/api/invoices`, etc.) remain available for backward compatibility
+> and are protected by JWT authentication (unchanged).
+
+## Authentication
+
+All v1 endpoints require API key authentication via the `Authorization` header:
+
+```
+Authorization: Bearer pk_test_abc123...
+```
+
+### Generating API Keys
+
+```http
+POST /api/admin/api-keys
+Content-Type: application/json
+Authorization: Bearer <JWT token>
+
+{
+  "name": "Production Key",
+  "scopes": ["read", "write"],
+  "rate_limit": 1000,
+  "expires_in_days": 365
+}
+```
+
+The response includes the full key **once** — store it securely. It cannot be retrieved again.
+
+### Managing API Keys
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/admin/api-keys` | Generate new key (JWT auth required) |
+| `GET` | `/api/admin/api-keys` | List all keys (JWT auth required) |
+| `DELETE` | `/api/admin/api-keys/:id` | Revoke a key (JWT auth required) |
+
+### Scopes
+
+| Scope | Access |
+|-------|--------|
+| `read` | Read-only access (reports, exports, list/get endpoints) |
+| `write` | Create, update, delete resources |
+| `admin` | Manage API keys |
+
+Endpoint scope requirements:
+- `/reports/*`, `/exports/*` — require `read`
+- `/invoices/*`, `/income/*`, `/expenses/*`, `/assets/*` — require `read` or `write`
+
+### Rate Limiting
+
+Default: **100 requests/minute** per API key (configurable per key).
+
+Response headers on every request:
+| Header | Description |
+|--------|-------------|
+| `X-RateLimit-Limit` | Max requests per window |
+| `X-RateLimit-Remaining` | Requests left in current window |
+| `X-RateLimit-Reset` | When the limit resets (ISO 8601) |
+
+When the limit is exceeded, the API returns `429 Too Many Requests`:
+```json
+{
+  "success": false,
+  "error": {
+    "code": "RATE_LIMIT_EXCEEDED",
+    "message": "Rate limit exceeded",
+    "details": {
+      "limit": 100,
+      "window_minutes": 1,
+      "retry_after": 60
+    }
+  }
+}
+```
+
+### Error Codes (Authentication)
+
+| Code | HTTP Status | Description |
+|------|-------------|-------------|
+| `UNAUTHORIZED` | 401 | Missing or malformed Authorization header |
+| `INVALID_API_KEY` | 401 | Key is invalid, expired, or revoked |
+| `FORBIDDEN` | 403 | Valid key but insufficient scopes |
+| `RATE_LIMIT_EXCEEDED` | 429 | Too many requests in the current window |
 
 ## Response Format
 

@@ -802,6 +802,35 @@ const SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS idx_missing_receipt_alerts_expense ON missing_receipt_alerts(expense_id);
   CREATE INDEX IF NOT EXISTS idx_missing_receipt_alerts_severity ON missing_receipt_alerts(severity, dismissed);
+
+  -- Sprint 7: API Key Authentication & Rate Limiting
+  CREATE TABLE IF NOT EXISTS api_keys (
+    id TEXT PRIMARY KEY,
+    key_hash TEXT NOT NULL UNIQUE,
+    key_prefix TEXT NOT NULL,
+    name TEXT NOT NULL,
+    scopes TEXT NOT NULL,
+    rate_limit INTEGER DEFAULT 100,
+    last_used_at TEXT,
+    created_at TEXT NOT NULL,
+    expires_at TEXT,
+    is_active BOOLEAN DEFAULT TRUE
+  );
+  CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash);
+  CREATE INDEX IF NOT EXISTS idx_api_keys_active ON api_keys(is_active);
+
+  CREATE TABLE IF NOT EXISTS api_requests (
+    id TEXT PRIMARY KEY,
+    api_key_id TEXT REFERENCES api_keys(id),
+    endpoint TEXT NOT NULL,
+    method TEXT NOT NULL,
+    status_code INTEGER,
+    response_time_ms INTEGER,
+    ip_address TEXT,
+    user_agent TEXT,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_api_requests_key_time ON api_requests(api_key_id, created_at);
 `;
 
 
