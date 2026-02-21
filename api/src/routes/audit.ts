@@ -14,6 +14,7 @@ import {
   getAuditTrail,
   searchAuditLog,
   type AuditEntityType,
+  type AuditAction,
 } from '../services/auditService.js';
 import {
   getPeriodLocks,
@@ -21,7 +22,6 @@ import {
   unlockPeriod,
   checkPeriodLock,
   isPeriodLocked,
-  extractPeriodInfo,
   type PeriodLock,
 } from '../services/periodLockService.js';
 import { extractAuditContext } from '../services/auditService.js';
@@ -71,7 +71,7 @@ router.get('/search', asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();
   const result = searchAuditLog(db, {
     entityType: entity_type as AuditEntityType,
-    action: action as string,
+    action: action as AuditAction | undefined,
     userId: user_id as string,
     startDate: start_date as string,
     endDate: end_date as string,
