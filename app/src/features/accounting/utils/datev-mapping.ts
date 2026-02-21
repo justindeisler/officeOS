@@ -87,12 +87,29 @@ export function mapEuerToSkr(
 }
 
 /**
- * Get the counter account (typically bank) for a chart of accounts
+ * Get the counter account based on payment method and chart of accounts.
+ * Maps payment methods to their corresponding financial accounts.
  */
-export function getCounterAccount(chartOfAccounts: ChartOfAccounts): number {
-  return chartOfAccounts === 'SKR03'
-    ? SKR03_COUNTER_ACCOUNTS.BANK
-    : SKR04_COUNTER_ACCOUNTS.BANK
+export function getCounterAccount(
+  chartOfAccounts: ChartOfAccounts,
+  paymentMethod?: string | null
+): number {
+  if (chartOfAccounts === 'SKR03') {
+    switch (paymentMethod) {
+      case 'cash':          return 1000; // Kasse
+      case 'paypal':        return 1360; // Geldtransit (PayPal)
+      case 'credit_card':   return 1361; // Kreditkarte (common convention)
+      case 'bank_transfer': return SKR03_COUNTER_ACCOUNTS.BANK;
+      default:              return SKR03_COUNTER_ACCOUNTS.BANK;
+    }
+  }
+  switch (paymentMethod) {
+    case 'cash':          return 1600; // Kasse (SKR04)
+    case 'paypal':        return 1460; // Geldtransit (SKR04)
+    case 'credit_card':   return 1461; // Kreditkarte (SKR04)
+    case 'bank_transfer': return SKR04_COUNTER_ACCOUNTS.BANK;
+    default:              return SKR04_COUNTER_ACCOUNTS.BANK;
+  }
 }
 
 /**
@@ -204,7 +221,7 @@ export function mapIncomeToDatev(
     chartOfAccounts,
     income.vatRate
   )
-  const counterAccount = getCounterAccount(chartOfAccounts)
+  const counterAccount = getCounterAccount(chartOfAccounts, income.paymentMethod)
 
   return {
     ...createBaseDatevRecord(),
@@ -235,7 +252,7 @@ export function mapExpenseToDatev(
     chartOfAccounts,
     expense.vatRate
   )
-  const counterAccount = getCounterAccount(chartOfAccounts)
+  const counterAccount = getCounterAccount(chartOfAccounts, expense.paymentMethod)
 
   return {
     ...createBaseDatevRecord(),
@@ -266,6 +283,8 @@ export function mapDepreciationToDatev(
   chartOfAccounts: ChartOfAccounts
 ): DatevRecord {
   const account = mapEuerToSkr('depreciation', chartOfAccounts)
+  // Depreciation counter account is the asset account (e.g. 0200 for computer)
+  // but for simplicity we use the standard bank counter
   const counterAccount = getCounterAccount(chartOfAccounts)
 
   return {

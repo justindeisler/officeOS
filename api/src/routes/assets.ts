@@ -10,6 +10,7 @@ import { asyncHandler } from "../middleware/asyncHandler.js";
 import { NotFoundError, ValidationError } from "../errors.js";
 import { validateBody } from "../middleware/validateBody.js";
 import { CreateAssetSchema, UpdateAssetSchema, DepreciateAssetSchema } from "../schemas/index.js";
+import { AFA_STANDARD_YEARS } from "../constants/expense-categories.js";
 
 const router = Router();
 
@@ -207,6 +208,43 @@ function getCurrentBookValue(db: ReturnType<typeof getDb>, assetId: string): num
 // ============================================================================
 // Routes
 // ============================================================================
+
+/**
+ * GET /api/assets/afa-tabelle
+ * Returns the standard AfA-Tabelle for asset category validation.
+ * Optionally validates a specific category + useful_life combo.
+ */
+router.get("/afa-tabelle", (_req: Request, res: Response) => {
+  const { category, useful_life_years } = _req.query;
+
+  if (category && useful_life_years) {
+    const standard = AFA_STANDARD_YEARS[category as string];
+    const years = parseInt(useful_life_years as string, 10);
+
+    if (standard) {
+      const matches = standard.years === years;
+      res.json({
+        category,
+        standard_years: standard.years,
+        standard_name: standard.name,
+        provided_years: years,
+        matches,
+        warning: matches ? null : `Standard-Nutzungsdauer für ${standard.name} ist ${standard.years} Jahre (eingegeben: ${years})`,
+      });
+    } else {
+      res.json({
+        category,
+        standard_years: null,
+        provided_years: years,
+        matches: null,
+        warning: null,
+        message: `Keine Standard-Nutzungsdauer für Kategorie '${category}' hinterlegt`,
+      });
+    }
+  } else {
+    res.json(AFA_STANDARD_YEARS);
+  }
+});
 
 router.get("/", asyncHandler(async (req: Request, res: Response) => {
   const db = getDb();

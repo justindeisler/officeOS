@@ -49,3 +49,20 @@ export const LEGACY_CATEGORY_MAP: Record<string, string> = {
   'education': 'training',
   'office': 'office_supplies',
 };
+
+/**
+ * AfA-Tabelle: Standard useful life years for common asset categories.
+ * Used for validation — warn when user-entered value deviates.
+ * Source: Official German AfA-Tabelle (BMF)
+ */
+export const AFA_STANDARD_YEARS: Record<string, { years: number; name: string }> = {
+  'computer':    { years: 3,  name: 'Computer, Notebook, Monitor, Drucker' },
+  'hardware':    { years: 3,  name: 'Computer-Hardware' },
+  'phone':       { years: 5,  name: 'Mobiltelefon' },
+  'software':    { years: 3,  name: 'Software (>€1.000)' },
+  'furniture':   { years: 13, name: 'Büromöbel' },
+  'vehicle':     { years: 6,  name: 'PKW' },
+  'equipment':   { years: 5,  name: 'Bürogeräte' },
+  'electronics': { years: 5,  name: 'Elektronische Geräte' },
+  'machinery':   { years: 10, name: 'Maschinen' },
+};
