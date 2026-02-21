@@ -386,17 +386,44 @@ export function InvoicePreview({
             <div style={{ borderTop: '2px solid #1e3a5f' }} />
           </div>
 
-          {/* ─── Totals ───────────────────────────────────────── */}
+          {/* ─── Totals with multi-VAT breakdown ──────────────── */}
           <div className="flex justify-end">
-            <div className="w-64 overflow-hidden rounded-lg border border-gray-200">
+            <div className="w-72 overflow-hidden rounded-lg border border-gray-200">
               <div className="flex justify-between px-4 py-2.5 text-sm">
                 <span className="text-gray-600">Nettobetrag</span>
                 <span className="font-semibold">{formatCurrency(invoice.subtotal)}</span>
               </div>
-              <div className="flex justify-between px-4 py-2.5 text-sm border-t border-gray-100">
-                <span className="text-gray-500">USt. {invoice.vatRate}%</span>
-                <span className="font-medium text-gray-600">{formatCurrency(invoice.vatAmount)}</span>
-              </div>
+              {/* Multi-VAT breakdown: group items by VAT rate */}
+              {(() => {
+                // Calculate per-rate VAT breakdown from items
+                const vatBreakdown: Record<number, { net: number; vat: number }> = {}
+                if (invoice.items && invoice.items.length > 0) {
+                  invoice.items.forEach((item) => {
+                    const rate = (item as unknown as { vatRate?: number }).vatRate ?? invoice.vatRate
+                    if (!vatBreakdown[rate]) vatBreakdown[rate] = { net: 0, vat: 0 }
+                    vatBreakdown[rate].net += item.amount
+                    vatBreakdown[rate].vat += Math.round(item.amount * (rate / 100) * 100) / 100
+                  })
+                } else {
+                  vatBreakdown[invoice.vatRate] = {
+                    net: invoice.subtotal,
+                    vat: invoice.vatAmount,
+                  }
+                }
+
+                const entries = Object.entries(vatBreakdown)
+                  .filter(([, { net }]) => net > 0)
+                  .sort(([a], [b]) => Number(b) - Number(a))
+
+                return entries.map(([rate, { net, vat }]) => (
+                  <div key={rate} className="flex justify-between px-4 py-2 text-sm border-t border-gray-100">
+                    <span className="text-gray-500">
+                      USt. {rate}% {entries.length > 1 ? `auf ${formatCurrency(net)}` : ''}
+                    </span>
+                    <span className="font-medium text-gray-600">{formatCurrency(vat)}</span>
+                  </div>
+                ))
+              })()}
               <div
                 className="flex justify-between px-4 py-3 text-sm font-bold"
                 style={{ background: '#1e3a5f', color: 'white' }}
@@ -434,6 +461,23 @@ export function InvoicePreview({
                     </span>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* ─── Reverse Charge Notice ──────────────────────── */}
+          {((invoice as unknown as { reverseCharge?: boolean }).reverseCharge ||
+            (invoice.vatRate === 0 && invoice.vatAmount === 0 && invoice.subtotal > 0)) &&
+            (invoice as unknown as { reverseChargeNote?: string }).reverseChargeNote && (
+            <div
+              className="rounded-lg py-3 px-4 text-sm border-2 border-orange-300 bg-orange-50"
+            >
+              <div className="text-xs font-semibold uppercase tracking-wide mb-1 text-orange-700">
+                Reverse Charge / Steuerschuldnerschaft
+              </div>
+              <div className="text-gray-700 leading-relaxed">
+                {(invoice as unknown as { reverseChargeNote?: string }).reverseChargeNote ||
+                  'Steuerschuldnerschaft des Leistungsempfängers gemäß §13b UStG'}
               </div>
             </div>
           )}

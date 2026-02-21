@@ -1,0 +1,1 @@
+function y(t,r){const n=typeof t=="string"?new Date(t):t;if(isNaN(n.getTime()))return!1;const o=n.getFullYear(),c=n.getMonth()+1,s=Math.ceil(c/3),u=`${o}-${String(c).padStart(2,"0")}`;if(r.some(e=>e.key===u&&e.locked))return!0;const a=`${o}-Q${s}`;if(r.some(e=>e.key===a&&e.locked))return!0;const i=String(o);return!!r.some(e=>e.key===i&&e.locked)}export{y as i};

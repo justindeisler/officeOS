@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -8,9 +8,11 @@ import { ElsterHistoryList } from "@/features/accounting/components/Reports/Elst
 import { PeriodLockManager } from "@/features/accounting/components/GoBD/PeriodLockManager";
 import { AuditLog } from "@/features/accounting/components/GoBD/AuditLog";
 import { DatevExportDialog } from "@/features/accounting/components/Export";
+import { BankReconciliation } from "@/features/accounting/components/Banking/BankReconciliation";
 import { getAllAssets } from "@/features/accounting/api/assets";
 import { getAllIncome } from "@/features/accounting/api/income";
 import { getAllExpenses } from "@/features/accounting/api/expenses";
+import { bankingService, type BankTransaction } from "@/services/web/bankingService";
 import type { Asset, Income, Expense } from "@/features/accounting/types";
 
 export function ReportsPage() {
@@ -19,6 +21,7 @@ export function ReportsPage() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [incomes, setIncomes] = useState<Income[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [transactions, setTransactions] = useState<BankTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDatevDialogOpen, setIsDatevDialogOpen] = useState(false);
 
@@ -27,14 +30,16 @@ export function ReportsPage() {
     async function fetchData() {
       setIsLoading(true);
       try {
-        const [assetsData, incomesData, expensesData] = await Promise.all([
+        const [assetsData, incomesData, expensesData, txData] = await Promise.all([
           getAllAssets(),
           getAllIncome(),
           getAllExpenses(),
+          bankingService.getTransactions().catch(() => [] as BankTransaction[]),
         ]);
         setAssets(assetsData);
         setIncomes(incomesData);
         setExpenses(expensesData);
+        setTransactions(txData);
       } catch (error) {
         console.error("Failed to load data:", error);
       } finally {
@@ -74,6 +79,7 @@ export function ReportsPage() {
           <TabsTrigger value="assets" className="flex-shrink-0 whitespace-nowrap">Assets</TabsTrigger>
           <TabsTrigger value="afa" className="flex-shrink-0">AfA</TabsTrigger>
           <TabsTrigger value="zm" className="flex-shrink-0">ZM</TabsTrigger>
+          <TabsTrigger value="banking" className="flex-shrink-0">Banking</TabsTrigger>
           <TabsTrigger value="datev" className="flex-shrink-0">DATEV</TabsTrigger>
           <TabsTrigger value="elster" className="flex-shrink-0">ELSTER</TabsTrigger>
           <TabsTrigger value="locks" className="flex-shrink-0">Sperren</TabsTrigger>
@@ -98,6 +104,10 @@ export function ReportsPage() {
 
         <TabsContent value="zm" className="mt-6">
           <ZmReportView />
+        </TabsContent>
+
+        <TabsContent value="banking" className="mt-6">
+          <BankReconciliation transactions={transactions} />
         </TabsContent>
 
         <TabsContent value="datev" className="mt-6">

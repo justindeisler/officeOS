@@ -51,6 +51,10 @@ export function ClientDialog({
   const [city, setCity] = useState("");
   const [country, setCountry] = useState("Deutschland");
 
+  // Reverse Charge / Client Type
+  const [clientType, setClientType] = useState<string>("domestic");
+  const [vatId, setVatId] = useState("");
+
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const isEditing = !!client;
@@ -67,6 +71,8 @@ export function ClientDialog({
       setZip(client.address?.zip || "");
       setCity(client.address?.city || "");
       setCountry(client.address?.country || "Deutschland");
+      setClientType((client as any).clientType || "domestic");
+      setVatId((client as any).vatId || "");
     } else {
       setName("");
       setEmail("");
@@ -78,6 +84,8 @@ export function ClientDialog({
       setZip("");
       setCity("");
       setCountry("Deutschland");
+      setClientType("domestic");
+      setVatId("");
     }
   }, [client, open]);
 
@@ -103,7 +111,9 @@ export function ClientDialog({
             country: country.trim() || "Deutschland",
           }
         : undefined,
-    };
+      clientType: clientType || "domestic",
+      vatId: vatId.trim() || undefined,
+    } as any;
 
     if (isEditing && client) {
       updateClient(client.id, clientData);
@@ -234,6 +244,50 @@ export function ClientDialog({
                 />
               </div>
             </div>
+
+            {/* Client Type (Reverse Charge) */}
+            <div className="grid gap-2">
+              <Label htmlFor="clientType">Kundentyp</Label>
+              <Select
+                value={clientType}
+                onValueChange={(v) => setClientType(v)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="domestic">Inland</SelectItem>
+                  <SelectItem value="eu_b2b">EU B2B</SelectItem>
+                  <SelectItem value="eu_b2c">EU B2C</SelectItem>
+                  <SelectItem value="third_country">Drittland</SelectItem>
+                </SelectContent>
+              </Select>
+              {clientType === "eu_b2b" && (
+                <p className="text-xs text-muted-foreground">
+                  Reverse-Charge: Steuerschuldnerschaft geht auf den Leistungsempfänger über (§13b UStG).
+                </p>
+              )}
+            </div>
+
+            {/* VAT ID - shown for EU B2B */}
+            {(clientType === "eu_b2b" || clientType === "eu_b2c") && (
+              <div className="grid gap-2">
+                <Label htmlFor="vatId">
+                  USt-IdNr. {clientType === "eu_b2b" && <span className="text-destructive">*</span>}
+                </Label>
+                <Input
+                  id="vatId"
+                  value={vatId}
+                  onChange={(e) => setVatId(e.target.value)}
+                  placeholder="z.B. ATU12345678"
+                />
+                {clientType === "eu_b2b" && !vatId && (
+                  <p className="text-xs text-orange-600">
+                    Für Reverse-Charge ist die USt-IdNr. erforderlich.
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Status */}
             <div className="grid gap-2">

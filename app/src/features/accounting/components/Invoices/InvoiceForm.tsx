@@ -40,6 +40,7 @@ interface LineItem {
   quantity: number
   unit: string
   unitPrice: number
+  vatRate: VatRate
 }
 
 interface FormErrors {
@@ -147,7 +148,7 @@ export function InvoiceForm({
     }
   }
 
-  // Line items state
+  // Line items state - each item now has its own VAT rate for multi-VAT support
   const [lineItems, setLineItems] = useState<LineItem[]>(() => {
     if (invoice?.items && invoice.items.length > 0) {
       return invoice.items.map((item) => ({
@@ -156,6 +157,7 @@ export function InvoiceForm({
         quantity: item.quantity,
         unit: item.unit ?? 'hours',
         unitPrice: item.unitPrice,
+        vatRate: (item as unknown as { vatRate?: VatRate }).vatRate ?? vatRate,
       }))
     }
     return [
@@ -165,6 +167,7 @@ export function InvoiceForm({
         quantity: 1,
         unit: 'hours',
         unitPrice: 0,
+        vatRate: 19 as VatRate,
       },
     ]
   })
@@ -176,13 +179,30 @@ export function InvoiceForm({
     })
   }, [lineItems])
 
-  // Calculate totals
+  // Calculate totals with per-line VAT breakdown (multi-VAT support)
   const calculations = useMemo(() => {
     const subtotal = lineItemAmounts.reduce((sum, amount) => sum + amount, 0)
-    const vatAmount = Math.round(subtotal * (vatRate / 100) * 100) / 100
-    const total = Math.round((subtotal + vatAmount) * 100) / 100
-    return { subtotal, vatAmount, total }
-  }, [lineItemAmounts, vatRate])
+
+    // Group VAT by rate for multi-VAT breakdown
+    const vatBreakdown: Record<number, { net: number; vat: number }> = {}
+    lineItems.forEach((item, idx) => {
+      const itemNet = lineItemAmounts[idx]
+      const rate = item.vatRate ?? vatRate
+      if (!vatBreakdown[rate]) {
+        vatBreakdown[rate] = { net: 0, vat: 0 }
+      }
+      vatBreakdown[rate].net += itemNet
+      vatBreakdown[rate].vat += Math.round(itemNet * (rate / 100) * 100) / 100
+    })
+
+    const totalVatAmount = Object.values(vatBreakdown).reduce(
+      (sum, { vat }) => sum + vat,
+      0
+    )
+    const total = Math.round((subtotal + totalVatAmount) * 100) / 100
+
+    return { subtotal, vatAmount: totalVatAmount, total, vatBreakdown }
+  }, [lineItemAmounts, lineItems, vatRate])
 
   // Update line item
   const updateLineItem = (id: string, field: keyof LineItem, value: string | number) => {
@@ -201,6 +221,7 @@ export function InvoiceForm({
         quantity: 1,
         unit: 'hours',
         unitPrice: 0,
+        vatRate: vatRate,
       },
     ])
   }
@@ -496,7 +517,7 @@ export function InvoiceForm({
 
                 {/* Unit Price - full width */}
                 <div className="w-full">
-                  <Label className="text-xs text-muted-foreground mb-1 block">Unit Price (€)</Label>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Einzelpreis (€)</Label>
                   <Input
                     id={`unitPrice-${item.id}`}
                     aria-label="Unit Price"
@@ -510,6 +531,24 @@ export function InvoiceForm({
                       updateLineItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)
                     }
                   />
+                </div>
+
+                {/* Per-line VAT Rate */}
+                <div className="w-full">
+                  <Label className="text-xs text-muted-foreground mb-1 block">MwSt</Label>
+                  <Select
+                    value={String(item.vatRate ?? vatRate)}
+                    onValueChange={(v) => updateLineItem(item.id, 'vatRate', Number(v) as VatRate)}
+                  >
+                    <SelectTrigger className="h-10 w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="19">19%</SelectItem>
+                      <SelectItem value="7">7%</SelectItem>
+                      <SelectItem value="0">0%</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {/* Amount and Delete - row */}
@@ -530,13 +569,13 @@ export function InvoiceForm({
                 </div>
               </div>
 
-              {/* Desktop Layout */}
+              {/* Desktop Layout - with per-line VAT column */}
               <div className="hidden sm:block">
-                <div className="grid items-start gap-3 grid-cols-[1fr_80px_90px_100px_40px]">
+                <div className="grid items-start gap-3 grid-cols-[1fr_70px_80px_90px_70px_40px]">
                   {/* Description */}
                   <div>
                     <Input
-                      placeholder="Description"
+                      placeholder="Beschreibung"
                       className="h-9"
                       value={item.description}
                       onChange={(e) =>
@@ -580,11 +619,11 @@ export function InvoiceForm({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="hours">hrs</SelectItem>
-                      <SelectItem value="days">days</SelectItem>
-                      <SelectItem value="month">month</SelectItem>
-                      <SelectItem value="units">units</SelectItem>
-                      <SelectItem value="pieces">pcs</SelectItem>
+                      <SelectItem value="hours">Std</SelectItem>
+                      <SelectItem value="days">Tage</SelectItem>
+                      <SelectItem value="month">Mon</SelectItem>
+                      <SelectItem value="units">Stk</SelectItem>
+                      <SelectItem value="pieces">Stk</SelectItem>
                     </SelectContent>
                   </Select>
 
@@ -609,6 +648,21 @@ export function InvoiceForm({
                     )}
                   </div>
 
+                  {/* Per-line VAT Rate */}
+                  <Select
+                    value={String(item.vatRate ?? vatRate)}
+                    onValueChange={(v) => updateLineItem(item.id, 'vatRate', Number(v) as VatRate)}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="19">19%</SelectItem>
+                      <SelectItem value="7">7%</SelectItem>
+                      <SelectItem value="0">0%</SelectItem>
+                    </SelectContent>
+                  </Select>
+
                   {/* Remove Button */}
                   <Button
                     type="button"
@@ -632,18 +686,26 @@ export function InvoiceForm({
         </div>
       </div>
 
-      {/* Totals */}
+      {/* Totals with multi-VAT breakdown */}
       <div className="space-y-2 rounded-lg bg-muted p-3 sm:p-4 w-full">
         <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Subtotal</span>
+          <span className="text-muted-foreground">Netto</span>
           <span>{formatCurrency(calculations.subtotal)}</span>
         </div>
-        <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">VAT ({vatRate}%)</span>
-          <span>{formatCurrency(calculations.vatAmount)}</span>
-        </div>
+        {/* Multi-VAT breakdown: show each VAT rate separately */}
+        {Object.entries(calculations.vatBreakdown)
+          .filter(([, { net }]) => net > 0)
+          .sort(([a], [b]) => Number(b) - Number(a))
+          .map(([rate, { net, vat }]) => (
+            <div key={rate} className="flex justify-between text-sm">
+              <span className="text-muted-foreground">
+                MwSt {rate}% auf {formatCurrency(net)}
+              </span>
+              <span>{formatCurrency(vat)}</span>
+            </div>
+          ))}
         <div className="flex justify-between border-t pt-2 font-semibold">
-          <span>Total</span>
+          <span>Gesamt</span>
           <span>{formatCurrency(calculations.total)}</span>
         </div>
       </div>

@@ -87,6 +87,26 @@ const ReportsPage = lazy(() =>
     default: m.ReportsPage,
   }))
 );
+const BankingPage = lazy(() =>
+  import("./pages/accounting/BankingPage").then((m) => ({
+    default: m.BankingPage,
+  }))
+);
+const RecurringInvoicesPage = lazy(() =>
+  import("./pages/accounting/RecurringInvoicesPage").then((m) => ({
+    default: m.RecurringInvoicesPage,
+  }))
+);
+const BookingRulesPage = lazy(() =>
+  import("./pages/accounting/BookingRulesPage").then((m) => ({
+    default: m.BookingRulesPage,
+  }))
+);
+const DunningPage = lazy(() =>
+  import("./pages/accounting/DunningPage").then((m) => ({
+    default: m.DunningPage,
+  }))
+);
 
 // James Brain sub-pages
 const JamesBrainOverviewPage = lazy(() =>
@@ -348,6 +368,10 @@ function App() {
             <Route path="/accounting/expenses" element={<ExpensesPage />} />
             <Route path="/accounting/assets" element={<AssetsPage />} />
             <Route path="/accounting/reports" element={<ReportsPage />} />
+            <Route path="/accounting/banking" element={<BankingPage />} />
+            <Route path="/accounting/recurring" element={<RecurringInvoicesPage />} />
+            <Route path="/accounting/booking-rules" element={<BookingRulesPage />} />
+            <Route path="/accounting/dunning" element={<DunningPage />} />
             <Route path="/prd" element={<PrdPage />} />
             <Route path="/prd/:id" element={<PrdDetailPage />} />
             <Route path="/second-brain" element={<SecondBrainPage />} />
