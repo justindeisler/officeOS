@@ -46,3 +46,13 @@ export type { ElsterHistoryListProps } from './ElsterHistoryList'
 
 export { ZmReportView } from './ZmReportView'
 export type { ZmReportViewProps } from './ZmReportView'
+
+// Phase 3: BWA, SuSa & Profitability Reports
+export { BWAReport } from './BWAReport'
+export type { BWAReportProps } from './BWAReport'
+
+export { SuSaReport } from './SuSaReport'
+export type { SuSaReportProps } from './SuSaReport'
+
+export { ProfitabilityDashboard } from './ProfitabilityDashboard'
+export type { ProfitabilityDashboardProps } from './ProfitabilityDashboard'

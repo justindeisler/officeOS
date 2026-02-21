@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { UstVoranmeldungList, EuerReportView, Anlageverzeichnis, AfaSummary } from "@/features/accounting/components/Reports";
+import { UstVoranmeldungList, EuerReportView, Anlageverzeichnis, AfaSummary, BWAReport, SuSaReport, ProfitabilityDashboard } from "@/features/accounting/components/Reports";
 import { ZmReportView } from "@/features/accounting/components/Reports/ZmReportView";
 import { ElsterHistoryList } from "@/features/accounting/components/Reports/ElsterHistoryList";
 import { PeriodLockManager } from "@/features/accounting/components/GoBD/PeriodLockManager";
@@ -74,6 +74,9 @@ export function ReportsPage() {
 
       <Tabs defaultValue="vat" className="w-full">
         <TabsList className="flex w-full overflow-x-auto gap-1">
+          <TabsTrigger value="bwa" className="flex-shrink-0">BWA</TabsTrigger>
+          <TabsTrigger value="susa" className="flex-shrink-0">SuSa</TabsTrigger>
+          <TabsTrigger value="profitability" className="flex-shrink-0">Rentabilität</TabsTrigger>
           <TabsTrigger value="vat" className="flex-shrink-0">VAT (USt)</TabsTrigger>
           <TabsTrigger value="euer" className="flex-shrink-0">Profit (EÜR)</TabsTrigger>
           <TabsTrigger value="assets" className="flex-shrink-0 whitespace-nowrap">Assets</TabsTrigger>
@@ -85,6 +88,18 @@ export function ReportsPage() {
           <TabsTrigger value="locks" className="flex-shrink-0">Sperren</TabsTrigger>
           <TabsTrigger value="audit" className="flex-shrink-0">Audit</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="bwa" className="mt-6">
+          <BWAReport year={selectedYear} />
+        </TabsContent>
+
+        <TabsContent value="susa" className="mt-6">
+          <SuSaReport year={selectedYear} />
+        </TabsContent>
+
+        <TabsContent value="profitability" className="mt-6">
+          <ProfitabilityDashboard year={selectedYear} />
+        </TabsContent>
 
         <TabsContent value="vat" className="mt-6">
           <UstVoranmeldungList />
