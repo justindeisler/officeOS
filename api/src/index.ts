@@ -64,6 +64,7 @@ import duplicatesRouter from "./routes/duplicates.js";
 import categorizationRouter from "./routes/categorization.js";
 import smartSuggestionsRouter from "./routes/smart-suggestions.js";
 import missingReceiptsRouter from "./routes/missing-receipts.js";
+import v1Router from "./routes/v1/index.js";
 
 // Environment validation — fail fast if critical vars are missing or weak
 // (Full validation logic in startup-validation.ts)
@@ -235,6 +236,9 @@ app.use("/api/smart-suggestions", authMiddleware, smartSuggestionsRouter);
 
 // Missing receipt alerts (protected)
 app.use("/api/missing-receipts", authMiddleware, missingReceiptsRouter);
+
+// Public REST API v1 (no auth yet — Sprint 7 will add API key authentication)
+app.use("/api/v1", v1Router);
 
 // 404 handler for unmatched API routes (must come after all API routes, before static files)
 app.all("/api/*", notFoundHandler);
