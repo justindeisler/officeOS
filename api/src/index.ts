@@ -58,6 +58,7 @@ import bankingRouter from "./routes/banking.js";
 import bookingRulesRouter from "./routes/booking-rules.js";
 import recurringInvoicesRouter from "./routes/recurring-invoices.js";
 import dunningRouter from "./routes/dunning.js";
+import bwaRouter from "./routes/bwa.js";
 
 // Environment validation — fail fast if critical vars are missing or weak
 // (Full validation logic in startup-validation.ts)
@@ -211,6 +212,9 @@ app.use("/api/invoices/recurring", authMiddleware, recurringInvoicesRouter);
 
 // Dunning (Mahnwesen) routes (protected)
 app.use("/api/dunning", authMiddleware, dunningRouter);
+
+// BWA & SUSA report routes (protected)
+app.use("/api/reports", authMiddleware, bwaRouter);
 
 // 404 handler for unmatched API routes (must come after all API routes, before static files)
 app.all("/api/*", notFoundHandler);
