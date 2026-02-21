@@ -1148,6 +1148,59 @@ describe('Assets & Depreciation API', () => {
       expect(schedule[0].depreciation_amount).toBeCloseTo(3333.33, 1);
     });
 
+    it('GWG ≤€250: auto-creates expense for Sofortabschreibung', async () => {
+      const asset = await createAsset({
+        name: 'USB Hub',
+        category: 'hardware',
+        purchase_date: '2024-03-15',
+        purchase_price: 150,
+        useful_life_years: 1,
+        salvage_value: 0,
+      });
+
+      // Should be flagged as GWG
+      expect(asset.is_gwg).toBe(true);
+      expect(asset.gwg_expense_id).toBeTruthy();
+
+      // Verify expense was created in DB
+      const expense = testDb.prepare('SELECT * FROM expenses WHERE id = ?').get(asset.gwg_expense_id) as any;
+      expect(expense).toBeTruthy();
+      expect(expense.net_amount).toBe(150);
+      expect(expense.is_gwg).toBe(1);
+      expect(expense.asset_id).toBe(asset.id);
+      expect(expense.euer_line).toBe(30);
+      expect(expense.description).toContain('GWG Sofortabschreibung');
+    });
+
+    it('GWG €250-€800: auto-creates expense for immediate write-off', async () => {
+      const asset = await createAsset({
+        name: 'Keyboard',
+        category: 'hardware',
+        purchase_date: '2024-01-01',
+        purchase_price: 500,
+        useful_life_years: 1,
+        salvage_value: 0,
+      });
+
+      expect(asset.is_gwg).toBe(true);
+      expect(asset.gwg_expense_id).toBeTruthy();
+    });
+
+    it('GWG >€800: no auto expense, regular depreciation', async () => {
+      const asset = await createAsset({
+        name: 'Monitor',
+        category: 'hardware',
+        purchase_date: '2024-01-01',
+        purchase_price: 900,
+        useful_life_years: 3,
+        salvage_value: 0,
+      });
+
+      expect(asset.is_gwg).toBeFalsy();
+      expect(asset.gwg_expense_id).toBeNull();
+      expect(asset.depreciation_schedule).toHaveLength(3);
+    });
+
     it('declining balance with longer useful life benefits from declining method', async () => {
       const asset = await createAsset({
         name: 'Declining 10yr',

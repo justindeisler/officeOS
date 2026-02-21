@@ -278,13 +278,27 @@ router.post("/", validateBody(CreateAssetSchema), asyncHandler(async (req: Reque
     category,
     purchase_date,
     purchase_price,
-    useful_life_years,
+    useful_life_years: requestedUsefulLife,
     depreciation_method = "linear",
     salvage_value = 0,
   } = req.body;
 
-  if (!name || !category || !purchase_date || purchase_price === undefined || !useful_life_years) {
+  if (!name || !category || !purchase_date || purchase_price === undefined || !requestedUsefulLife) {
     throw new ValidationError("name, category, purchase_date, purchase_price, and useful_life_years are required");
+  }
+
+  // GWG detection: assets ≤€800 net get immediate write-off (1-year useful life)
+  // unless the caller explicitly sets a longer useful life
+  const isGwg = purchase_price <= 800;
+  const isSofortabschreibung = purchase_price <= 250;
+  
+  // For GWG ≤€250: always immediate write-off (Sofortabschreibung)
+  // For GWG €250-€800: use 1-year schedule unless caller specified > 1 year
+  let useful_life_years = requestedUsefulLife;
+  if (isSofortabschreibung) {
+    useful_life_years = 1;
+  } else if (isGwg && requestedUsefulLife <= 1) {
+    useful_life_years = 1;
   }
 
   const id = generateId();
@@ -314,10 +328,34 @@ router.post("/", validateBody(CreateAssetSchema), asyncHandler(async (req: Reque
     db, id, purchase_date, purchase_price, useful_life_years, salvage_value, depreciation_method
   );
 
+  // For GWG with immediate write-off, auto-create an expense entry
+  let gwgExpenseId: string | null = null;
+  if (isGwg && useful_life_years === 1) {
+    gwgExpenseId = generateId();
+    db.prepare(
+      `INSERT INTO expenses (
+        id, date, vendor, description, category, net_amount, vat_rate,
+        vat_amount, gross_amount, euer_line, euer_category, is_gwg, asset_id, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, 30, 'depreciation', 1, ?, ?)`
+    ).run(
+      gwgExpenseId,
+      purchase_date,
+      null,
+      `GWG Sofortabschreibung: ${name}`,
+      'depreciation',
+      purchase_price,
+      purchase_price,
+      id,
+      now
+    );
+  }
+
   const asset = db.prepare("SELECT * FROM assets WHERE id = ?").get(id) as AssetRow;
   res.status(201).json({
     ...asset,
     depreciation_schedule: schedule,
+    is_gwg: isGwg,
+    gwg_expense_id: gwgExpenseId,
   });
 }));
 
