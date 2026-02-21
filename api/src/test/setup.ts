@@ -236,7 +236,16 @@ const SCHEMA = `
     created_at TEXT NOT NULL,
     disposal_date TEXT,
     disposal_price REAL,
-    disposal_reason TEXT
+    disposal_reason TEXT,
+    vendor TEXT,
+    vat_paid REAL DEFAULT 0,
+    gross_price REAL,
+    inventory_number TEXT,
+    location TEXT,
+    bill_path TEXT,
+    euer_line INTEGER DEFAULT 30,
+    euer_category TEXT DEFAULT 'depreciation',
+    afa_start_date TEXT
   );
 
   CREATE TABLE IF NOT EXISTS depreciation_schedule (

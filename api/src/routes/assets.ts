@@ -32,6 +32,15 @@ interface AssetRow {
   disposal_date: string | null;
   disposal_price: number | null;
   disposal_reason: string | null;
+  vendor: string | null;
+  vat_paid: number;
+  gross_price: number | null;
+  inventory_number: string | null;
+  location: string | null;
+  bill_path: string | null;
+  euer_line: number;
+  euer_category: string;
+  afa_start_date: string | null;
   created_at: string;
 }
 
@@ -281,6 +290,15 @@ router.post("/", validateBody(CreateAssetSchema), asyncHandler(async (req: Reque
     useful_life_years: requestedUsefulLife,
     depreciation_method = "linear",
     salvage_value = 0,
+    vendor,
+    vat_paid,
+    gross_price,
+    inventory_number,
+    location: assetLocation,
+    bill_path,
+    euer_line = 30,
+    euer_category = "depreciation",
+    afa_start_date,
   } = req.body;
 
   if (!name || !category || !purchase_date || purchase_price === undefined || !requestedUsefulLife) {
@@ -304,12 +322,18 @@ router.post("/", validateBody(CreateAssetSchema), asyncHandler(async (req: Reque
   const id = generateId();
   const now = getCurrentTimestamp();
 
+  // Calculate VAT and gross price if not provided
+  const finalVatPaid = vat_paid ?? Math.round(purchase_price * 0.19 * 100) / 100;
+  const finalGrossPrice = gross_price ?? Math.round((purchase_price + finalVatPaid) * 100) / 100;
+  const finalAfaStartDate = afa_start_date || purchase_date;
+
   db.prepare(
     `INSERT INTO assets (
       id, name, description, category, purchase_date, purchase_price,
       useful_life_years, depreciation_method, salvage_value, current_value,
-      status, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)`
+      status, vendor, vat_paid, gross_price, inventory_number, location,
+      bill_path, euer_line, euer_category, afa_start_date, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     name,
@@ -321,6 +345,15 @@ router.post("/", validateBody(CreateAssetSchema), asyncHandler(async (req: Reque
     depreciation_method,
     salvage_value,
     purchase_price,
+    vendor || null,
+    finalVatPaid,
+    finalGrossPrice,
+    inventory_number || null,
+    assetLocation || null,
+    bill_path || null,
+    euer_line,
+    euer_category,
+    finalAfaStartDate,
     now
   );
 
@@ -371,7 +404,11 @@ router.patch("/:id", validateBody(UpdateAssetSchema), asyncHandler(async (req: R
     throw new NotFoundError("Asset", id);
   }
 
-  const fields = ["name", "description", "category", "status"];
+  const fields = [
+    "name", "description", "category", "status",
+    "vendor", "inventory_number", "location", "bill_path",
+    "euer_line", "euer_category",
+  ];
   const updates: string[] = [];
   const params: unknown[] = [];
 

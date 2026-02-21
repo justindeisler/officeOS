@@ -642,6 +642,15 @@ export const CreateAssetSchema = z.object({
   useful_life_years: z.coerce.number().int().positive('useful_life_years is required'),
   depreciation_method: z.string().optional().default('linear'),
   salvage_value: z.coerce.number().optional().default(0),
+  vendor: z.string().nullable().optional(),
+  vat_paid: z.coerce.number().nullable().optional(),
+  gross_price: z.coerce.number().nullable().optional(),
+  inventory_number: z.string().nullable().optional(),
+  location: z.string().nullable().optional(),
+  bill_path: z.string().nullable().optional(),
+  euer_line: z.coerce.number().optional().default(30),
+  euer_category: z.string().optional().default('depreciation'),
+  afa_start_date: z.string().nullable().optional(),
 }).strip();
 
 export type CreateAsset = z.infer<typeof CreateAssetSchema>;
@@ -656,6 +665,15 @@ export const UpdateAssetSchema = z.object({
   useful_life_years: z.coerce.number().int().positive().optional(),
   depreciation_method: z.string().optional(),
   salvage_value: z.coerce.number().optional(),
+  vendor: z.string().nullable().optional(),
+  vat_paid: z.coerce.number().nullable().optional(),
+  gross_price: z.coerce.number().nullable().optional(),
+  inventory_number: z.string().nullable().optional(),
+  location: z.string().nullable().optional(),
+  bill_path: z.string().nullable().optional(),
+  euer_line: z.coerce.number().optional(),
+  euer_category: z.string().optional(),
+  afa_start_date: z.string().nullable().optional(),
 }).strip();
 
 export type UpdateAsset = z.infer<typeof UpdateAssetSchema>;
