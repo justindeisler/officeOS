@@ -557,6 +557,39 @@ const SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS idx_period_locks_key ON period_locks(period_key);
 
+  -- ELSTER submissions
+  CREATE TABLE IF NOT EXISTS elster_submissions (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL,
+    period TEXT NOT NULL,
+    status TEXT DEFAULT 'draft',
+    xml_content TEXT,
+    response_xml TEXT,
+    transfer_ticket TEXT,
+    error_message TEXT,
+    tax_data TEXT,
+    submitted_at TEXT,
+    accepted_at TEXT,
+    submitted_by TEXT DEFAULT 'system',
+    test_mode INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_elster_type ON elster_submissions(type);
+  CREATE INDEX IF NOT EXISTS idx_elster_period ON elster_submissions(period);
+
+  CREATE TABLE IF NOT EXISTS elster_certificates (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL,
+    name TEXT NOT NULL,
+    certificate_data TEXT,
+    fingerprint TEXT,
+    valid_from TEXT,
+    valid_until TEXT,
+    is_active INTEGER DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   -- GoBD: Sequence Counters
   CREATE TABLE IF NOT EXISTS sequence_counters (
     prefix TEXT PRIMARY KEY,
